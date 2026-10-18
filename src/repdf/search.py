@@ -6,11 +6,18 @@ from statistics import median
 import regex
 
 
-def compile_query(query, regular_expression=False, case_sensitive=False):
+def compile_query(query, regular_expression=False, case_sensitive=False, whole_word=False):
     if not query:
         raise ValueError('empty_query')
-    return regex.compile(query if regular_expression else regex.escape(query),
-                         0 if case_sensitive else regex.IGNORECASE)
+    source = query if regular_expression else regex.escape(query)
+    flags = 0 if case_sensitive else regex.IGNORECASE
+    pattern = regex.compile(source, flags)
+    if whole_word:
+        # End a possible verbose-mode trailing comment before closing our group.
+        if pattern.flags & regex.VERBOSE:
+            source += '\n'
+        pattern = regex.compile(r'(?<!\w)(?:' + source + r')(?!\w)', flags)
+    return pattern
 
 
 def _bounds(entries):
@@ -58,11 +65,16 @@ def _lines(textpage):
         if box and entries:
             previous = next((b for _, b in reversed(entries) if b), None)
             if previous:
-                heights = max(box[3] - box[1], previous[3] - previous[1])
+                line_bounds = _bounds(entries)
+                heights = max(box[3] - box[1], line_bounds[3] - line_bounds[1])
                 widths = [b[2] - b[0] for _, b in entries[-32:] if b]
                 if not widths:
                     widths = [previous[2] - previous[0]]
-                different_row = abs((box[1] + box[3] - previous[1] - previous[3]) / 2) > heights * .5
+                # Small low glyphs (notably underscores) still belong to the
+                # surrounding line; compare against its full vertical extent.
+                vertical_gap = max(line_bounds[1] - box[3], box[1] - line_bounds[3])
+                different_row = (abs((box[1] + box[3] - line_bounds[1] - line_bounds[3]) / 2) > heights * .5
+                                 and vertical_gap > heights * .25)
                 column_gap = box[0] - previous[2] > 3 * median(widths)
                 if different_row or column_gap:
                     flush()
@@ -147,7 +159,8 @@ def search_page(page, pattern):
 
 def search_document(request, emit):
     import pypdfium2 as pdfium
-    pattern = compile_query(request['query'], request['regular_expression'], request['case_sensitive'])
+    pattern = compile_query(request['query'], request['regular_expression'], request['case_sensitive'],
+                            request.get('whole_word', False))
     with closing(pdfium.PdfDocument(request['source'], password=request.get('password'))) as document:
         pages = request['pages']
         for position, index in enumerate(pages):

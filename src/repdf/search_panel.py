@@ -99,11 +99,13 @@ class SearchPanel(QWidget):
         options.addWidget(self.scope, 1)
         self.regular_expression = self._button('regex', '規則表達式')
         self.case_sensitive = self._button('case_sensitive', '區分大小寫')
-        for button in (self.regular_expression, self.case_sensitive):
+        self.whole_word = self._button('whole_word', '僅限單字')
+        for button in (self.regular_expression, self.case_sensitive, self.whole_word):
             button.setObjectName('searchOptionButton')
             button.setCheckable(True)
         options.addWidget(self.regular_expression)
         options.addWidget(self.case_sensitive)
+        options.addWidget(self.whole_word)
         layout.addWidget(self.options_box)
         status_row = QHBoxLayout()
         self.compact_options = self._button('more', '選項')
@@ -121,7 +123,7 @@ class SearchPanel(QWidget):
             action.triggered.connect(lambda _checked=False, index=i: self.scope.setCurrentIndex(index))
             self.scope_actions.append(action)
         self.scope.currentIndexChanged.connect(lambda index: self.scope_actions[index].setChecked(True))
-        for button in (self.regular_expression, self.case_sensitive):
+        for button in (self.regular_expression, self.case_sensitive, self.whole_word):
             action = QAction(button.text(), menu)
             action.setCheckable(True)
             action.toggled.connect(button.setChecked)
@@ -302,7 +304,8 @@ class SearchController(QObject):
             p.status.setText(tr('請輸入搜尋文字'))
             return
         try:
-            compile_query(query, p.regular_expression.isChecked(), p.case_sensitive.isChecked())
+            compile_query(query, p.regular_expression.isChecked(), p.case_sensitive.isChecked(),
+                          p.whole_word.isChecked())
         except Exception as exc:
             p.status.setText(tr('規則表達式無效：{p0}', p0=exc))
             return
@@ -320,7 +323,7 @@ class SearchController(QObject):
         self.order = [doc.document_id for doc in documents]
         self.page_orders = {doc.document_id: list(doc.page_order) for doc in documents}
         self.params = {'query': query, 'regular_expression': p.regular_expression.isChecked(),
-                       'case_sensitive': p.case_sensitive.isChecked()}
+                       'case_sensitive': p.case_sensitive.isChecked(), 'whole_word': p.whole_word.isChecked()}
         self.pending = set(self.order)
         self._launch()
 

@@ -23,7 +23,7 @@ def test_sidebar_icon_buttons_and_single_line_results(qtbot):
     panel.resize(320, 420)
     panel.show()
     for button in (panel.search_button, panel.stop_button, panel.close_button, panel.compact_options,
-                   panel.regular_expression, panel.case_sensitive):
+                   panel.regular_expression, panel.case_sensitive, panel.whole_word):
         assert button.size() == QSize(34, 34)
         assert button.iconSize() == QSize(20, 20)
         assert not button.icon().isNull()
@@ -38,7 +38,7 @@ def test_sidebar_icon_buttons_and_single_line_results(qtbot):
     assert panel.scope.geometry().center().y() == panel.regular_expression.geometry().center().y()
     assert panel.regular_expression.geometry().top() == panel.case_sensitive.geometry().top()
     actions = panel.compact_options.menu().actions()
-    for button, action in zip((panel.regular_expression, panel.case_sensitive), actions[1:]):
+    for button, action in zip((panel.regular_expression, panel.case_sensitive, panel.whole_word), actions[1:]):
         assert button.isCheckable() and not button.isChecked()
         qtbot.mouseClick(button, Qt.MouseButton.LeftButton)
         assert button.isChecked() and action.isChecked()
@@ -79,10 +79,45 @@ def search_pdf(path, pages=None, rotation=0, crop=False):
     writer.write(path)
 
 
-def results(path, query, regex=False, case=False):
+def results(path, query, regex=False, case=False, whole_word=False):
     with closing(pdfium.PdfDocument(str(path))) as pdf:
         with closing(pdf[0]) as page:
-            return search_page(page, compile_query(query, regex, case))
+            return search_page(page, compile_query(query, regex, case, whole_word))
+
+
+def test_whole_word_unicode_case_and_regex():
+    text = 'cat Cat catalog scatter cat_ cat2 2cat écat caté cat\u0301 (cat)'
+    pattern = compile_query('cat', whole_word=True)
+    assert [m.group() for m in pattern.finditer(text)] == ['cat', 'Cat', 'cat']
+    assert len(list(compile_query('cat', case_sensitive=True, whole_word=True).finditer(text))) == 2
+    assert [m.group() for m in compile_query('cat|dog', True, whole_word=True).finditer('cats cat dog dogma')] == ['cat', 'dog']
+    assert compile_query('中文', whole_word=True).search('這是中文') is None
+    assert compile_query('中文', whole_word=True).search('中文。')
+    assert compile_query('C++', whole_word=True).search('C++ guide')
+    assert compile_query('(?x) cat # comment', True, whole_word=True).search('cat')
+    assert not compile_query('(?x) cat # comment', True, whole_word=True).search('catalog')
+
+
+def test_whole_word_backend_and_ui_option(qtbot, tmp_path, monkeypatch):
+    monkeypatch.setattr(DocumentView, '_queue_all_renders', lambda self: None)
+    path = tmp_path / 'words.pdf'
+    search_pdf(path, [[(20, 340, 'cat catalog scatter cat_ cat2 Cat')]])
+    assert sum(p['count'] for p in results(path, 'cat', whole_word=True)[0]) == 2
+    window = MainWindow()
+    qtbot.addWidget(window)
+    loaded_document(window, path)
+    c = window.search_controller
+    c.panel.query.setText('cat')
+    c.panel.whole_word.setChecked(True)
+    c.start()
+    wait_search(qtbot, c)
+    assert c.params['whole_word']
+    paragraphs = c.results[c.order[0]][0]
+    assert sum(p['count'] for p in paragraphs) == 2
+    c.panel.whole_word.setChecked(False)
+    c.start()
+    wait_search(qtbot, c)
+    assert sum(p['count'] for p in c.results[c.order[0]][0]) == 6
 
 
 def test_literal_case_regex_and_paragraph_grouping(tmp_path):
