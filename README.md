@@ -13,7 +13,9 @@ RePDF 是 **Rearrange PDF** 的意思，命令名稱與 Python 套件名稱為 `
 
 既有 `v0.0.7` 及較早的 Release 仍使用 `PDFPick` 檔名與 `PDFPick.app`，`v0.0.8` 的 macOS App 名稱為 `repdf.app`；自 `v0.0.9` 起 App 名稱為 `RePDF.app`，命令與發布檔案前綴仍為 `repdf`。
 
-Release 同時提供 SHA256 校驗檔。簽章與打包資訊見下方「Windows 執行檔與 macOS App／DMG」。
+- Release 同時提供 SHA256 校驗檔。
+- 桌面套件已包含 OCR 執行環境與模型，不需要額外安裝。
+- 目前未設定 Windows 程式碼簽章或 macOS Developer ID 簽章／公證，下載後可能出現系統安全提示。
 
 ### 2. 使用 uv tool 安裝
 
@@ -24,7 +26,10 @@ uv tool install repdf
 repdf
 ```
 
-需要 Python 3.11 以上版本；uv 可在需要時下載適用的 Python。也可使用 Release 的 `repdf` wheel 下載網址安裝。若終端機找不到 `repdf`，執行 `uv tool update-shell` 後重新開啟終端機。既有舊版 wheel 仍安裝為 `pdfpick` 指令。
+- 需要 Python 3.11 以上版本；uv 可在需要時下載適用的 Python。
+- 也可使用 Release 的 `repdf` wheel 下載網址安裝。
+- 若終端機找不到 `repdf`，執行 `uv tool update-shell` 後重新開啟終端機。
+- 既有舊版 wheel 仍安裝為 `pdfpick` 指令。
 
 ### 3. 從原始碼使用 uv run
 
@@ -41,43 +46,86 @@ uv run repdf
 
 | 工具列圖示／控制元件 | 功能 | 操作說明 | 快捷鍵 |
 | --- | --- | --- | --- |
-| <img src="docs/images/toolbar-open.png" width="24" alt="開啟 PDF 圖示"> | 開啟 PDF | 一次選取多個 PDF，也可從檔案總管拖入。 | Ctrl+O |
-| <img src="docs/images/toolbar-export.png" width="24" alt="重組輸出圖示"> | 重組輸出 | 將選取頁面依目前順序合併為一個新 PDF，指定檔名與儲存位置。 | Ctrl+S／Ctrl+Shift+S |
+| <img src="docs/images/toolbar-open.png" width="24" alt="開啟 PDF 圖示"> | 開啟 PDF | 一次選取多個 PDF，也可從檔案總管拖入。 | <kbd>Ctrl</kbd>+<kbd>O</kbd> |
+| <img src="docs/images/toolbar-export.png" width="24" alt="重組輸出圖示"> | 重組輸出 | 將選取頁面依目前順序合併為一個新 PDF，指定檔名與儲存位置。 | <kbd>Ctrl</kbd>+<kbd>S</kbd>／<kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>S</kbd> |
 | <img src="docs/images/toolbar-split.png" width="24" alt="拆分輸出圖示"> | 拆分輸出 | 將選取頁面依目前順序逐頁存成獨立 PDF，指定基本檔名與儲存位置。 | — |
 | <img src="docs/images/toolbar-odd.png" height="22" alt="單數頁核取方塊"> | 單數頁 | 選取或取消目前標籤的原始單數頁；部分選取時顯示三態標記。 | — |
 | <img src="docs/images/toolbar-even.png" height="22" alt="雙數頁核取方塊"> | 雙數頁 | 選取或取消目前標籤的原始雙數頁；部分選取時顯示三態標記。 | — |
-| <img src="docs/images/toolbar-copy-text.png" width="24" alt="複製文字圖示"> | 複製文字 | 點擊切換文字模式，啟用時按鈕會顯示選取底色。拖曳時實際選到的字會以螢光筆標示；放開滑鼠即複製到剪貼簿。關閉後恢復拖放排序；掃描影像需先經 OCR。全螢幕預覽也適用。 | — |
-| <img src="docs/images/toolbar-ocr-region.png" width="24" alt="區域 OCR 圖示"> | 區域 OCR | 與複製文字模式互斥。拖曳矩形框選頁面或圖片，放開滑鼠後辨識並複製文字；一般與全螢幕預覽皆可使用。空白範圍保留原剪貼簿。 | — |
-| <img src="docs/images/toolbar-extract-image.png" width="24" alt="擷取圖片圖示"> | 擷取圖片 | 切換後以滑鼠點選內嵌點陣圖片，再選擇位置另存為 PNG。一般與全螢幕預覽皆可使用，與複製文字、區域 OCR 模式互斥。 | — |
-| <img src="docs/images/toolbar-zoom.png" width="160" alt="顯示比例與縮放滑桿"> | 顯示比例 | 滑桿調整 25%–200%；點擊比例回到 100%。鍵盤縮放每次調整 25 個百分點，完整說明在比例的 tooltip。 | 放大：Ctrl++／Ctrl+=；縮小：Ctrl+-；100%：Ctrl+0 |
+| <img src="docs/images/toolbar-copy-text.png" width="24" alt="複製文字圖示"> | 複製文字 | 啟用後拖曳選取文字，放開滑鼠即複製到剪貼簿；選取的文字會顯示高亮。 | — |
+| <img src="docs/images/toolbar-ocr-region.png" width="24" alt="區域 OCR 圖示"> | 區域 OCR | 拖曳矩形框選頁面或圖片，放開滑鼠後辨識並複製文字。 | — |
+| <img src="docs/images/toolbar-extract-image.png" width="24" alt="擷取圖片圖示"> | 擷取圖片 | 啟用後點選內嵌點陣圖片，再選擇位置另存為 PNG。 | — |
+| <img src="docs/images/toolbar-zoom.png" width="160" alt="顯示比例與縮放滑桿"> | 顯示比例 | 滑桿調整 25%–200%；點擊比例回到 100%。鍵盤縮放每次調整 25 個百分點。 | 放大：<kbd>Ctrl</kbd>+<kbd>+</kbd>／<kbd>Ctrl</kbd>+<kbd>=</kbd>；縮小：<kbd>Ctrl</kbd>+<kbd>-</kbd>；100%：<kbd>Ctrl</kbd>+<kbd>0</kbd> |
 | <img src="docs/images/toolbar-fit.png" width="24" alt="Fit 圖示"> | Fit | 將目前單頁等比例縮放至預覽區；調整視窗大小時自動適應。拖動滑桿或使用縮放快捷鍵會回到手動比例。 | — |
-| <img src="docs/images/toolbar-fullscreen.png" width="24" alt="全螢幕單頁圖示"> | 全螢幕單頁 | 每次顯示一頁，依螢幕寬度或高度等比例填滿；可用頁面上方的核取方塊選頁。 | F11 開啟／返回；Esc 返回 |
-| <img src="docs/images/toolbar-fullscreen-spread.png" width="24" alt="全螢幕對頁圖示"> | 全螢幕對頁 | 依目前順序兩頁並排：第 1、2 頁一組，第 3、4 頁一組，以此類推；每頁可獨立勾選。 | Esc／F11 返回 |
-| <img src="docs/images/toolbar-fullscreen-cover.png" width="24" alt="全螢幕封面加對頁圖示"> | 全螢幕封面＋對頁 | 目前順序的第一頁作為封面單獨顯示；第 2、3 頁一組，第 4、5 頁一組，以此類推；每頁可獨立勾選。 | Esc／F11 返回 |
+| <img src="docs/images/toolbar-fullscreen.png" width="24" alt="全螢幕單頁圖示"> | 全螢幕單頁 | 每次顯示一頁，依螢幕寬度或高度等比例填滿；可用頁面上方的核取方塊選頁。 | <kbd>F11</kbd> 開啟／返回；<kbd>Esc</kbd> 返回 |
+| <img src="docs/images/toolbar-fullscreen-spread.png" width="24" alt="全螢幕對頁圖示"> | 全螢幕對頁 | 依目前順序兩頁並排：第 1、2 頁一組，第 3、4 頁一組，以此類推；每頁可獨立勾選。 | <kbd>Esc</kbd>／<kbd>F11</kbd> 返回 |
+| <img src="docs/images/toolbar-fullscreen-cover.png" width="24" alt="全螢幕封面加對頁圖示"> | 全螢幕封面＋對頁 | 目前順序的第一頁作為封面單獨顯示；第 2、3 頁一組，第 4、5 頁一組，以此類推；每頁可獨立勾選。 | <kbd>Esc</kbd>／<kbd>F11</kbd> 返回 |
 | <img src="docs/images/toolbar-language-system.png" width="24" alt="跟隨系統語言"> <img src="docs/images/toolbar-language-zh.png" width="24" alt="繁體中文"> <img src="docs/images/toolbar-language-en.png" width="24" alt="English"> | 介面語言 | 點擊依序切換「跟隨系統 → 繁體中文 → English」，選擇會記住。 | — |
 | <img src="docs/images/toolbar-theme-system.png" width="24" alt="跟隨系統配色：左白右黑圓形"> <img src="docs/images/toolbar-theme-light.png" width="24" alt="淺色：太陽"> <img src="docs/images/toolbar-theme-dark.png" width="24" alt="深色：月亮"> | 介面配色 | 點擊依序切換「跟隨系統 → 淺色 → 深色」，選擇會記住。 | — |
 
-各檔案以主檔名顯示在標籤頁，完整路徑顯示於標籤 tooltip；視窗標題列只顯示 `RePDF` 與版本編號。同一路徑再次開啟會切換到既有標籤。預覽頁面水平置中，Fit 使用單欄顯示。各檔案獨立保留比例、捲動位置、選頁與頁面排序；100% 對應 Windows 的 96 DPI 顯示尺度。
+### 開啟與切換檔案
 
-Fit 與全螢幕優先使用最近點擊且仍可見的頁面；未指定時使用預覽區中央附近的頁面。Fit 的適應比例可超出滑桿的手動範圍，實際比例仍顯示於工具列。
+- 檔案以主檔名顯示在標籤頁；將游標停在標籤上可查看完整路徑。
+- 視窗標題列顯示 `RePDF` 與版本編號。
+- 再次開啟同一路徑的檔案，會切換到既有標籤。
+- 各檔案獨立保留比例、捲動位置、選頁與頁面排序。
+- 下一個標籤（Windows／Linux）：<kbd>Ctrl</kbd>+<kbd>Tab</kbd>。
+- 上一個標籤（Windows／Linux）：<kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>Tab</kbd>。
+- 標籤依排列順序循環切換；焦點在預覽、頁面核取方塊或工具列控制項時也可使用。
+- 關閉標籤：點標籤右側的 ×；Windows／Linux 可按 <kbd>Ctrl</kbd>+<kbd>W</kbd>，Windows 另支援 <kbd>Ctrl</kbd>+<kbd>F4</kbd>，macOS 為 <kbd>⌘</kbd>+<kbd>W</kbd>。
+- 關閉按鈕的 tooltip 會顯示目前平台適用的快捷鍵。
 
-擷取圖片會輸出完整內嵌點陣圖片，保留原始像素尺寸並套用透明遮罩，不受預覽縮放影響；不套用頁面上的旋轉或裁切，也不包含周圍文字與向量圖形。點到空白處會顯示提示；同一位置有多張圖片時選取最後繪製的圖片。掃描頁面通常會擷取整張掃描圖，無法從中直接分離照片或圖表。
+### 預覽與縮放
 
-方向鍵及 Page Up／Page Down 固定操作預覽區，即使縮放滑桿有焦點也不會改變比例：一般預覽時方向鍵捲動、Page Up／Page Down 捲動一個畫面；Fit 時從目前可見頁面依順序切換上一頁／下一頁，第一頁與最後一頁不會越界，反向按一次即可切頁。全螢幕時左／上／Page Up 顯示上一頁或上一組，右／下／Page Down 顯示下一頁或下一組。對頁以同一比例完整顯示兩頁，最後剩一頁時單獨顯示。
+- 預覽頁面水平置中；Fit 使用單欄顯示。
+- 100% 對應 Windows 的 96 DPI 顯示尺度。
+- Fit 與全螢幕優先使用最近點擊且仍可見的頁面；未指定時使用預覽區中央附近的頁面。
+- Fit 的適應比例可超出滑桿的手動範圍，實際比例仍顯示於工具列。
+- 滑桿的手動範圍為 25%–200%；完整縮放說明可查看比例按鈕的 tooltip。
+- 全螢幕對頁以同一比例完整顯示兩頁，最後剩一頁時單獨顯示。
+- 返回主視窗後，保留原有縮放比例。
 
-Home／End 依目前頁面排列順序跳至第一頁／最後一頁；一般預覽、Fit 與全螢幕皆適用，焦點在縮放滑桿或頁面核取方塊上也可操作。全螢幕對頁及封面＋對頁模式則跳至第一組／最後一組。
+### 鍵盤捲動與切頁
 
-主視窗可使用平台慣用的標籤頁切換快捷鍵（Windows／Linux：Ctrl+Tab 下一個、Ctrl+Shift+Tab 上一個），依目前標籤排列順序循環切換；最後一個的下一個為第一個，第一個的上一個為最後一個。焦點在預覽、頁面核取方塊或工具列控制項上也可使用。
+- 一般預覽：<kbd>←</kbd>、<kbd>↑</kbd>、<kbd>→</kbd>、<kbd>↓</kbd> 捲動畫面；<kbd>Page Up</kbd>／<kbd>Page Down</kbd> 捲動一個畫面。
+- Fit 模式：上述按鍵依序切換上一頁／下一頁，以目前可見頁面為起點。
+- Fit 模式到達第一頁或最後一頁時不會越界，反向按一次即可切頁。
+- 全螢幕上一頁／上一組：<kbd>←</kbd>、<kbd>↑</kbd> 或 <kbd>Page Up</kbd>。
+- 全螢幕下一頁／下一組：<kbd>→</kbd>、<kbd>↓</kbd> 或 <kbd>Page Down</kbd>。
+- 跳至第一頁／最後一頁：<kbd>Home</kbd>／<kbd>End</kbd>，依目前頁面排列順序跳轉；全螢幕對頁與封面＋對頁則跳至第一組／最後一組。
+- 以上按鍵在縮放滑桿或頁面核取方塊取得焦點時仍可操作預覽區，不會改動縮放比例。
 
-全螢幕的核取方塊會同步主視窗的選頁，返回後即可重組或拆分，原有縮放比例保留。核取方塊取得焦點後也可用空白鍵勾選。
+### 選頁與拖曳排序
 
-點選各頁左上角的核取方塊可個別選頁。拖曳頁面縮圖或「拖曳排序」把手時，縮圖會跟隨游標，其他頁面以動畫移開並顯示插入空位。移到頁面左半部可插入其前方，右半部可插入其後方；放開確認排序，按 Esc 取消。
+- 點各頁左上角的核取方塊可個別選頁；核取方塊取得焦點後，也可按 <kbd>Space</kbd> 勾選。
+- 全螢幕核取方塊會同步主視窗的選頁，返回後即可重組或拆分。
+- 拖曳頁面縮圖或「拖曳排序」把手，可調整頁面順序。
+- 拖曳時縮圖會跟隨游標，其他頁面以動畫移開並顯示插入空位。
+- 移到頁面左半部插入其前方，右半部插入其後方。
+- 放開滑鼠確認排序；按 <kbd>Esc</kbd> 取消。
 
-拆分時，例如指定 `report.pdf`，會輸出 `report_01.pdf`、`report_02.pdf`。序號從 1 開始，至少兩位，依本次輸出總數補零對齊（100 頁使用 `001`–`100`），與原始頁碼無關。已存在的單頁檔案會先詢問是否覆蓋。
+### 重組與拆分輸出
 
-標籤左側核取方塊預設不勾選。有勾選標籤時，只輸出勾選檔案的已選頁面；沒有勾選任何標籤時，只輸出目前標籤的已選頁面。勾選檔案沒有選頁時不提供輸出頁面，不會自動改選目前檔案。拖曳標籤可調整檔案順序，輸出先依標籤順序，再依各檔內的頁面排序；拆分序號跨檔連續。按標籤右側的 × 或使用系統慣用快捷鍵可關閉目前標籤：Windows／Linux 為 Ctrl+W，Windows 也支援 Ctrl+F4；macOS 為 ⌘W。關閉按鈕的 tooltip 會顯示目前平台適用的快捷鍵。
+- 標籤左側的核取方塊預設不勾選。
+- 有勾選標籤：只輸出勾選檔案的已選頁面。
+- 沒有勾選任何標籤：只輸出目前標籤的已選頁面。
+- 勾選檔案沒有選頁時，不提供輸出頁面，也不會自動改選目前檔案。
+- 拖曳標籤可調整檔案順序；輸出先依標籤順序，再依各檔內的頁面排序，未勾選的頁面不會輸出。
+- 拆分指定 `report.pdf` 時，會輸出 `report_01.pdf`、`report_02.pdf` 等檔案。
+- 拆分序號跨檔連續、從 1 開始，至少兩位；依本次輸出總數補零對齊，例如 100 頁使用 `001`–`100`，與原始頁碼無關。
+- 已存在的單頁檔案會先詢問是否覆蓋。
+- 暫不支援密碼保護的 PDF。
 
-密碼保護的 PDF 暫不支援。輸出頁面依畫面排列順序；未勾選的頁面不會輸出。
+### 複製文字、區域 OCR 與擷取圖片
+
+- 三種模式互斥；一般預覽與全螢幕皆可使用。
+- 啟用時按鈕會顯示選取底色；關閉後恢復拖放排序。
+- 複製文字：啟用後拖曳選取，放開滑鼠即可複製；掃描影像中的文字請使用區域 OCR。
+- 區域 OCR：啟用後拖曳矩形範圍，放開滑鼠後辨識並複製；空白範圍保留原剪貼簿。
+- 擷取圖片：啟用後點選內嵌點陣圖片，再選擇位置另存為 PNG。
+- 圖片保留原始像素尺寸並套用透明遮罩，不受預覽縮放影響。
+- 輸出完整內嵌圖片，不套用頁面上的旋轉或裁切，也不包含周圍文字與向量圖形。
+- 點到空白處會顯示提示；同一位置有多張圖片時，選取最後繪製的圖片。
+- 掃描頁面通常會擷取整張掃描圖，無法從中直接分離照片或圖表。
 
 ## 語言與配色
 
@@ -86,11 +134,16 @@ Home／End 依目前頁面排列順序跳至第一頁／最後一頁；一般預
 - 介面語言：跟隨系統 → 繁體中文 → English → 跟隨系統。系統顯示語言為中文時使用繁體中文，其他語言使用 English；tooltip 顯示目前模式與實際語言。
 - 介面配色：跟隨系統 → 淺色 → 深色 → 跟隨系統。手動指定配色後不受系統配色變化影響，回到系統模式則即時跟隨。
 
-選擇會記住，重新啟動仍保留。切換語言會更新既有頁面標籤、工具列、tooltip、狀態與對話框，不改動檔名、選頁、頁序或比例。檔案對話框採用 Qt 介面，讓按鈕與欄位也能跟隨指定的中英文語言。
+- 語言與配色的選擇會記住，重新啟動仍保留。
+- 切換語言會更新既有頁面標籤、工具列、tooltip、狀態與對話框。
+- 切換語言不改動檔名、選頁、頁序或比例。
+- 檔案對話框採用 Qt 介面，按鈕與欄位會跟隨指定的中英文語言。
 
 ## 測試
 
-文字選取的 OCR 備援與手動區域辨識，操作與限制見 [OCR 說明](docs/OCR.md)。
+- 文字選取的 OCR 備援與手動區域辨識共用多語言模型。
+- 支援繁／簡中文、英文、日文及多種拉丁字母語言，目前模型不支援韓文。
+- 專案的辨識品質測試主要集中在中英文；完整語言說明、操作與限制見 [OCR 說明](docs/OCR.md)。
 
 ```powershell
 uv run pytest
@@ -98,16 +151,6 @@ uv run pytest
 
 ## 開發與維護
 
-目前架構、背景預覽協定、縮放定義、輸出安全機制與修改入口整理於 [實作與維護指南](docs/IMPLEMENTATION.md)。
-
-工具列、按鈕、圖示筆畫、字型與深淺配色的實際規格，整理於 [UI 設計參考](docs/UI_DESIGN.md)，可供其他專案移植。
-
-## Windows 執行檔與 macOS App／DMG
-
-GitHub Actions 的「Build desktop apps」在 Release 發佈時打包，也可在 Actions 頁面以 Run workflow 手動執行並指定分支或標籤；填入 `release_tag` 時會依該標籤建置並附加到指定 Release。一般開發只執行原始碼與測試，不在本機打包。Release 的標籤必須包含打包設定檔。
-
-產物包含 Windows x86_64 單一 EXE、macOS Apple Silicon（arm64）DMG，以及 SHA256 校驗檔。手動執行的產物可從 Actions 的 Artifacts 下載；Release 發佈時會自動附加到該 Release。DMG 中可將 RePDF.app 拖入 Applications，不需要另外安裝 Python。OCR 執行環境與模型皆隨桌面套件提供。
-
-目前未設定 Windows 程式碼簽章或 macOS Developer ID 簽章／公證，因此下載後可能出現系統的安全提示；這些套件並非已公證的 macOS 發行版。
-
-打包全程在 GitHub 雲端環境執行。流程會先驗證 Qt、圖示、OCR、背景 PDF 渲染與重排輸出；macOS 使用系統內建的 ditto 與 hdiutil 建立並驗證 DMG。Actions 產物保留 30 天。「Publish to PyPI」也在雲端依版本標籤建置 wheel 與原始碼套件，上傳 Release 後發布至 PyPI。
+- 架構、背景預覽協定、縮放定義、輸出安全機制與修改入口：[實作與維護指南](docs/IMPLEMENTATION.md)。
+- 雲端建置、封裝驗證與 PyPI 發布：[打包與發布](docs/IMPLEMENTATION.md#15-打包與發布)。
+- 工具列、按鈕、圖示筆畫、字型與深淺配色規格：[UI 設計參考](docs/UI_DESIGN.md)，可供其他專案移植。

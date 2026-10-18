@@ -159,7 +159,7 @@ Fit 使用最近點擊且仍可見的頁面，或距預覽區中央最近的頁�
 
 `FullscreenPreview` 是獨立的模態頂層視窗，保留文件縮放，核取方塊透過 `PageCard.set_selected()` 與 `DocumentView._page_selection_changed()` 同步選頁。以目前 `page_order` 建立群組：`single` 每頁一組、`spread` 從第一頁起兩頁一組、`cover` 第一頁單獨一組後再兩頁一組；最後剩一頁時單獨顯示。開啟時定位到包含目前預覽頁的群組。
 
-顯示時保留 30px 選頁列，對頁依頁面寬度總和與最大高度計算共同縮放比例，使用 device pixel ratio 產生清晰預覽；一次只渲染目前群組，合計 raster 上限為 3000 萬像素。F11／Esc 返回，方向鍵或 Page Up／Page Down 切換群組。
+顯示時保留 30px 選頁列，對頁依頁面寬度總和與最大高度計算共同縮放比例，使用 device pixel ratio 產生清晰預覽；一次只渲染目前群組，合計 raster 上限為 3000 萬像素。<kbd>F11</kbd>／<kbd>Esc</kbd> 返回，<kbd>←</kbd>、<kbd>↑</kbd>、<kbd>→</kbd>、<kbd>↓</kbd> 或 <kbd>Page Up</kbd>／<kbd>Page Down</kbd> 切換群組。
 
 主視窗與全螢幕視窗各自安裝 QApplication event filter，僅攔截自己的視窗內未帶修飾鍵的導覽按鍵，不影響檔案對話框。一般預覽對應捲動條的 single/page step；Fit 模式切換參考頁並重新適應。即使縮放滑桿或全螢幕核取方塊有焦點，導覽按鍵仍操作預覽。
 
@@ -172,7 +172,7 @@ Fit 使用最近點擊且仍可見的頁面，或距預覽區中央最近的頁�
 
 ## 8. 網格與頁面卡片
 
-網格採上方對齊、水平置中，各卡片在所在欄位內也水平置中。捲動範圍因頁面尺寸或視窗寬度改變時，水平捲動條回到中央；使用者仍可用方向鍵或捲動條查看超出寬度的部分。Fit 固定為單欄。Fit 導覽以預覽區中央最近的可見頁面為起點；切頁或渲染尚未完成時保留已要求的參考頁，讓連續快速按鍵順序正確。越界時不送出縮放或捲動要求。
+網格採上方對齊、水平置中，各卡片在所在欄位內也水平置中。捲動範圍因頁面尺寸或視窗寬度改變時，水平捲動條回到中央；使用者仍可用 <kbd>←</kbd>、<kbd>↑</kbd>、<kbd>→</kbd>、<kbd>↓</kbd> 或捲動條查看超出寬度的部分。Fit 固定為單欄。Fit 導覽以預覽區中央最近的可見頁面為起點；切頁或渲染尚未完成時保留已要求的參考頁，讓連續快速按鍵順序正確。越界時不送出縮放或捲動要求。
 
 `PageCard` 持有：
 
@@ -240,7 +240,7 @@ Fit 使用最近點擊且仍可見的頁面，或距預覽區中央最近的頁�
 3. Noto Sans TC
 4. Arial
 
-圖示位於 `src/repdf/assets/repdf.png` 與 `repdf.ico`。目前程式使用 PNG 建立 `QIcon`；ICO 提供未來 Windows EXE 打包使用，內含 16、24、32、48、64、128、256px 尺寸。
+圖示位於 `src/repdf/assets/repdf.png` 與 `repdf.ico`。目前程式使用 PNG 建立 `QIcon`；Windows EXE 打包使用 ICO，內含 16、24、32、48、64、128、256px 尺寸。
 
 ## 12. 測試覆蓋範圍
 
@@ -283,14 +283,49 @@ Fit 使用最近點擊且仍可見的頁面，或距預覽區中央最近的頁�
 - 後端忙碌時不會中斷目前 PDF，而是等待完成後處理最新要求；大型 PDF 的快速縮放可進一步加入可取消的工作協定。
 - GitHub Actions 可產出 Windows 單一 EXE 與 macOS App／DMG；目前未設定開發者簽章與 macOS 公證。
 
-## 15. 桌面套件打包
+## 15. 打包與發布
 
-- packaging/repdf.spec：Windows 使用 onefile windowed EXE；macOS 使用 onedir App bundle，保留原生函式庫的符號連結後封裝為 DMG。
-- scripts/build_desktop.py：執行 PyInstaller、封裝後功能檢查、DMG 建立與 SHA256 校驗檔產生。
-- .github/workflows/build-desktop.yml：兩個 GitHub 雲端原生 runner 建置 Windows x86_64 與 macOS arm64；Release 成功建置後才附加產物。
-- entrypoint.py：在載入 GUI 前辨識背景後端與封裝自我檢查模式，避免子程序再次開啟 GUI。
-- renderer.py：來源碼模式沿用 stdin/stdout；凍結模式以 loopback TCP、一次性隨機握手 token 與 UTF-8 串流通訊，因為 Windows windowed bootloader 沒有標準輸入輸出。
-- packaging_smoke.py：在封裝執行檔中實際渲染兩頁 PDF、載入 Qt 圖示並驗證指定順序的 PDF 輸出。
-- 版本資訊讀取已安裝的 repdf distribution metadata；PyInstaller 同時收集該 metadata，避免視窗與套件版本不同步。
+### 建置原則與產物
 
-PyPI 發布需先為 `codemee/repdf` 配置 repdf 專案的 Trusted Publisher，並將儲存庫變數 `PYPI_PUBLISH_ENABLED` 設為 `true`；未啟用時只使用 GitHub Release 發布。
+- 打包全程在 GitHub Actions 雲端環境執行；一般開發只執行原始碼與測試，不在本機打包。
+- Windows x86_64：使用 PyInstaller onefile windowed 模式，產生單一 EXE。
+- macOS Apple Silicon（arm64）：使用 onedir App bundle，保留原生函式庫的符號連結，再封裝為 DMG。
+- Windows EXE 與 macOS App／DMG 分別在對應平台的原生 runner 建置。
+- 桌面產物皆附 SHA256 校驗檔；OCR 執行環境與模型隨套件提供。
+- 目前未設定 Windows 程式碼簽章或 macOS Developer ID 簽章／公證，因此下載後可能出現系統安全提示。
+
+### 桌面套件工作流程
+
+- 設定檔：[`.github/workflows/build-desktop.yml`](../.github/workflows/build-desktop.yml)，工作流程名稱為「Build desktop apps」。
+- 正式發布 Release 時觸發，依 Release 標籤建置；標籤中的提交必須包含打包設定檔。
+- 也可在 Actions 頁面使用「Run workflow」手動執行，以 `ref` 指定分支或標籤。
+- 手動填入 `release_tag` 時，會優先依該標籤建置，並將成功產出的套件附加到指定的既有 Release。
+- 建置流程先安裝鎖定的依賴並執行回歸測試，再打包及執行封裝自我檢查。
+- 產物上傳至 Actions Artifacts，保留 30 天；手動建置未指定 `release_tag` 時可在此下載。
+- Release 建置或手動指定 `release_tag` 時，待 Windows 與 macOS 建置都成功後，才將產物附加到 Release。
+
+### 打包設定與資源
+
+- [`packaging/repdf.spec`](../packaging/repdf.spec)：定義 Windows EXE 與 macOS App 的封裝模式和資源收集。
+- 收集 RapidOCR 設定、辨識／偵測模型及 ONNX Runtime 原生函式庫；不攜帶未使用的方向分類模型。
+- 同時收集已安裝的 `repdf` distribution metadata，讓視窗與套件版本保持一致。
+- [`scripts/build_desktop.py`](../scripts/build_desktop.py)：執行 PyInstaller、封裝後功能檢查、DMG 建立與 SHA256 校驗檔產生。
+- macOS 使用系統內建的 `ditto` 與 `hdiutil` 建立並驗證 DMG。
+- [`entrypoint.py`](../src/repdf/entrypoint.py)：在載入 GUI 前辨識背景後端與封裝自我檢查模式，避免子程序再次開啟 GUI。
+- [`renderer.py`](../src/repdf/renderer.py)：原始碼模式沿用 stdin/stdout；凍結模式改用 loopback TCP、一次性隨機握手 token 與 UTF-8 串流，因為 Windows windowed bootloader 沒有標準輸入輸出。
+
+### 封裝自我檢查
+
+- 入口：[`packaging_smoke.py`](../src/repdf/packaging_smoke.py)，由打包流程呼叫封裝執行檔執行。
+- 驗證 Qt、應用程式圖示與對話框翻譯資源可用。
+- 實際執行 OCR 推論及區域辨識，避免只確認套件 import 成功。
+- 透過背景程序渲染兩頁 PDF，並驗證指定順序的 PDF 輸出。
+
+### PyPI 發布
+
+- 設定檔：[`.github/workflows/publish.yml`](../.github/workflows/publish.yml)，工作流程名稱為「Publish to PyPI」。
+- 為 `codemee/repdf` 配置 PyPI `repdf` 專案的 Trusted Publisher，並將儲存庫變數 `PYPI_PUBLISH_ENABLED` 設為 `true`。
+- 未啟用時不執行 PyPI 發布，只使用 GitHub Release 發布。
+- 正式發布 Release 時觸發；也可手動執行並以 `tag` 指定既有 Release 標籤。
+- 依標籤檢出原始碼，確認標籤與 `pyproject.toml` 的版本一致後，在雲端建置 wheel 與原始碼套件。
+- 先將 Python 套件附加到 GitHub Release，再透過 Trusted Publishing 發布至 PyPI。
