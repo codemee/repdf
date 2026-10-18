@@ -16,8 +16,9 @@ def render_document(
     source: Path, scale: float, output_dir: Path, generation: int,
     output_stream: TextIO | None = None,
     pages: list[int] | None = None,
+    password: str | None = None,
 ) -> None:
-    document = pdfium.PdfDocument(str(source))
+    document = pdfium.PdfDocument(str(source), password=password)
     try:
         indices = range(len(document)) if pages is None else pages
         for page_index in indices:
@@ -46,9 +47,9 @@ def render_document(
 
 def extract_selection_result(source: Path, page_index: int, start: list[float],
                              end: list[float], *, allow_ocr: bool = False,
-                             on_ocr=None) -> dict[str, object]:
+                             on_ocr=None, password: str | None = None) -> dict[str, object]:
     """Return copied text and the matching glyph bounds in rendered-page coordinates."""
-    document = pdfium.PdfDocument(str(source))
+    document = pdfium.PdfDocument(str(source), password=password)
     try:
         if not 0 <= page_index < len(document):
             raise ValueError("Invalid text selection page index")
@@ -149,15 +150,18 @@ def serve(
         request: dict[str, object] = {}
         try:
             request = json.loads(line)
-            if request.get('type') == 'extract_image':
+            if request.get('type') == 'search':
+                from repdf.search import search_document
+                search_document(request, lambda message: print(json.dumps(message), file=output_stream, flush=True))
+            elif request.get('type') == 'extract_image':
                 generation = int(request['generation'])
                 destination = Path(request['output_dir']) / f"g{generation}-image.png"
                 result = extract_clicked_image(Path(request['source']), int(request['page']),
-                                               request['point'], destination)
+                                               request['point'], destination, password=request.get('password'))
                 print(json.dumps({'type': 'image', 'generation': generation, 'image': result}),
                       file=output_stream, flush=True)
             elif request.get('type') == 'ocr_region':
-                document = pdfium.PdfDocument(str(request['source']))
+                document = pdfium.PdfDocument(str(request['source']), password=request.get('password'))
                 try:
                     page_index = int(request['page'])
                     if not 0 <= page_index < len(document):
@@ -174,6 +178,7 @@ def serve(
             elif request.get("type") == "copy_text":
                 extracted = extract_selection_result(Path(request["source"]), int(request["page"]),
                     request["start"], request["end"], allow_ocr=bool(request.get('allow_ocr', False)),
+                    password=request.get('password'),
                     on_ocr=lambda: print(json.dumps({'type': 'ocr', 'generation': int(request['generation'])}),
                                          file=output_stream, flush=True))
                 print(json.dumps({"type": "text", "generation": int(request["generation"]),
@@ -183,16 +188,25 @@ def serve(
                     Path(request["source"]), float(request["scale"]),
                     Path(request["output_dir"]), int(request["generation"]), output_stream,
                     pages=request.get("pages"),
+                    password=request.get('password'),
                 )
             print(json.dumps({
                 "type": "done", "generation": int(request["generation"]),
+                "document_id": request.get('document_id'),
             }), file=output_stream, flush=True)
         except Exception as exc:
             print(json.dumps({
                 "type": "error",
                 "generation": request.get("generation", -1) if isinstance(request, dict) else -1,
                 "message": str(exc),
+                "document_id": request.get('document_id') if isinstance(request, dict) else None,
+                "timeout": isinstance(exc, TimeoutError),
             }), file=output_stream, flush=True)
+        finally:
+            # Release credential references before waiting for the next request.
+            if isinstance(request, dict):
+                request.pop('password', None)
+            line = ''
     return 0
 
 

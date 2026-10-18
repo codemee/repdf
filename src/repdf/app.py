@@ -25,6 +25,7 @@ from PySide6.QtGui import (
 from PySide6.QtWidgets import (
     QApplication,
     QCheckBox,
+    QDialog,
     QAbstractButton,
     QAbstractSlider,
     QFileDialog,
@@ -56,10 +57,11 @@ from repdf.icons import toolbar_icon
 from repdf.theme import ThemeController
 from repdf.preferences import LanguageController, migrate_preferences
 from repdf.renderer import RenderService, start_render_backend
-from repdf.widgets import PageCard, PageGrid
+from repdf.widgets import PageCard, PageGrid, PdfPasswordDialog
 from repdf.toolbar import OverflowToolBar
 from repdf.preview import FullscreenPreview
 from repdf.workers import ExportPdfTask, LoadPdfTask
+from repdf.search_panel import SearchController
 
 
 class DocumentView(QWidget):
@@ -83,6 +85,8 @@ class DocumentView(QWidget):
         self.focused_page = None
         self.page_sizes = {}
         self.ready = False
+        self._search_navigation = None
+        self.password: str | None = None
         self.render_generation = -1
         self._render_received = set()
         self._render_pending = 0
@@ -300,12 +304,37 @@ class DocumentView(QWidget):
     def _scroll_to_fit_page(self) -> None:
         if not self.fit_mode or self.owner._closing:
             return
+        if self._search_navigation and self._search_navigation[0] == self.fit_page_index:
+            self._scroll_to_search_result()
+            return
         card = self.page_cards[self.fit_page_index]
         viewport = self.scroll_area.viewport()
         self.scroll_area.verticalScrollBar().setValue(
             card.y() + (card.height() - viewport.height()) // 2)
         self.scroll_area.horizontalScrollBar().setValue(
             card.x() + (card.width() - viewport.width()) // 2)
+        self._fit_navigation_pending = False
+
+    def jump_to_search_result(self, page, rect):
+        self.focused_page = page
+        self._search_navigation = (page, rect)
+        if self.fit_mode:
+            self.fit_page_index = page
+            self._fit_navigation_pending = True
+            self._apply_fit()
+        QTimer.singleShot(0, self._scroll_to_search_result)
+
+    def _scroll_to_search_result(self):
+        if self.owner._closing or self._search_navigation is None:
+            return
+        page, rect = self._search_navigation
+        label = self.page_cards[page].preview
+        if label.pixmap().isNull():
+            return
+        from PySide6.QtCore import QPoint
+        point = label.mapTo(self.grid_host, QPoint(round((rect[0] + rect[2]) / 2 * label.width()),
+                                                   round((rect[1] + rect[3]) / 2 * label.height())))
+        self.scroll_area.ensureVisible(point.x(), point.y(), 40, 40)
         self._fit_navigation_pending = False
 
     @Slot()
@@ -335,6 +364,7 @@ class DocumentView(QWidget):
             Path(self.owner.preview_temp.name),
             generation,
             document_id=self.document_id,
+            password=self.password,
         )
 
     @Slot(object)
@@ -378,6 +408,8 @@ class DocumentView(QWidget):
             )
             self.page_cards[page_index].set_image(image)
             self._reflow_grid()
+            if self._search_navigation and self._search_navigation[0] == page_index:
+                QTimer.singleShot(0, self._scroll_to_search_result)
             if self.fit_mode and page_index == self.fit_page_index:
                 self.fit_timer.start()
         elif 0 <= page_index < len(self.page_cards):
@@ -424,6 +456,9 @@ class MainWindow(QMainWindow):
         self._image_requests = {}
         self._active_tasks = set()
         self._load_batches = {}
+        self._password_queue = []
+        self._password_dialog = None
+        self._password_document_id = None
         self._document_batches = {}
         self._next_batch = 0
         self._export_running = False
@@ -449,7 +484,8 @@ class MainWindow(QMainWindow):
         self.tabs.tabBar().tabMoved.connect(self._sync_controls)
         self.tabs.hide()
         root.addWidget(self.tabs)
-        self.setCentralWidget(central)
+        self.search_controller = SearchController(self, central)
+        self.setCentralWidget(self.search_controller.workspace)
         self.statusBar().setSizeGripEnabled(False)
         self.statusBar().showMessage(tr('就緒'))
         self.language_controller.changed.connect(self._retranslate)
@@ -458,6 +494,19 @@ class MainWindow(QMainWindow):
         QApplication.instance().installEventFilter(self)
 
     def eventFilter(self, watched, event) -> bool:
+        controller = getattr(self, 'search_controller', None)
+        if (controller is not None and not self._closing and isinstance(watched, QWidget)
+                and watched.window() is self
+                and event.type() in (QEvent.Type.ShortcutOverride, QEvent.Type.KeyPress)
+                and event.matches(QKeySequence.StandardKey.Find)):
+            if event.type() == QEvent.Type.ShortcutOverride:
+                event.accept()
+            else:
+                controller.open()
+            return True
+        if controller is not None and isinstance(watched, QWidget) and (
+                watched is controller.panel or controller.panel.isAncestorOf(watched)):
+            return super().eventFilter(watched, event)
         if (not self._closing and isinstance(watched, QWidget) and watched.window() is self
                 and event.type() in (QEvent.Type.ShortcutOverride, QEvent.Type.KeyPress)):
             control = Qt.KeyboardModifier.MetaModifier if sys.platform == 'darwin' else Qt.KeyboardModifier.ControlModifier
@@ -480,6 +529,11 @@ class MainWindow(QMainWindow):
             self._navigate_preview(event.key())
             return True
         return super().eventFilter(watched, event)
+
+    def resizeEvent(self, event):
+        super().resizeEvent(event)
+        if hasattr(self, 'search_controller'):
+            self.search_controller.layout()
 
     def _navigate_preview(self, key) -> None:
         doc = self.current_document()
@@ -608,6 +662,12 @@ class MainWindow(QMainWindow):
         self.extract_image_action.toggled.connect(self._set_image_mode)
         self.toolbar.addAction(self.extract_image_action)
         self.toolbar.widgetForAction(self.extract_image_action).setObjectName('extractImageTool')
+        self.search_action = QAction(tr('搜尋文字'), self)
+        self.search_action.setShortcuts(QKeySequence.keyBindings(QKeySequence.StandardKey.Find))
+        self.search_action.setToolTip(tr('搜尋文字（{p0}）：在右側窗格搜尋目前、勾選或所有標籤頁',
+            p0=self.search_action.shortcut().toString(QKeySequence.SequenceFormat.NativeText)))
+        self.search_action.triggered.connect(lambda: self.search_controller.open())
+        self.toolbar.addAction(self.search_action)
 
         spacer = QWidget()
         spacer.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Preferred)
@@ -682,6 +742,7 @@ class MainWindow(QMainWindow):
                              (self.split_action, "split"), (self.copy_text_action, "copy_text"),
                              (self.region_ocr_action, "ocr_region"),
                              (self.extract_image_action, "extract_image"),
+                             (self.search_action, "search"),
                              (self.fit_action, "fit"),
                              (self.fullscreen_action, "fullscreen"),
                              (self.spread_action, "fullscreen_spread"),
@@ -733,6 +794,7 @@ class MainWindow(QMainWindow):
         self._sync_controls()
         self.statusBar().showMessage(status)
         self._update_preference_actions()
+        self.search_controller.retranslate()
 
     def changeEvent(self, event: QEvent) -> None:
         super().changeEvent(event)
@@ -820,7 +882,7 @@ class MainWindow(QMainWindow):
             (start.x() / label.width(), start.y() / label.height()),
             (end.x() / label.width(), end.y() / label.height()),
             generation, -1_000_000 - doc.document_id,
-            allow_ocr=copy, region_ocr=region,
+            allow_ocr=copy, region_ocr=region, password=doc.password,
         )
         if copy:
             self.statusBar().showMessage(tr('正在辨識選取區域…') if region else tr('正在擷取文字…'))
@@ -834,7 +896,8 @@ class MainWindow(QMainWindow):
         self.render_service.request_image(
             doc.source_path, page_index,
             (point.x() / label.width(), point.y() / label.height()),
-            Path(self.preview_temp.name), generation, -1_000_000 - doc.document_id)
+            Path(self.preview_temp.name), generation, -1_000_000 - doc.document_id,
+            password=doc.password)
         self.statusBar().showMessage(tr('正在擷取圖片…'))
 
     def _accept_image(self, generation, payload):
@@ -917,7 +980,7 @@ class MainWindow(QMainWindow):
         if not included:
             current = self.current_document()
             included = [current] if current is not None else []
-        return [DocumentSelection(doc.source_path, tuple(page for page in doc.page_order if page in doc.selected_pages))
+        return [DocumentSelection(doc.source_path, tuple(page for page in doc.page_order if page in doc.selected_pages), doc.password)
                 for doc in included if doc.ready and doc.selected_pages]
 
     def _tab_changed(self, _index: int) -> None:
@@ -1051,15 +1114,57 @@ class MainWindow(QMainWindow):
             doc = self._new_document(path)
             self._document_batches[doc.document_id] = batch
             self._load_batches[batch]["pending"].add(doc.document_id)
-            task = LoadPdfTask(path, doc.document_id)
-            self._active_tasks.add(task)
-            task.signals.loaded.connect(self._pdf_loaded)
-            task.signals.failed.connect(self._pdf_load_failed)
-            task.signals.loaded.connect(lambda *_args, job=task: self._active_tasks.discard(job))
-            task.signals.failed.connect(lambda *_args, job=task: self._active_tasks.discard(job))
-            self.thread_pool.start(task)
+            self._start_load(doc)
         if not self._load_batches[batch]["pending"]:
             self._load_batches.pop(batch)
+
+    def _start_load(self, doc):
+        task = LoadPdfTask(doc.source_path, doc.document_id, doc.password)
+        self._active_tasks.add(task)
+        task.signals.loaded.connect(self._pdf_loaded)
+        task.signals.failed.connect(self._pdf_load_failed)
+        task.signals.password_required.connect(self._pdf_password_required)
+        for signal in (task.signals.loaded, task.signals.failed, task.signals.password_required):
+            signal.connect(lambda *_args, job=task: self._active_tasks.discard(job))
+        self.thread_pool.start(task)
+
+    @Slot(int, bool)
+    def _pdf_password_required(self, document_id, incorrect):
+        if self._closing or document_id not in self.documents:
+            return
+        self.documents[document_id].password = None
+        self._password_queue.append((document_id, incorrect))
+        QTimer.singleShot(0, self._prompt_next_password)
+
+    def _prompt_next_password(self):
+        if self._closing or self._password_dialog is not None:
+            return
+        while self._password_queue:
+            document_id, incorrect = self._password_queue.pop(0)
+            doc = self.documents.get(document_id)
+            if doc is not None:
+                break
+        else:
+            return
+        dialog = PdfPasswordDialog(doc.source_path, incorrect=incorrect, parent=self)
+        self._password_dialog = dialog
+        self._password_document_id = document_id
+        try:
+            accepted = dialog.exec() == QDialog.DialogCode.Accepted
+            if document_id not in self.documents or self._closing:
+                return
+            if accepted:
+                doc.password = dialog.password_edit.text()
+                self._start_load(doc)
+            else:
+                self.close_tab(self.tabs.indexOf(doc), force=True)
+                self._finish_load(document_id)
+        finally:
+            dialog.password_edit.clear()
+            dialog.deleteLater()
+            self._password_dialog = None
+            self._password_document_id = None
+            QTimer.singleShot(0, self._prompt_next_password)
 
     def _finish_load(self, document_id: int, error: str | None = None) -> None:
         batch = self._document_batches.pop(document_id, None)
@@ -1098,6 +1203,12 @@ class MainWindow(QMainWindow):
         doc = self.tabs.widget(index)
         if doc is None:
             return
+        doc.password = None
+        if self._password_document_id == doc.document_id and self._password_dialog is not None:
+            self._password_dialog.reject()
+        self._password_queue = [item for item in self._password_queue if item[0] != doc.document_id]
+        if not force and not doc.ready:
+            self._finish_load(doc.document_id)
         doc.render_timer.stop()
         doc.fit_timer.stop()
         doc.grid_host.finish_drag()
@@ -1111,6 +1222,7 @@ class MainWindow(QMainWindow):
             if document_id == doc.document_id:
                 self._render_documents.pop(generation)
         self.documents.pop(doc.document_id, None)
+        self.search_controller.remove_document(doc.document_id)
         self.tabs.removeTab(index)
         doc.deleteLater()
         if not self.tabs.count():
@@ -1204,7 +1316,7 @@ class MainWindow(QMainWindow):
             return
         suggested = default_output_path(selections[0].source)
         filename, _ = QFileDialog.getSaveFileName(
-            self, tr('拆分選取頁面：指定檔名，將自動附加序號') if split else tr('輸出選取頁面'),
+            self, tr('拆分選取頁面（新 PDF 不加密；檔名自動附加序號）') if split else tr('輸出選取頁面（新 PDF 不加密）'),
             str(suggested), tr('PDF 檔案 (*.pdf)'), "",
             QFileDialog.Option.DontUseNativeDialog | (QFileDialog.Option.DontConfirmOverwrite if split else QFileDialog.Option(0)),
         )
@@ -1267,6 +1379,7 @@ class MainWindow(QMainWindow):
                 message += f"\n…\n{outputs[-1]}"
         else:
             message = tr('已輸出 {p0} 頁至：\n{p1}', p0=count, p1=destination)
+        message += '\n' + tr('新 PDF 不加密，原始檔案保持不變。')
         QMessageBox.information(self, tr('輸出完成'), message)
 
     @Slot(int, str)
@@ -1279,9 +1392,14 @@ class MainWindow(QMainWindow):
 
     def closeEvent(self, event: QCloseEvent) -> None:
         self._closing = True
+        self.search_controller.stop()
+        self._password_queue.clear()
+        if self._password_dialog is not None:
+            self._password_dialog.reject()
         if self._fullscreen_preview is not None:
             self._fullscreen_preview.close()
         for doc in self.documents.values():
+            doc.password = None
             doc.render_timer.stop()
             doc.fit_timer.stop()
             doc.grid_host.finish_drag()

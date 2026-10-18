@@ -3,8 +3,38 @@ from __future__ import annotations
 from repdf.strings import tr
 
 from PySide6.QtCore import QEasingCurve, QMimeData, QPoint, QPropertyAnimation, QRect, QRectF, Qt, QTimer, Signal
-from PySide6.QtGui import QDrag, QDragEnterEvent, QDragLeaveEvent, QDragMoveEvent, QDropEvent, QImage, QMouseEvent, QPainter, QPainterPath, QPixmap
-from PySide6.QtWidgets import QApplication, QCheckBox, QFrame, QHBoxLayout, QLabel, QVBoxLayout, QWidget
+from PySide6.QtGui import QColor, QDrag, QDragEnterEvent, QDragLeaveEvent, QDragMoveEvent, QDropEvent, QImage, QMouseEvent, QPainter, QPainterPath, QPixmap
+from PySide6.QtWidgets import (QApplication, QCheckBox, QDialog, QDialogButtonBox, QFrame,
+                              QHBoxLayout, QLabel, QLineEdit, QVBoxLayout, QWidget)
+
+
+class PdfPasswordDialog(QDialog):
+    def __init__(self, source, *, incorrect=False, parent=None):
+        super().__init__(parent)
+        self.setWindowTitle(tr('輸入 PDF 密碼'))
+        self.setMinimumWidth(360)
+        layout = QVBoxLayout(self)
+        description = QLabel(tr('請輸入以下檔案的開啟密碼：\n{p0}', p0=source))
+        description.setWordWrap(True)
+        layout.addWidget(description)
+        if incorrect:
+            layout.addWidget(QLabel(tr('密碼不正確，請重新輸入。')))
+        self.password_edit = QLineEdit()
+        self.password_edit.setEchoMode(QLineEdit.EchoMode.Password)
+        self.password_edit.setAccessibleName(tr('PDF 密碼'))
+        layout.addWidget(self.password_edit)
+        self.show_password = QCheckBox(tr('顯示密碼'))
+        self.show_password.toggled.connect(lambda visible: self.password_edit.setEchoMode(
+            QLineEdit.EchoMode.Normal if visible else QLineEdit.EchoMode.Password))
+        layout.addWidget(self.show_password)
+        notice = QLabel(tr('密碼只在此檔案開啟期間使用，不會儲存。'))
+        notice.setWordWrap(True)
+        layout.addWidget(notice)
+        buttons = QDialogButtonBox(QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel)
+        buttons.accepted.connect(self.accept)
+        buttons.rejected.connect(self.reject)
+        layout.addWidget(buttons)
+        self.password_edit.setFocus()
 
 
 class PageGrid(QWidget):
@@ -166,6 +196,8 @@ class PagePreviewLabel(DragLabel):
         self.text_mode = False
         self.region_mode = False
         self.image_mode = False
+        self._search_rects = []
+        self._active_search_rects = []
         self._selection_start = None
         self._selection_end = None
         self._selecting = False
@@ -198,6 +230,11 @@ class PagePreviewLabel(DragLabel):
             self._selection_start = None
             self._selection_end = None
         self._highlight_rects = rects
+        self.update()
+
+    def set_search_highlights(self, rects, active):
+        self._search_rects = rects
+        self._active_search_rects = active
         self.update()
 
     def _preview_selection(self) -> None:
@@ -249,6 +286,17 @@ class PagePreviewLabel(DragLabel):
 
     def paintEvent(self, event) -> None:
         super().paintEvent(event)
+        if self._search_rects:
+            painter = QPainter(self)
+            for boxes, color in ((self._search_rects, QColor(255, 225, 60, 100)),
+                                 (self._active_search_rects, QColor(255, 170, 0, 115))):
+                path = QPainterPath()
+                path.setFillRule(Qt.FillRule.WindingFill)
+                for left, top, right, bottom in boxes:
+                    path.addRect(QRectF(left * self.width(), top * self.height(),
+                                        (right - left) * self.width(), (bottom - top) * self.height()))
+                painter.fillPath(path, color)
+            painter.end()
         if not self.text_mode or self.image_mode:
             return
         painter = QPainter(self)

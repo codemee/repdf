@@ -86,6 +86,7 @@ class RenderService(QObject):
         self.process = process
         self._lock = threading.Lock()
         self._busy = False
+        self._active_payload = None
         self._pending: OrderedDict[int, dict[str, object]] = OrderedDict()
         self._closed = False
         self._reader = threading.Thread(target=self._read_loop, daemon=True)
@@ -93,7 +94,7 @@ class RenderService(QObject):
 
     def request(
         self, source: Path, scale: float, output_dir: Path, generation: int,
-        *, document_id: int = 0, pages: list[int] | None = None,
+        *, document_id: int = 0, pages: list[int] | None = None, password: str | None = None,
     ) -> None:
         payload: dict[str, object] = {
             "source": str(source),
@@ -103,6 +104,8 @@ class RenderService(QObject):
         }
         if pages is not None:
             payload["pages"] = list(pages)
+        if password is not None:
+            payload['password'] = password
         with self._lock:
             if self._closed:
                 return
@@ -112,12 +115,14 @@ class RenderService(QObject):
 
     def request_text(self, source: Path, page: int, start: tuple[float, float],
                      end: tuple[float, float], generation: int, document_id: int,
-                     *, allow_ocr: bool = False, region_ocr: bool = False) -> None:
+                     *, allow_ocr: bool = False, region_ocr: bool = False, password: str | None = None) -> None:
         payload: dict[str, object] = {
             "type": "ocr_region" if region_ocr else "copy_text", "source": str(source), "page": page,
             "start": start, "end": end, "generation": generation,
             "allow_ocr": allow_ocr,
         }
+        if password is not None:
+            payload['password'] = password
         with self._lock:
             if self._closed:
                 return
@@ -129,10 +134,19 @@ class RenderService(QObject):
         with self._lock:
             self._pending.pop(document_id, None)
 
+    def request_search(self, payload):
+        with self._lock:
+            if self._closed:
+                return
+            self._pending[payload['document_id']] = payload
+            self._start_next()
+
     def request_image(self, source: Path, page: int, point, output_dir: Path,
-                      generation: int, document_id: int) -> None:
+                      generation: int, document_id: int, *, password: str | None = None) -> None:
         payload = {"type": "extract_image", "source": str(source), "page": page,
                    "point": point, "output_dir": str(output_dir), "generation": generation}
+        if password is not None:
+            payload['password'] = password
         with self._lock:
             if self._closed:
                 return
@@ -148,7 +162,10 @@ class RenderService(QObject):
     def _start_next(self) -> None:
         while self._pending and not self._busy and not self._closed:
             _, payload = self._pending.popitem(last=False)
+            self._active_payload = payload
             self._busy = self._write(payload)
+            if not self._busy:
+                self._active_payload = None
 
     def _write(self, payload: dict[str, object]) -> bool:
         stream = self.process.stdin
@@ -156,6 +173,7 @@ class RenderService(QObject):
             self.message.emit({
                 "type": "error", "generation": payload["generation"],
                 "message": tr('PDF 預覽後端已停止。'),
+                "document_id": payload.get('document_id'),
             })
             return False
         try:
@@ -164,30 +182,58 @@ class RenderService(QObject):
             return True
         except (OSError, ValueError) as exc:
             self.message.emit({"type": "error", "generation": payload["generation"],
-                               "message": str(exc)})
+                               "message": str(exc), "document_id": payload.get('document_id')})
             return False
 
     def _read_loop(self) -> None:
         stream: TextIO | None = self.process.stdout
         if stream is None:
             return
-        for line in stream:
-            try:
-                payload = json.loads(line)
-            except json.JSONDecodeError:
-                continue
-            self.message.emit(payload)
-            if payload.get("type") in {"done", "error"}:
-                with self._lock:
-                    self._busy = False
-                    self._start_next()
+        try:
+            for line in stream:
+                try:
+                    payload = json.loads(line)
+                except json.JSONDecodeError:
+                    continue
+                self.message.emit(payload)
+                if payload.get("type") in {"done", "error"}:
+                    with self._lock:
+                        self._busy = False
+                        self._active_payload = None
+                        self._start_next()
+        except (OSError, ValueError):
+            pass
+        finally:
+            with self._lock:
+                requests = [] if self._closed else list(self._pending.values())
+                if not self._closed and self._active_payload is not None:
+                    requests.append(self._active_payload)
+                self._pending.clear()
+                self._active_payload = None
+                self._busy = False
+            for request in requests:
+                self.message.emit({'type': 'error', 'generation': request['generation'],
+                                   'document_id': request.get('document_id'),
+                                   'message': tr('PDF 預覽後端已停止。')})
 
-    def close(self) -> None:
+    def close(self, *, terminate_tree: bool = False) -> None:
         with self._lock:
             self._closed = True
             self._pending.clear()
+            self._active_payload = None
         if self.process.poll() is None:
-            self.process.terminate()
+            # Windows venv python.exe can be a launcher with a real interpreter
+            # child. Cancel both before closing a pipe blocked in readline().
+            if terminate_tree and sys.platform == 'win32':
+                try:
+                    subprocess.run(['taskkill', '/PID', str(self.process.pid), '/T', '/F'],
+                                   stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL,
+                                   stderr=subprocess.DEVNULL, creationflags=subprocess.CREATE_NO_WINDOW,
+                                   timeout=5, check=False)
+                except (OSError, subprocess.TimeoutExpired):
+                    pass
+            if self.process.poll() is None:
+                self.process.terminate()
             try:
                 self.process.wait(timeout=2)
             except subprocess.TimeoutExpired:

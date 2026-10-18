@@ -54,6 +54,7 @@ uv run repdf
 | <picture><source media="(prefers-color-scheme: dark)" srcset="docs/images/toolbar-copy-text-dark.png"><img src="docs/images/toolbar-copy-text.png" width="24" alt="複製文字圖示"></picture> | 複製文字 | 啟用後拖曳選取文字，放開滑鼠即複製到剪貼簿；選取的文字會顯示高亮。 | — |
 | <picture><source media="(prefers-color-scheme: dark)" srcset="docs/images/toolbar-ocr-region-dark.png"><img src="docs/images/toolbar-ocr-region.png" width="24" alt="區域 OCR 圖示"></picture> | 區域 OCR | 拖曳矩形框選頁面或圖片，放開滑鼠後辨識並複製文字。 | — |
 | <picture><source media="(prefers-color-scheme: dark)" srcset="docs/images/toolbar-extract-image-dark.png"><img src="docs/images/toolbar-extract-image.png" width="24" alt="擷取圖片圖示"></picture> | 擷取圖片 | 啟用後點選內嵌點陣圖片，再選擇位置另存為 PNG。 | — |
+| <picture><source media="(prefers-color-scheme: dark)" srcset="docs/images/toolbar-search-dark.png"><img src="docs/images/toolbar-search.png" width="24" alt="搜尋文字圖示"></picture> | 搜尋文字 | 在右側窗格搜尋文字，上方選檔案、下方選命中段落，單擊即可跳頁並高亮。 | Windows／Linux：<kbd>Ctrl</kbd>+<kbd>F</kbd>；macOS：<kbd>⌘</kbd>+<kbd>F</kbd> |
 | <picture><source media="(prefers-color-scheme: dark)" srcset="docs/images/toolbar-zoom-dark.png"><img src="docs/images/toolbar-zoom.png" width="160" alt="顯示比例與縮放滑桿"></picture> | 顯示比例 | 滑桿調整 25%–200%；點擊比例回到 100%。鍵盤縮放每次調整 25 個百分點。 | 放大：<kbd>Ctrl</kbd>+<kbd>+</kbd>／<kbd>Ctrl</kbd>+<kbd>=</kbd>；縮小：<kbd>Ctrl</kbd>+<kbd>-</kbd>；100%：<kbd>Ctrl</kbd>+<kbd>0</kbd> |
 | <picture><source media="(prefers-color-scheme: dark)" srcset="docs/images/toolbar-fit-dark.png"><img src="docs/images/toolbar-fit.png" width="24" alt="Fit 圖示"></picture> | Fit | 將目前單頁等比例縮放至預覽區；調整視窗大小時自動適應。拖動滑桿或使用縮放快捷鍵會回到手動比例。 | — |
 | <picture><source media="(prefers-color-scheme: dark)" srcset="docs/images/toolbar-fullscreen-dark.png"><img src="docs/images/toolbar-fullscreen.png" width="24" alt="全螢幕單頁圖示"></picture> | 全螢幕單頁 | 每次顯示一頁，依螢幕寬度或高度等比例填滿；可用頁面上方的核取方塊選頁。 | <kbd>F11</kbd> 開啟／返回；<kbd>Esc</kbd> 返回 |
@@ -73,6 +74,18 @@ uv run repdf
 - 標籤依排列順序循環切換；焦點在預覽、頁面核取方塊或工具列控制項時也可使用。
 - 關閉標籤：點標籤右側的 ×；Windows／Linux 可按 <kbd>Ctrl</kbd>+<kbd>W</kbd>，Windows 另支援 <kbd>Ctrl</kbd>+<kbd>F4</kbd>，macOS 為 <kbd>⌘</kbd>+<kbd>W</kbd>。
 - 關閉按鈕的 tooltip 會顯示目前平台適用的快捷鍵。
+
+### 開啟密碼保護的 PDF
+
+1. 開啟檔案；若需要密碼，程式會顯示密碼對話框。
+2. 輸入密碼並按確認；可勾選「顯示密碼」檢查輸入內容。
+3. 密碼錯誤時可重新輸入；取消只略過該檔案，不影響同批開啟的其他檔案。
+
+- 不需要密碼即可開啟的加密 PDF 會直接讀取。
+- 解鎖後可正常預覽、重組、拆分、複製文字、區域 OCR 與擷取圖片。
+- 同一標籤開啟期間不再詢問；關閉後再次開啟需重新輸入。
+- 密碼只在記憶體中使用，不儲存到設定檔或記錄。
+- 重組與拆分產生的 **新 PDF 不加密**，輸出對話框會明確標示；原始檔案保持不變。
 
 ### 預覽與縮放
 
@@ -94,6 +107,28 @@ uv run repdf
 - 跳至第一頁／最後一頁：<kbd>Home</kbd>／<kbd>End</kbd>，依目前頁面排列順序跳轉；全螢幕對頁與封面＋對頁則跳至第一組／最後一組。
 - 以上按鍵在縮放滑桿或頁面核取方塊取得焦點時仍可操作預覽區，不會改動縮放比例。
 
+### 搜尋文字
+
+1. 點「搜尋文字」或按 <kbd>Ctrl</kbd>+<kbd>F</kbd>（macOS：<kbd>⌘</kbd>+<kbd>F</kbd>），開啟右側窗格。
+2. 輸入搜尋內容，選擇「目前標籤頁」、「勾選的標籤頁」或「所有標籤頁」；同一列的 `.*` 與 `Aa` 狀態按鈕分別切換「規則表達式」與「區分大小寫」，亮起表示啟用。
+3. 按 <kbd>Enter</kbd> 或「搜尋」執行；修改條件後再次執行才會更新結果。
+4. 上方選取有命中的檔案，下方以交錯底色單行列出命中段落、原始頁碼與命中次數；內容過長時以 `...` 結尾，滑鼠停留可查看完整段落。
+5. 單擊段落，切換到對應標籤與頁面；該頁命中以淡黃色標示，選取段落的命中以較深的琥珀色突出。
+
+- 預設搜尋目前標籤頁、不區分大小寫、不使用規則表達式；三種範圍互斥。
+- 「勾選的標籤頁」沿用標籤左側的核取方塊；沒有勾選時會提示，不自動改搜目前檔案。
+- 搜尋涵蓋範圍內已成功載入檔案的全部頁面，不受頁面勾選限制；密碼文件需先解鎖。
+- 只搜尋既有文字層，不啟動 OCR；掃描圖片或損壞的文字層可能搜尋不到。
+- 同段落內的多次命中合併為一筆；段落依文字行與版面位置推估，不跨頁搜尋，分欄及複雜版面可能有段落差異。
+- 視覺換行會合併；中日文字之間不補空格，其餘續行以空格銜接。
+- 規則表達式採 Python 相容語法；無效規則會顯示錯誤，零長度位置不列為可高亮的命中。
+- 每段正則匹配最多 1 秒；逾時會停止搜尋並標示結果不完整。也可按「停止」保留目前已找到的結果。
+- 可拖曳右側窗格寬度與上下結果區的分隔線；搜尋不改動選頁、排序或縮放模式。
+- 視窗寬度小於 640px 時，搜尋與 PDF 改為單一窗格切換；點結果後顯示 PDF，再點搜尋按鈕可返回結果。
+- 視窗高度小於 360px 時，範圍與正則／大小寫設定收進「選項」選單。
+- 關閉搜尋窗格會停止搜尋並清除高亮，保留輸入與結果；文件關閉時會移除其結果。
+- 全螢幕使用搜尋快捷鍵時，會返回主視窗並開啟搜尋窗格。
+
 ### 選頁與拖曳排序
 
 - 點各頁左上角的核取方塊可個別選頁；核取方塊取得焦點後，也可按 <kbd>Space</kbd> 勾選。
@@ -113,7 +148,7 @@ uv run repdf
 - 拆分指定 `report.pdf` 時，會輸出 `report_01.pdf`、`report_02.pdf` 等檔案。
 - 拆分序號跨檔連續、從 1 開始，至少兩位；依本次輸出總數補零對齊，例如 100 頁使用 `001`–`100`，與原始頁碼無關。
 - 已存在的單頁檔案會先詢問是否覆蓋。
-- 暫不支援密碼保護的 PDF。
+- 密碼保護的 PDF 須先成功解鎖；輸出的新 PDF 不加密。
 
 ### 複製文字、區域 OCR 與擷取圖片
 

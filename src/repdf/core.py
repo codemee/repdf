@@ -4,7 +4,7 @@ from repdf.strings import tr
 
 import os
 import tempfile
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from enum import Enum
 from pathlib import Path
 from typing import Iterable
@@ -17,7 +17,15 @@ class RepdfError(Exception):
 
 
 class UnsupportedEncryptedPdfError(RepdfError):
-    """Raised when a PDF requires a password."""
+    """Base class retained for callers handling password-protected PDFs."""
+
+
+class PasswordRequiredError(UnsupportedEncryptedPdfError):
+    pass
+
+
+class IncorrectPasswordError(UnsupportedEncryptedPdfError):
+    pass
 
 
 class InvalidPdfError(RepdfError):
@@ -40,6 +48,20 @@ class PdfInfo:
 class DocumentSelection:
     source: Path
     pages: tuple[int, ...]
+    password: str | None = field(default=None, repr=False, compare=False)
+
+
+def _unlock(reader: PdfReader, password: str | None) -> None:
+    if not reader.is_encrypted:
+        return
+    try:
+        if reader.decrypt("") or (password is not None and reader.decrypt(password)):
+            return
+    except Exception:
+        raise UnsupportedEncryptedPdfError(tr('無法解密此 PDF，可能使用不支援的加密方式。')) from None
+    if password is None:
+        raise PasswordRequiredError(tr('此 PDF 需要輸入密碼。'))
+    raise IncorrectPasswordError(tr('密碼不正確，請重新輸入。'))
 
 
 def _prepare_documents(documents: Iterable[DocumentSelection]):
@@ -53,9 +75,8 @@ def _prepare_documents(documents: Iterable[DocumentSelection]):
             if not source.is_file():
                 raise FileNotFoundError(tr('找不到來源 PDF 檔案：{p0}', p0=source))
             readers[source] = PdfReader(source)
+            _unlock(readers[source], document.password)
         reader = readers[source]
-        if reader.is_encrypted:
-            raise UnsupportedEncryptedPdfError(tr('目前不支援密碼保護的 PDF：{p0}', p0=source))
         if any(page < 0 or page >= len(reader.pages) for page in document.pages):
             raise IndexError(tr('選取的頁碼超出來源 PDF 範圍：{p0}', p0=source))
         prepared.append((source, reader, document.pages))
@@ -161,14 +182,13 @@ def split_documents(
     return outputs
 
 
-def inspect_pdf(source: str | Path) -> PdfInfo:
+def inspect_pdf(source: str | Path, password: str | None = None) -> PdfInfo:
     path = Path(source).resolve()
     if not path.is_file():
         raise InvalidPdfError(tr('找不到來源 PDF 檔案。'))
     try:
         reader = PdfReader(path)
-        if reader.is_encrypted:
-            raise UnsupportedEncryptedPdfError(tr('目前不支援密碼保護的 PDF。'))
+        _unlock(reader, password)
         page_count = len(reader.pages)
     except UnsupportedEncryptedPdfError:
         raise

@@ -18,12 +18,13 @@ def main(report_path: str) -> int:
         from pypdf import PdfReader, PdfWriter
         from repdf import __version__
         from repdf.app import load_app_icon
-        from repdf.core import DocumentSelection, export_selected_pages, export_documents, split_documents
+        from repdf.core import DocumentSelection, export_selected_pages, export_documents, inspect_pdf, split_documents
         from repdf.renderer import start_render_backend
         from repdf.preferences import LanguageController
         from repdf.strings import tr
         from repdf.theme import ThemeController
         from repdf.ocr import _engine, recognize_region
+        from repdf.search import compile_query
         import pypdfium2 as pdfium
         from PIL import Image, ImageDraw, ImageFont
         app = QApplication([])
@@ -38,6 +39,8 @@ def main(report_path: str) -> int:
         language.close()
         if load_app_icon().isNull():
             raise RuntimeError("Application icon is missing")
+        if not compile_query(r'sm.ke', regular_expression=True).search('SMOKE', timeout=1):
+            raise RuntimeError('Search regular expression runtime failed')
         ocr_image = Image.new('RGB', (500, 100), 'white')
         ImageDraw.Draw(ocr_image).text((15, 15), 'Copy this text',
                                      font=ImageFont.load_default(size=48), fill='black')
@@ -84,6 +87,16 @@ def main(report_path: str) -> int:
                     break
             if pages != [0, 1]:
                 raise RuntimeError(f"Unexpected rendered pages: {pages}")
+            encrypted = root / 'encrypted.pdf'
+            encrypted_writer = PdfWriter(clone_from=source)
+            encrypted_writer.encrypt('smoke-password', algorithm='AES-256')
+            encrypted_writer.write(encrypted)
+            if inspect_pdf(encrypted, 'smoke-password').page_count != 2:
+                raise RuntimeError('Encrypted PDF inspection failed')
+            decrypted = root / 'decrypted.pdf'
+            export_documents([DocumentSelection(encrypted, (0,), 'smoke-password')], decrypted)
+            if PdfReader(decrypted).is_encrypted:
+                raise RuntimeError('Unencrypted export from password-protected PDF failed')
             output = root / "reordered.pdf"
             export_selected_pages(source, output, [1, 0])
             if [int(page.mediabox.width) for page in PdfReader(output).pages] != [300, 200]:

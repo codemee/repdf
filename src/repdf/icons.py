@@ -57,6 +57,21 @@ def toolbar_icon(kind: str) -> QIcon:
                            ((21, 16), (21, 21), (16, 21)), ((8, 21), (3, 21), (3, 16))):
                 painter.drawPolyline(QPolygonF([QPointF(x, y) for x, y in points]))
             painter.drawRect(QRectF(8, 6, 8, 12))
+        elif kind in ("regex", "case_sensitive"):
+            font = QFont(QApplication.font())
+            font.setPixelSize(17 if kind == "regex" else 15)
+            painter.setFont(font)
+            painter.drawText(QRectF(1, 1, 22, 22), Qt.AlignmentFlag.AlignCenter,
+                             ".*" if kind == "regex" else "Aa")
+        elif kind == "close":
+            painter.drawLine(6, 6, 18, 18)
+            painter.drawLine(18, 6, 6, 18)
+        elif kind == "stop":
+            painter.setBrush(painter.pen().color())
+            painter.drawRect(QRectF(6, 6, 12, 12))
+        elif kind == "search":
+            painter.drawEllipse(QRectF(3, 3, 13, 13))
+            painter.drawLine(14, 14, 21, 21)
         elif kind == "extract_image":
             painter.drawRect(QRectF(3, 3, 18, 14))
             painter.drawEllipse(QRectF(6, 6, 3, 3))

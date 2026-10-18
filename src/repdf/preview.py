@@ -1,7 +1,7 @@
 from pathlib import Path
 
 from PySide6.QtCore import QEvent, Qt, QTimer
-from PySide6.QtGui import QImage, QPixmap
+from PySide6.QtGui import QImage, QKeySequence, QPixmap
 from PySide6.QtWidgets import QApplication, QCheckBox, QLabel, QWidget
 
 from repdf.strings import tr
@@ -66,6 +66,8 @@ class FullscreenPreview(QWidget):
             self.images[index] = self.document.page_cards[index].preview.pixmap().toImage()
             label = PagePreviewLabel('', draggable=False)
             label.setParent(self)
+            source_label = self.document.page_cards[index].preview
+            label.set_search_highlights(source_label._search_rects, source_label._active_search_rects)
             label.set_text_mode(self.owner._selection_active(), region=self.owner.region_ocr_action.isChecked(),
                                 image=self.owner.extract_image_action.isChecked())
             label.text_selected.connect(
@@ -120,7 +122,8 @@ class FullscreenPreview(QWidget):
         self.render_generation = self.owner._next_generation
         self.owner.render_service.request(self.document.source_path, scale,
                                          Path(self.owner.preview_temp.name), self.render_generation,
-                                         document_id=-self.document.document_id, pages=self.visible_pages)
+                                         document_id=-self.document.document_id, pages=self.visible_pages,
+                                         password=self.document.password)
         self.owner.render_service.prioritize(-self.document.document_id)
 
     def accept_render(self, payload):
@@ -173,6 +176,14 @@ class FullscreenPreview(QWidget):
             self.timer.start()
 
     def eventFilter(self, watched, event):
+        if (not self.closed and isinstance(watched, QWidget) and watched.window() is self
+                and event.type() in (QEvent.Type.ShortcutOverride, QEvent.Type.KeyPress)
+                and event.matches(QKeySequence.StandardKey.Find)):
+            if event.type() == QEvent.Type.ShortcutOverride:
+                event.accept()
+            else:
+                self.owner.search_controller.open()
+            return True
         if (not self.closed and isinstance(watched, QWidget) and watched.window() is self
                 and event.type() == QEvent.Type.KeyPress and not event.modifiers()):
             return self._handle_key(event.key())

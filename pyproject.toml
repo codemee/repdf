@@ -8,10 +8,11 @@ requires-python = ">=3.11"
 dependencies = [
     "onnxruntime>=1.31.0,<2",
     "pillow>=11.0,<13",
-    "pypdf>=5.0,<7",
+    "pypdf[crypto]>=5.0,<7",
     "pypdfium2>=4.30,<6",
     "pyside6>=6.8,<7",
     "rapidocr==3.10.0",
+    "regex>=2024.11.6",
 ]
 
 [project.urls]

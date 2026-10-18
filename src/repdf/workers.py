@@ -4,28 +4,35 @@ from pathlib import Path
 
 from PySide6.QtCore import QObject, QRunnable, Signal, Slot
 
-from repdf.core import DocumentSelection, export_documents, inspect_pdf, split_documents
+from repdf.core import (DocumentSelection, IncorrectPasswordError, PasswordRequiredError,
+                        export_documents, inspect_pdf, split_documents)
 
 
 class LoadSignals(QObject):
     loaded = Signal(int, object, int)
     failed = Signal(int, str)
+    password_required = Signal(int, bool)
 
 
 class LoadPdfTask(QRunnable):
-    def __init__(self, source: Path, session_id: int) -> None:
+    def __init__(self, source: Path, session_id: int, password: str | None = None) -> None:
         super().__init__()
         self.source = source
         self.session_id = session_id
+        self.password = password
         self.signals = LoadSignals()
 
     @Slot()
     def run(self) -> None:
         try:
-            info = inspect_pdf(self.source)
+            info = inspect_pdf(self.source, self.password)
             self.signals.loaded.emit(self.session_id, info.path, info.page_count)
+        except (PasswordRequiredError, IncorrectPasswordError) as exc:
+            self.signals.password_required.emit(self.session_id, isinstance(exc, IncorrectPasswordError))
         except Exception as exc:
             self.signals.failed.emit(self.session_id, str(exc))
+        finally:
+            self.password = None
 
 
 class ExportSignals(QObject):
@@ -39,7 +46,7 @@ class ExportPdfTask(QRunnable):
         *, split: bool = False, overwrite: bool = False, protected_sources: tuple[Path, ...] = (),
     ) -> None:
         super().__init__()
-        self.documents = tuple(DocumentSelection(item.source, tuple(item.pages)) for item in documents)
+        self.documents = tuple(DocumentSelection(item.source, tuple(item.pages), item.password) for item in documents)
         self.destination = destination
         self.session_id = session_id
         self.signals = ExportSignals()
@@ -59,3 +66,5 @@ class ExportPdfTask(QRunnable):
             self.signals.completed.emit(self.session_id, self.destination, count)
         except Exception as exc:
             self.signals.failed.emit(self.session_id, str(exc))
+        finally:
+            self.documents = ()

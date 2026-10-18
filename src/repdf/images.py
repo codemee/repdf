@@ -26,7 +26,7 @@ def _images_at(page, point, form=None, depth=0):
             yield obj
 
 
-def extract_clicked_image(source: Path, page_index: int, point, destination: Path):
+def extract_clicked_image(source: Path, page_index: int, point, destination: Path, *, password: str | None = None):
     """Save the last painted raster image at normalized displayed-page coordinates.
 
     Export the entire underlying raster, including its mask, rather than a crop
@@ -34,7 +34,7 @@ def extract_clicked_image(source: Path, page_index: int, point, destination: Pat
     """
     if len(point) != 2 or not all(0 <= float(value) <= 1 for value in point):
         raise ValueError("Invalid image selection position")
-    with closing(pdfium.PdfDocument(str(source))) as document:
+    with closing(pdfium.PdfDocument(str(source), password=password)) as document:
         if not 0 <= page_index < len(document):
             raise ValueError("Invalid image selection page index")
         with closing(document[page_index]) as page:

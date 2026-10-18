@@ -117,7 +117,8 @@ def test_image_worker_protocol_and_no_hit(tmp_path):
     assert messages[3]['image'] is None
 
 
-def test_click_image_saves_native_png_and_supports_fullscreen(qtbot, monkeypatch, tmp_path):
+@pytest.mark.parametrize('password', [None, 'image-secret'])
+def test_click_image_saves_native_png_and_supports_fullscreen(qtbot, monkeypatch, tmp_path, password):
     from PySide6.QtCore import QPoint, Qt
     from PySide6.QtGui import QImage
     from PySide6.QtWidgets import QFileDialog
@@ -125,12 +126,18 @@ def test_click_image_saves_native_png_and_supports_fullscreen(qtbot, monkeypatch
 
     source, output = tmp_path / 'source.pdf', tmp_path / 'saved.png'
     image_pdf(source, alpha=True)
+    if password:
+        writer = PdfWriter(clone_from=source)
+        writer.encrypt(password, algorithm='AES-256')
+        source = tmp_path / 'locked-image.pdf'
+        writer.write(source)
     original = source.read_bytes()
     monkeypatch.setattr(DocumentView, '_queue_all_renders', lambda self: None)
     window = MainWindow()
     qtbot.addWidget(window)
     assert not window.extract_image_action.isEnabled()
     doc = window._new_document(source)
+    doc.password = password
     doc.loaded(1)
     doc.page_sizes[0] = (240, 240)
     image = QImage(240, 240, QImage.Format.Format_RGB32)
@@ -201,7 +208,7 @@ def test_late_image_result_is_discarded_after_mode_change_or_tab_close(qtbot, mo
     doc.page_sizes[0] = (240, 240)
     window._sync_controls()
     window.show()
-    monkeypatch.setattr(window.render_service, 'request_image', lambda *_args: None)
+    monkeypatch.setattr(window.render_service, 'request_image', lambda *_args, **_kwargs: None)
     dialogs = []
     monkeypatch.setattr(QFileDialog, 'getSaveFileName', lambda *_args: (dialogs.append(True), ''))
     for close in (False, True):
