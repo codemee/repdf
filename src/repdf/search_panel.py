@@ -234,6 +234,9 @@ class SearchController(QObject):
 
     def _focus_query(self):
         if not self.owner._closing and self.opened and self.panel.isVisible():
+            # A popup can retain the active-window state after its action runs,
+            # especially on macOS. Return activation before assigning focus.
+            self.owner.activateWindow()
             self.panel.query.setFocus()
             self.panel.query.selectAll()
 

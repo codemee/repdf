@@ -468,6 +468,9 @@ def test_search_uses_each_documents_password_and_disambiguates_names(qtbot, tmp_
 
 def test_search_opens_from_overflow_and_focuses_query(qtbot):
     from PySide6.QtCore import QTimer
+    from PySide6.QtWidgets import QApplication
+    from repdf.app import configure_application
+    configure_application(QApplication.instance())
     window = MainWindow()
     qtbot.addWidget(window)
     window.show()
