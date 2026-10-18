@@ -211,7 +211,10 @@ reorderAnimation.durationMs = 180
 
 ## 10. 實作來源
 
-- 文件用圖示由 [render_doc_icons.py](../scripts/render_doc_icons.py) 產生；執行 `uv run python scripts/render_doc_icons.py` 可更新 `docs/images/`。圖示使用固定淺色底板與細邊框，確保深色／淺色 Markdown 閱讀器都能清楚顯示；程式內圖示仍依目前配色繪製。
+- 文件用圖示由 [render_doc_icons.py](../scripts/render_doc_icons.py) 產生；執行 `uv run python scripts/render_doc_icons.py` 可更新 `docs/images/`。
+- 圖示提供透明背景的淺色／深色兩套：`toolbar-<名稱>.png` 為淺色配色版，`toolbar-<名稱>-dark.png` 為深色配色版；兩者尺寸一致。
+- README 使用 `<picture>` 與 `prefers-color-scheme`，讓支援的閱讀器自動選擇配色。GitHub 支援此方式，範例見 [官方說明](https://github.blog/developer-skills/github/how-to-make-your-images-in-markdown-on-github-adjust-for-dark-mode-and-light-mode/)。
+- 不支援 `<picture>` 或未依閱讀器配色更新媒體查詢的環境，可能顯示預設的淺色配色版；切換是否生效取決於閱讀器的支援。程式內圖示仍依目前配色繪製。
 - [app.py](../src/repdf/app.py)：主視窗、工具列、固定尺寸、縮放與字型。
 - [theme.py](../src/repdf/theme.py)：QPalette、QSS、狀態配色與圓角。
 - [icons.py](../src/repdf/icons.py)：圖示幾何、畫布、筆畫與正常／停用版本。

@@ -1,12 +1,12 @@
-"""Render documentation assets on opaque tiles readable in any Markdown theme.
+"""Render paired documentation images for light and dark Markdown themes.
 
 Run with: uv run python scripts/render_doc_icons.py
 """
 
 from pathlib import Path
 
-from PySide6.QtCore import QPoint, QRect, QRectF, Qt
-from PySide6.QtGui import QColor, QPainter, QPen, QPixmap
+from PySide6.QtCore import QPoint, QRect, Qt
+from PySide6.QtGui import QPainter, QPixmap, QRegion
 from PySide6.QtWidgets import QApplication, QCheckBox, QHBoxLayout, QLabel, QSlider, QWidget
 
 from repdf.app import configure_application
@@ -15,8 +15,6 @@ from repdf.theme import ThemeController
 
 
 OUTPUT = Path(__file__).resolve().parents[1] / "docs" / "images"
-BACKGROUND = QColor("#f5f6f8")
-BORDER = QColor("#c4c7cd")
 SCALE = 2
 ICON_KINDS = {
     "open": "open", "export": "export", "split": "split",
@@ -28,49 +26,43 @@ ICON_KINDS = {
 }
 
 
-def tile(width, height):
+def canvas(width, height):
     pixmap = QPixmap(width * SCALE, height * SCALE)
-    pixmap.fill(BACKGROUND)
+    pixmap.fill(Qt.GlobalColor.transparent)
     painter = QPainter(pixmap)
     painter.scale(SCALE, SCALE)
     painter.setRenderHint(QPainter.RenderHint.Antialiasing)
-    painter.setPen(QPen(BORDER, 1))
-    painter.setBrush(BACKGROUND)
-    painter.drawRoundedRect(QRectF(.5, .5, width - 1, height - 1), 3, 3)
     return pixmap, painter
 
 
-def save_widget(widget, name):
+def save_widget(widget, name, mode):
     widget.ensurePolished()
     widget.adjustSize()
     width, height = widget.width() + 12, widget.height() + 8
-    pixmap, painter = tile(width, height)
+    pixmap, painter = canvas(width, height)
     painter.translate(6, 4)
-    widget.render(painter, QPoint())
+    widget.render(painter, QPoint(), QRegion(), QWidget.RenderFlag.DrawChildren)
     painter.end()
-    save(pixmap, name)
+    save(pixmap, name, mode)
 
 
-def save(pixmap, name):
-    if not pixmap.save(str(OUTPUT / f"toolbar-{name}.png")):
+def save(pixmap, name, mode):
+    suffix = "-dark" if mode == "dark" else ""
+    if not pixmap.save(str(OUTPUT / f"toolbar-{name}{suffix}.png")):
         raise RuntimeError(f"Could not save documentation icon: {name}")
 
 
-def main():
-    app = QApplication([])
-    configure_application(app)
-    theme = ThemeController(app, "light")
-    OUTPUT.mkdir(parents=True, exist_ok=True)
+def render_theme(mode):
     for name, kind in ICON_KINDS.items():
-        pixmap, painter = tile(24, 24)
+        pixmap, painter = canvas(24, 24)
         toolbar_icon(kind).paint(painter, QRect(2, 2, 20, 20))
         painter.end()
-        save(pixmap, name)
+        save(pixmap, name, mode)
     for name, label in (("odd", "單數頁"), ("even", "雙數頁")):
         checkbox = QCheckBox(label)
         checkbox.setTristate(True)
         checkbox.setCheckState(Qt.CheckState.Unchecked if name == "odd" else Qt.CheckState.PartiallyChecked)
-        save_widget(checkbox, name)
+        save_widget(checkbox, name, mode)
     zoom = QWidget()
     layout = QHBoxLayout(zoom)
     layout.setContentsMargins(0, 0, 0, 0)
@@ -81,8 +73,18 @@ def main():
     slider.setValue(100)
     slider.setFixedWidth(150)
     layout.addWidget(slider)
-    save_widget(zoom, "zoom")
-    print(f"Rendered {len(ICON_KINDS) + 3} documentation images in {OUTPUT}")
+    save_widget(zoom, "zoom", mode)
+
+
+def main():
+    app = QApplication([])
+    configure_application(app)
+    theme = ThemeController(app, "light")
+    OUTPUT.mkdir(parents=True, exist_ok=True)
+    for mode in ("light", "dark"):
+        theme.set_mode(mode)
+        render_theme(mode)
+    print(f"Rendered {(len(ICON_KINDS) + 3) * 2} documentation images in {OUTPUT}")
 
 
 if __name__ == "__main__":
