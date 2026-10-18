@@ -211,6 +211,7 @@ reorderAnimation.durationMs = 180
 
 ## 10. 實作來源
 
+- 文件用圖示由 [render_doc_icons.py](../scripts/render_doc_icons.py) 產生；執行 `uv run python scripts/render_doc_icons.py` 可更新 `docs/images/`。圖示使用固定淺色底板與細邊框，確保深色／淺色 Markdown 閱讀器都能清楚顯示；程式內圖示仍依目前配色繪製。
 - [app.py](../src/repdf/app.py)：主視窗、工具列、固定尺寸、縮放與字型。
 - [theme.py](../src/repdf/theme.py)：QPalette、QSS、狀態配色與圓角。
 - [icons.py](../src/repdf/icons.py)：圖示幾何、畫布、筆畫與正常／停用版本。
