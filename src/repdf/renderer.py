@@ -129,6 +129,17 @@ class RenderService(QObject):
         with self._lock:
             self._pending.pop(document_id, None)
 
+    def request_image(self, source: Path, page: int, point, output_dir: Path,
+                      generation: int, document_id: int) -> None:
+        payload = {"type": "extract_image", "source": str(source), "page": page,
+                   "point": point, "output_dir": str(output_dir), "generation": generation}
+        with self._lock:
+            if self._closed:
+                return
+            self._pending[document_id] = payload
+            self._pending.move_to_end(document_id, last=False)
+            self._start_next()
+
     def prioritize(self, document_id: int) -> None:
         with self._lock:
             if document_id in self._pending:

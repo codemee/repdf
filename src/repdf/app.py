@@ -3,6 +3,7 @@ from __future__ import annotations
 from repdf.strings import tr, localize_text
 
 import sys
+import shutil
 import tempfile
 from importlib.resources import files
 from pathlib import Path
@@ -87,6 +88,7 @@ class DocumentView(QWidget):
         self._render_pending = 0
         self._render_done_generation = -1
         self.include_checkbox = QCheckBox()
+        self.include_checkbox.setObjectName('tabIncludeCheckbox')
         self.include_checkbox.setToolTip(tr('勾選此檔案以加入重組或拆分；未勾選任何標籤時僅輸出目前檔案'))
         self.include_checkbox.setEnabled(False)
         self.include_checkbox.toggled.connect(owner._sync_controls)
@@ -150,7 +152,8 @@ class DocumentView(QWidget):
         width = self._target_preview_width()
         for page_index in range(self.page_count):
             card = PageCard(page_index, width)
-            card.set_text_copy_mode(self.owner._selection_active(), region=self.owner.region_ocr_action.isChecked())
+            card.set_text_copy_mode(self.owner._selection_active(), region=self.owner.region_ocr_action.isChecked(),
+                                    image=self.owner.extract_image_action.isChecked())
             card.selection_changed.connect(self._page_selection_changed)
             card.reorder_requested.connect(self._move_page)
             card.focused.connect(self._focus_page)
@@ -418,6 +421,7 @@ class MainWindow(QMainWindow):
         self._next_generation = 0
         self._render_documents = {}
         self._text_requests = {}
+        self._image_requests = {}
         self._active_tasks = set()
         self._load_batches = {}
         self._document_batches = {}
@@ -597,6 +601,13 @@ class MainWindow(QMainWindow):
         self.region_ocr_action.toggled.connect(self._set_region_ocr_mode)
         self.toolbar.addAction(self.region_ocr_action)
         self.toolbar.widgetForAction(self.region_ocr_action).setObjectName('regionOcrTool')
+        self.extract_image_action = QAction(tr('擷取圖片'), self)
+        self.extract_image_action.setCheckable(True)
+        self.extract_image_action.setEnabled(False)
+        self.extract_image_action.setToolTip(tr('擷取圖片：點選頁面中的內嵌點陣圖片，另存為 PNG。'))
+        self.extract_image_action.toggled.connect(self._set_image_mode)
+        self.toolbar.addAction(self.extract_image_action)
+        self.toolbar.widgetForAction(self.extract_image_action).setObjectName('extractImageTool')
 
         spacer = QWidget()
         spacer.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Preferred)
@@ -670,6 +681,7 @@ class MainWindow(QMainWindow):
         for action, kind in ((self.open_action, "open"), (self.export_action, "export"),
                              (self.split_action, "split"), (self.copy_text_action, "copy_text"),
                              (self.region_ocr_action, "ocr_region"),
+                             (self.extract_image_action, "extract_image"),
                              (self.fit_action, "fit"),
                              (self.fullscreen_action, "fullscreen"),
                              (self.spread_action, "fullscreen_spread"),
@@ -750,38 +762,49 @@ class MainWindow(QMainWindow):
             doc.fit_page()
 
     def _selection_active(self) -> bool:
-        return self.copy_text_action.isChecked() or self.region_ocr_action.isChecked()
+        return any(action.isChecked() for action in
+                   (self.copy_text_action, self.region_ocr_action, self.extract_image_action))
+
+    def _set_image_mode(self, enabled: bool) -> None:
+        self._select_mode(self.extract_image_action, enabled)
+
+    def _select_mode(self, active, enabled):
+        if enabled:
+            for action in (self.copy_text_action, self.region_ocr_action, self.extract_image_action):
+                if action is not active:
+                    action.blockSignals(True)
+                    action.setChecked(False)
+                    action.blockSignals(False)
+        self._sync_selection_modes()
 
     def _set_copy_text_mode(self, enabled: bool) -> None:
-        if enabled:
-            self.region_ocr_action.blockSignals(True)
-            self.region_ocr_action.setChecked(False)
-            self.region_ocr_action.blockSignals(False)
-        self._sync_selection_modes()
+        self._select_mode(self.copy_text_action, enabled)
 
     def _set_region_ocr_mode(self, enabled: bool) -> None:
-        if enabled:
-            self.copy_text_action.blockSignals(True)
-            self.copy_text_action.setChecked(False)
-            self.copy_text_action.blockSignals(False)
-        self._sync_selection_modes()
+        self._select_mode(self.region_ocr_action, enabled)
 
     def _sync_selection_modes(self) -> None:
         enabled = self._selection_active()
         region = self.region_ocr_action.isChecked()
+        image = self.extract_image_action.isChecked()
         for doc in self.documents.values():
             doc.grid_host.finish_drag()
             for card in doc.page_cards:
-                card.set_text_copy_mode(enabled, region=region)
+                card.set_text_copy_mode(enabled, region=region, image=image)
         if self._fullscreen_preview is not None:
             for label in self._fullscreen_preview.labels.values():
-                label.set_text_mode(enabled, region=region)
+                label.set_text_mode(enabled, region=region, image=image)
         self._text_requests.clear()
+        self._image_requests.clear()
 
     def _copy_text_selection(self, doc, page_index, label, start, end, *, copy=True) -> None:
         if not self._selection_active() or doc.document_id not in self.documents:
             return
         if label.pixmap().isNull() or label.width() < 1 or label.height() < 1:
+            return
+        if self.extract_image_action.isChecked():
+            if copy:
+                self._request_image(doc, page_index, label, end)
             return
         region = self.region_ocr_action.isChecked()
         if region and not copy:
@@ -801,6 +824,68 @@ class MainWindow(QMainWindow):
         )
         if copy:
             self.statusBar().showMessage(tr('正在辨識選取區域…') if region else tr('正在擷取文字…'))
+
+    def _request_image(self, doc, page_index, label, point):
+        self._next_generation += 1
+        generation = self._next_generation
+        self._image_requests = {key: value for key, value in self._image_requests.items()
+                                if value[0] != doc.document_id}
+        self._image_requests[generation] = (doc.document_id, page_index, label)
+        self.render_service.request_image(
+            doc.source_path, page_index,
+            (point.x() / label.width(), point.y() / label.height()),
+            Path(self.preview_temp.name), generation, -1_000_000 - doc.document_id)
+        self.statusBar().showMessage(tr('正在擷取圖片…'))
+
+    def _accept_image(self, generation, payload):
+        request = self._image_requests.pop(generation, None)
+        result = payload.get('image')
+        path = Path(self.preview_temp.name) / f'g{generation}-image.png'
+        try:
+            if request is None or self._closing or not self.extract_image_action.isChecked():
+                return
+            document_id, page_index, label = request
+            doc = self.documents.get(document_id)
+            if doc is None or not isValid(label) or not label.isVisible():
+                return
+            if not result:
+                self.statusBar().showMessage(tr('此位置沒有可擷取的內嵌點陣圖片'))
+                return
+            if Path(result['path']) != path or not path.is_file():
+                raise ValueError(tr('圖片擷取結果無效'))
+            parent = self._fullscreen_preview or self
+            suggested = doc.source_path.with_name(f'{doc.source_path.stem}_p{page_index + 1}_image.png')
+            filename, _ = QFileDialog.getSaveFileName(
+                parent, tr('儲存擷取的圖片'), str(suggested), tr('PNG 圖片 (*.png)'), '',
+                QFileDialog.Option.DontUseNativeDialog)
+            if not filename:
+                self.statusBar().showMessage(tr('已取消儲存圖片'))
+                return
+            destination = Path(filename)
+            if destination.suffix.lower() != '.png':
+                destination = Path(str(destination) + '.png')
+                if destination.exists() and QMessageBox.question(
+                    parent, tr('覆蓋圖片'), tr('檔案已存在，是否覆蓋？\n{p0}', p0=destination),
+                    QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+                    QMessageBox.StandardButton.No) != QMessageBox.StandardButton.Yes:
+                    return
+            if destination.resolve() in {item.source_path.resolve() for item in self.documents.values()}:
+                raise ValueError(tr('輸出檔案不可覆蓋來源 PDF。'))
+            with tempfile.NamedTemporaryFile(prefix='.repdf-image-', suffix='.tmp',
+                                             dir=destination.parent, delete=False) as temporary:
+                pending = Path(temporary.name)
+            try:
+                shutil.copyfile(path, pending)
+                pending.replace(destination)
+            finally:
+                pending.unlink(missing_ok=True)
+            self.statusBar().showMessage(tr('已儲存圖片（{p0} × {p1}）：{p2}',
+                                           p0=result['width'], p1=result['height'], p2=destination))
+        except Exception as exc:
+            self.statusBar().showMessage(tr('無法擷取圖片：{p0}', p0=exc))
+            QMessageBox.warning(self._fullscreen_preview or self, tr('無法擷取圖片'), str(exc))
+        finally:
+            path.unlink(missing_ok=True)
 
     def _show_fullscreen_preview(self, mode="single") -> None:
         doc = self.current_document()
@@ -880,6 +965,7 @@ class MainWindow(QMainWindow):
         self.cover_action.setEnabled(available)
         self.copy_text_action.setEnabled(available)
         self.region_ocr_action.setEnabled(available)
+        self.extract_image_action.setEnabled(available)
         self.zoom_out_action.setEnabled(zoom > 25)
         self.zoom_in_action.setEnabled(zoom < 200)
         enabled = bool(self.output_selection()) and not self._export_running
@@ -1019,6 +1105,8 @@ class MainWindow(QMainWindow):
         self.render_service.cancel_pending(-1_000_000 - doc.document_id)
         self._text_requests = {generation: request for generation, request in self._text_requests.items()
                                if request[0] != doc.document_id}
+        self._image_requests = {generation: request for generation, request in self._image_requests.items()
+                                if request[0] != doc.document_id}
         for generation, document_id in list(self._render_documents.items()):
             if document_id == doc.document_id:
                 self._render_documents.pop(generation)
@@ -1042,6 +1130,15 @@ class MainWindow(QMainWindow):
         except (TypeError, ValueError):
             return
         viewer = self._fullscreen_preview
+        if payload.get('type') == 'image':
+            self._accept_image(generation, payload)
+            return
+        if generation in self._image_requests:
+            if payload.get('type') in {'done', 'error'}:
+                self._image_requests.pop(generation, None)
+                if payload.get('type') == 'error':
+                    self.statusBar().showMessage(tr('無法擷取圖片：{p0}', p0=payload.get('message', '')))
+            return
         if generation in self._text_requests:
             document_id, label, copy = self._text_requests[generation]
             if document_id in self.documents and not self._closing:

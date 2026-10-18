@@ -5,6 +5,21 @@ from string import Formatter
 
 LANGUAGE = "zh"
 ENGLISH = {
+    "擷取圖片": "Extract image",
+    "擷取圖片模式中無法拖放頁面": "Page dragging is unavailable in image extraction mode",
+    "擷取圖片：點選頁面中的內嵌點陣圖片，另存為 PNG。": "Extract image: click an embedded raster image on a page to save it as PNG.",
+    "點選內嵌圖片並另存為 PNG": "Click an embedded image to save it as PNG",
+    "正在擷取圖片…": "Extracting image…",
+    "此位置沒有可擷取的內嵌點陣圖片": "No embedded raster image at this position",
+    "圖片擷取結果無效": "Invalid extracted image result",
+    "儲存擷取的圖片": "Save extracted image",
+    "PNG 圖片 (*.png)": "PNG images (*.png)",
+    "已取消儲存圖片": "Image saving canceled",
+    "覆蓋圖片": "Overwrite image",
+    "檔案已存在，是否覆蓋？\n{p0}": "File already exists. Overwrite?\n{p0}",
+    "已儲存圖片（{p0} × {p1}）：{p2}": "Image saved ({p0} × {p1}): {p2}",
+    "無法擷取圖片": "Cannot extract image",
+    "無法擷取圖片：{p0}": "Cannot extract image: {p0}",
     "更多工具": "More tools",
     "全螢幕單頁": "Fullscreen single page",
     "全螢幕對頁": "Fullscreen facing pages",

@@ -9,6 +9,7 @@ from typing import TextIO
 import pypdfium2 as pdfium
 
 from repdf.ocr import OcrError, recognize_region, recognize_selection, suspicious_text
+from repdf.images import extract_clicked_image
 
 
 def render_document(
@@ -148,7 +149,14 @@ def serve(
         request: dict[str, object] = {}
         try:
             request = json.loads(line)
-            if request.get('type') == 'ocr_region':
+            if request.get('type') == 'extract_image':
+                generation = int(request['generation'])
+                destination = Path(request['output_dir']) / f"g{generation}-image.png"
+                result = extract_clicked_image(Path(request['source']), int(request['page']),
+                                               request['point'], destination)
+                print(json.dumps({'type': 'image', 'generation': generation, 'image': result}),
+                      file=output_stream, flush=True)
+            elif request.get('type') == 'ocr_region':
                 document = pdfium.PdfDocument(str(request['source']))
                 try:
                     page_index = int(request['page'])

@@ -165,6 +165,7 @@ class PagePreviewLabel(DragLabel):
         self.draggable = draggable
         self.text_mode = False
         self.region_mode = False
+        self.image_mode = False
         self._selection_start = None
         self._selection_end = None
         self._selecting = False
@@ -176,18 +177,19 @@ class PagePreviewLabel(DragLabel):
         if not draggable:
             self.setCursor(Qt.CursorShape.ArrowCursor)
 
-    def set_text_mode(self, enabled: bool, *, region: bool = False) -> None:
+    def set_text_mode(self, enabled: bool, *, region: bool = False, image: bool = False) -> None:
         self.text_mode = enabled
         self.region_mode = enabled and region
+        self.image_mode = enabled and image
         self._selection_start = None
         self._selection_end = None
         self._selecting = False
         self._highlight_rects = []
         self._preview_timer.stop()
         self._press_position = None
-        self.setCursor(Qt.CursorShape.CrossCursor if self.region_mode else Qt.CursorShape.IBeamCursor if enabled else
+        self.setCursor(Qt.CursorShape.PointingHandCursor if self.image_mode else Qt.CursorShape.CrossCursor if self.region_mode else Qt.CursorShape.IBeamCursor if enabled else
                        Qt.CursorShape.OpenHandCursor if self.draggable else Qt.CursorShape.ArrowCursor)
-        self.setToolTip(tr('框選區域並以 OCR 複製文字') if self.region_mode else tr('拖曳選取文字並複製到剪貼簿') if enabled else
+        self.setToolTip(tr('點選內嵌圖片並另存為 PNG') if self.image_mode else tr('框選區域並以 OCR 複製文字') if self.region_mode else tr('拖曳選取文字並複製到剪貼簿') if enabled else
                         tr('拖曳到另一頁可調整順序') if self.draggable else '')
         self.update()
 
@@ -199,7 +201,7 @@ class PagePreviewLabel(DragLabel):
         self.update()
 
     def _preview_selection(self) -> None:
-        if not self.region_mode and self._selecting and self._selection_start is not None and self._selection_end is not None:
+        if not self.region_mode and not self.image_mode and self._selecting and self._selection_start is not None and self._selection_end is not None:
             self.selection_preview.emit(self._selection_start, self._selection_end)
 
     def mousePressEvent(self, event: QMouseEvent) -> None:
@@ -224,7 +226,7 @@ class PagePreviewLabel(DragLabel):
             return
         if self._selecting and event.buttons() & Qt.MouseButton.LeftButton:
             self._selection_end = event.position().toPoint()
-            if not self.region_mode and not self._preview_timer.isActive():
+            if not self.region_mode and not self.image_mode and not self._preview_timer.isActive():
                 self._preview_timer.start()
             self.update()
             event.accept()
@@ -236,7 +238,10 @@ class PagePreviewLabel(DragLabel):
         if event.button() == Qt.MouseButton.LeftButton and self._selecting:
             self._preview_timer.stop()
             self._selection_end = event.position().toPoint()
-            if (self._selection_end - self._selection_start).manhattanLength() >= QApplication.startDragDistance():
+            distance = (self._selection_end - self._selection_start).manhattanLength()
+            clicked_image = self.image_mode and distance < QApplication.startDragDistance()
+            selected_text = not self.image_mode and distance >= QApplication.startDragDistance()
+            if clicked_image or selected_text:
                 self.text_selected.emit(self._selection_start, self._selection_end)
             self._selecting = False
             self.update()
@@ -244,7 +249,7 @@ class PagePreviewLabel(DragLabel):
 
     def paintEvent(self, event) -> None:
         super().paintEvent(event)
-        if not self.text_mode:
+        if not self.text_mode or self.image_mode:
             return
         painter = QPainter(self)
         highlight = self.palette().highlight().color()
@@ -377,11 +382,11 @@ class PageCard(QFrame):
         self.checkbox.setChecked(selected)
         self.checkbox.blockSignals(False)
 
-    def set_text_copy_mode(self, enabled: bool, *, region: bool = False) -> None:
+    def set_text_copy_mode(self, enabled: bool, *, region: bool = False, image: bool = False) -> None:
         self.text_copy_mode = enabled
-        self.preview.set_text_mode(enabled, region=region)
+        self.preview.set_text_mode(enabled, region=region, image=image)
         self.drag_handle.setCursor(Qt.CursorShape.ArrowCursor if enabled else Qt.CursorShape.OpenHandCursor)
-        self.drag_handle.setToolTip(tr('文字複製模式中無法拖放頁面') if enabled else
+        self.drag_handle.setToolTip(tr('擷取圖片模式中無法拖放頁面') if enabled and image else tr('文字複製模式中無法拖放頁面') if enabled else
                                     tr('拖曳到另一頁可調整順序'))
 
     def set_target_width(self, width: int) -> None:

@@ -57,6 +57,13 @@ def toolbar_icon(kind: str) -> QIcon:
                            ((21, 16), (21, 21), (16, 21)), ((8, 21), (3, 21), (3, 16))):
                 painter.drawPolyline(QPolygonF([QPointF(x, y) for x, y in points]))
             painter.drawRect(QRectF(8, 6, 8, 12))
+        elif kind == "extract_image":
+            painter.drawRect(QRectF(3, 3, 18, 14))
+            painter.drawEllipse(QRectF(6, 6, 3, 3))
+            painter.drawPolyline(QPolygonF([QPointF(4, 16), QPointF(10, 10), QPointF(14, 14), QPointF(17, 11), QPointF(20, 14)]))
+            painter.drawLine(12, 17, 12, 22)
+            painter.drawLine(9, 19, 12, 22)
+            painter.drawLine(15, 19, 12, 22)
         elif kind == "ocr_region":
             for points in (((3, 8), (3, 3), (8, 3)), ((16, 3), (21, 3), (21, 8)),
                            ((21, 16), (21, 21), (16, 21)), ((8, 21), (3, 21), (3, 16))):
