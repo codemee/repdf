@@ -9,16 +9,8 @@ from pathlib import Path
 
 
 def _stop_backend(process):
-    process.terminate()
-    try:
-        process.wait(timeout=5)
-    except Exception:
-        process.kill()
-        process.wait(timeout=5)
-    finally:
-        for stream in (process.stdin, process.stdout, process.stderr):
-            if stream is not None:
-                stream.close()
+    from repdf.renderer import RenderService
+    RenderService(process).close(terminate_tree=True)
 
 
 def main(report_path: str) -> int:
@@ -101,6 +93,48 @@ def main(report_path: str) -> int:
                     break
             if pages != [0, 1]:
                 raise RuntimeError(f"Unexpected rendered pages: {pages}")
+            from PySide6.QtCore import QEventLoop, QTimer
+            from PySide6.QtPrintSupport import QPrinter
+            from repdf.printing import PrintJob, PrintPage
+            printed = root / 'printed.pdf'
+            printer = QPrinter(QPrinter.PrinterMode.HighResolution)
+            printer.setOutputFormat(QPrinter.OutputFormat.PdfFormat)
+            printer.setOutputFileName(str(printed))
+            from repdf.print_preview import PrintPreviewDialog
+            from PySide6.QtWidgets import QDialog
+            preview = PrintPreviewDialog(printer, [PrintPage(source, 1), PrintPage(source, 0)])
+            resources.callback(preview.cleanup)
+            preview_poll = QTimer()
+            def check_preview():
+                if preview.print_button.isEnabled():
+                    preview.accept()
+                elif preview.status.text().startswith(tr('無法產生列印預覽：{p0}', p0='')):
+                    preview.reject()
+            preview_poll.timeout.connect(check_preview)
+            preview_poll.start(20)
+            preview_timeout = QTimer()
+            preview_timeout.setSingleShot(True)
+            preview_timeout.timeout.connect(preview.reject)
+            preview_timeout.start(30000)
+            preview_result = preview.exec()
+            preview_poll.stop()
+            preview_timeout.stop()
+            if preview_result != QDialog.DialogCode.Accepted or printed.exists():
+                raise RuntimeError(f'Packaged print preview failed: {preview.status.text()}')
+            print_job = PrintJob(printer, [PrintPage(source, 1), PrintPage(source, 0)])
+            resources.callback(print_job.cancel)
+            loop = QEventLoop()
+            timer = QTimer()
+            timer.setSingleShot(True)
+            timer.timeout.connect(print_job.cancel)
+            timer.start(30000)
+            print_result = []
+            print_job.finished.connect(lambda state, message: (print_result.append((state, message)), loop.quit()))
+            QTimer.singleShot(0, print_job.start)
+            loop.exec()
+            timer.stop()
+            if not print_result or print_result[0][0] != 'completed' or len(PdfReader(printed).pages) != 2:
+                raise RuntimeError(f'Packaged printing failed: {print_result}')
             encrypted = root / 'encrypted.pdf'
             encrypted_writer = PdfWriter(clone_from=source)
             encrypted_writer.encrypt('smoke-password', algorithm='AES-256')

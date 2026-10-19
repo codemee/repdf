@@ -65,6 +65,7 @@ from repdf.workers import ExportPdfTask, LoadPdfTask
 from repdf.search_panel import SearchController
 from repdf.page_view import PageViewport, PreviewCache
 from repdf.navigation import NavigationController
+from repdf.printing import PrintController
 
 
 class DocumentView(QWidget):
@@ -420,6 +421,7 @@ class MainWindow(QMainWindow):
         self.statusBar().setSizeGripEnabled(False)
         self.statusBar().showMessage(tr('就緒'))
         self._build_page_navigation()
+        self.print_controller = PrintController(self)
         self.language_controller.changed.connect(self._retranslate)
         self._update_preference_actions()
 
@@ -668,6 +670,12 @@ class MainWindow(QMainWindow):
         self.open_action.setToolTip(tr('開啟 PDF（Ctrl+O）'))
         self.open_action.triggered.connect(self.choose_pdf)
         self.toolbar.addAction(self.open_action)
+        self.print_action = QAction(tr('列印'), self)
+        self.print_action.setShortcuts(QKeySequence.keyBindings(QKeySequence.StandardKey.Print))
+        self.print_action.setToolTip(tr('列印：設定範圍、印表機並即時預覽'))
+        self.print_action.setEnabled(False)
+        self.print_action.triggered.connect(lambda: self.print_controller.open())
+        self.toolbar.addAction(self.print_action)
         self.export_action = QAction(tr('輸出選取頁面'), self)
         self.export_action.setShortcuts([QKeySequence("Ctrl+S"), QKeySequence("Ctrl+Shift+S")])
         self.export_action.setToolTip(tr('輸出選取頁面為新 PDF（Ctrl+S / Ctrl+Shift+S）'))
@@ -803,6 +811,7 @@ class MainWindow(QMainWindow):
                              (self.region_ocr_action, "ocr_region"),
                              (self.extract_image_action, "extract_image"),
                              (self.search_action, "search"),
+                             (self.print_action, "print"),
                              (self.bookmark_action, "bookmarks"),
                              (self.fit_action, "fit"),
                              (self.fullscreen_action, "fullscreen"),
@@ -1071,6 +1080,7 @@ class MainWindow(QMainWindow):
         self._update_page_indicator()
         doc = self.current_document()
         ready = doc is not None and doc.ready
+        self.print_action.setEnabled(ready and not self.print_controller.busy and not self._export_running)
         self.close_tab_action.setEnabled(self.tabs.count() > 0 and not self._export_running)
         self._syncing_bulk = True
         for checkbox, odd in ((self.odd_checkbox, True), (self.even_checkbox, False)):
@@ -1466,6 +1476,7 @@ class MainWindow(QMainWindow):
 
     def closeEvent(self, event: QCloseEvent) -> None:
         self._closing = True
+        self.print_controller.close()
         self.search_controller.stop()
         self._password_queue.clear()
         if self._password_dialog is not None:

@@ -113,6 +113,16 @@ class RenderService(QObject):
             self._pending.move_to_end(document_id, last=False)
             self._start_next()
 
+    def request_print(self, source, page, output_dir, generation, *, password=None, preview=False):
+        payload = {'type': 'print_preview' if preview else 'print_page', 'source': str(source), 'pages': [page],
+                   'output_dir': str(output_dir), 'scale': (150 if preview else 300) / 72, 'generation': generation}
+        if password is not None:
+            payload['password'] = password
+        with self._lock:
+            if not self._closed:
+                self._pending['print'] = payload
+                self._start_next()
+
     def request_text(self, source: Path, page: int, start: tuple[float, float],
                      end: tuple[float, float], generation: int, document_id: int,
                      *, allow_ocr: bool = False, region_ocr: bool = False, password: str | None = None) -> None:

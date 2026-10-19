@@ -17,7 +17,7 @@ from repdf.theme import ThemeController
 OUTPUT = Path(__file__).resolve().parents[1] / "docs" / "images"
 SCALE = 2
 ICON_KINDS = {
-    "open": "open", "export": "export", "split": "split",
+    "open": "open", "print": "print", "export": "export", "split": "split",
     "copy-text": "copy_text", "ocr-region": "ocr_region", "extract-image": "extract_image",
     "search": "search", "bookmarks": "bookmarks",
     "fit": "fit", "fullscreen": "fullscreen", "fullscreen-spread": "fullscreen_spread",

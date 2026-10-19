@@ -1,7 +1,7 @@
 [project]
 name = "repdf"
-version = "0.0.16"
-description = "RePDF (Read the PDF): a desktop PDF reader with search, bookmarks, OCR and page rearrangement."
+version = "0.0.17"
+description = "RePDF (Read the PDF): a desktop PDF reader with printing, search, bookmarks, OCR and page rearrangement."
 readme = "README.md"
 requires-python = ">=3.11"
 

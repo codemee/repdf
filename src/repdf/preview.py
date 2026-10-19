@@ -184,6 +184,14 @@ class FullscreenPreview(QWidget):
     def eventFilter(self, watched, event):
         if (not self.closed and isinstance(watched, QWidget) and watched.window() is self
                 and event.type() in (QEvent.Type.ShortcutOverride, QEvent.Type.KeyPress)
+                and event.matches(QKeySequence.StandardKey.Print)):
+            if event.type() == QEvent.Type.ShortcutOverride:
+                event.accept()
+            else:
+                self.owner.print_controller.open()
+            return True
+        if (not self.closed and isinstance(watched, QWidget) and watched.window() is self
+                and event.type() in (QEvent.Type.ShortcutOverride, QEvent.Type.KeyPress)
                 and event.matches(QKeySequence.StandardKey.Find)):
             if event.type() == QEvent.Type.ShortcutOverride:
                 event.accept()

@@ -76,6 +76,17 @@ def toolbar_icon(kind: str) -> QIcon:
         elif kind == "stop":
             painter.setBrush(painter.pen().color())
             painter.drawRect(QRectF(6, 6, 12, 12))
+        elif kind in ("previous", "next"):
+            x1, x2 = (15, 8) if kind == 'previous' else (9, 16)
+            painter.drawPolyline(QPolygonF([QPointF(x1, 5), QPointF(x2, 12), QPointF(x1, 19)]))
+        elif kind == "print":
+            painter.drawRect(QRectF(6, 2, 12, 6))
+            painter.drawPolyline(QPolygonF([QPointF(6, 17), QPointF(3, 17), QPointF(3, 8),
+                                            QPointF(21, 8), QPointF(21, 17), QPointF(18, 17)]))
+            painter.drawRect(QRectF(6, 13, 12, 9))
+            painter.drawLine(16, 10, 18, 10)
+            painter.drawLine(9, 16, 15, 16)
+            painter.drawLine(9, 19, 15, 19)
         elif kind == "bookmarks":
             painter.drawPolygon(QPolygonF([QPointF(6, 3), QPointF(18, 3), QPointF(18, 21),
                                             QPointF(12, 17), QPointF(6, 21)]))

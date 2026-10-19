@@ -1,6 +1,6 @@
 # RePDF — Read the PDF
 
-RePDF 代表 **Read the PDF**，命令名稱與 Python 套件名稱維持 `repdf`。這是使用 PySide6 製作的桌面 PDF 閱讀器，支援多標籤閱讀、書籤與目錄跳頁、文字搜尋、選字複製、OCR 及圖片擷取，也可勾選頁面，依標籤與頁面排列順序重組或拆分輸出。預覽縮圖不會影響輸出品質。
+RePDF 代表 **Read the PDF**，命令與 Python 套件名稱為 `repdf`。這是一套桌面 PDF 閱讀器，支援多標籤閱讀、列印、書籤與目錄跳頁、文字搜尋、選字複製、OCR 及圖片擷取，也可勾選頁面，依標籤與頁面排列順序重組或拆分輸出。重組與拆分保留原始頁面品質。
 
 ## 安裝與啟動
 
@@ -10,8 +10,6 @@ RePDF 代表 **Read the PDF**，命令名稱與 Python 套件名稱維持 `repdf
 
 - **Windows x86_64**：下載 `repdf-<版本>-windows-x86_64.exe`，直接執行。
 - **macOS Apple Silicon（arm64）**：下載 `repdf-<版本>-macos-arm64.dmg`，開啟後將 `RePDF.app` 拖入 Applications，再從 Applications 啟動。
-
-既有 `v0.0.7` 及較早的 Release 仍使用 `PDFPick` 檔名與 `PDFPick.app`，`v0.0.8` 的 macOS App 名稱為 `repdf.app`；自 `v0.0.9` 起 App 名稱為 `RePDF.app`，命令與發布檔案前綴仍為 `repdf`。
 
 - Release 同時提供 SHA256 校驗檔。
 - 桌面套件已包含 OCR 執行環境與模型，不需要額外安裝。
@@ -29,16 +27,6 @@ repdf
 - 需要 Python 3.11 以上版本；uv 可在需要時下載適用的 Python。
 - 也可使用 Release 的 `repdf` wheel 下載網址安裝。
 - 若終端機找不到 `repdf`，執行 `uv tool update-shell` 後重新開啟終端機。
-- 既有舊版 wheel 仍安裝為 `pdfpick` 指令。
-
-### 3. 從原始碼使用 uv run
-
-適合開發或修改程式。下載原始碼，或 clone 本儲存庫後，進入專案目錄執行：
-
-```powershell
-uv sync
-uv run repdf
-```
 
 ## 操作方式
 
@@ -47,6 +35,7 @@ uv run repdf
 | 工具列圖示／控制元件 | 功能 | 操作說明 | 快捷鍵 |
 | --- | --- | --- | --- |
 | <picture><source media="(prefers-color-scheme: dark)" srcset="docs/images/toolbar-open-dark.png"><img src="docs/images/toolbar-open.png" width="24" alt="開啟 PDF 圖示"></picture> | 開啟 PDF | 一次選取多個 PDF，也可從檔案總管拖入。 | <kbd>Ctrl</kbd>+<kbd>O</kbd> |
+| <picture><source media="(prefers-color-scheme: dark)" srcset="docs/images/toolbar-print-dark.png"><img src="docs/images/toolbar-print.png" width="24" alt="列印圖示"></picture> | 列印 | 設定頁面範圍、縮放與印表機，預覽確認後列印。 | Windows／Linux：<kbd>Ctrl</kbd>+<kbd>P</kbd>；macOS：<kbd>⌘</kbd>+<kbd>P</kbd> |
 | <picture><source media="(prefers-color-scheme: dark)" srcset="docs/images/toolbar-export-dark.png"><img src="docs/images/toolbar-export.png" width="24" alt="重組輸出圖示"></picture> | 重組輸出 | 將選取頁面依目前順序合併為一個新 PDF，指定檔名與儲存位置。 | <kbd>Ctrl</kbd>+<kbd>S</kbd>／<kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>S</kbd> |
 | <picture><source media="(prefers-color-scheme: dark)" srcset="docs/images/toolbar-split-dark.png"><img src="docs/images/toolbar-split.png" width="24" alt="拆分輸出圖示"></picture> | 拆分輸出 | 將選取頁面依目前順序逐頁存成獨立 PDF，指定基本檔名與儲存位置。 | — |
 | <picture><source media="(prefers-color-scheme: dark)" srcset="docs/images/toolbar-odd-dark.png"><img src="docs/images/toolbar-odd.png" height="22" alt="單數頁核取方塊"></picture> | 單數頁 | 選取或取消目前標籤的原始單數頁；部分選取時顯示三態標記。 | — |
@@ -83,7 +72,7 @@ uv run repdf
 3. 密碼錯誤時可重新輸入；取消只略過該檔案，不影響同批開啟的其他檔案。
 
 - 不需要密碼即可開啟的加密 PDF 會直接讀取。
-- 解鎖後可正常預覽、重組、拆分、複製文字、區域 OCR 與擷取圖片。
+- 解鎖後可閱讀、搜尋、列印、重組、拆分、複製文字、區域 OCR 與擷取圖片。
 - 同一標籤開啟期間不再詢問；關閉後再次開啟需重新輸入。
 - 密碼只在記憶體中使用，不儲存到設定檔或記錄。
 - 重組與拆分產生的 **新 PDF 不加密**，輸出對話框會明確標示；原始檔案保持不變。
@@ -91,8 +80,7 @@ uv run repdf
 ### 預覽與縮放
 
 - 預覽頁面水平置中；Fit 使用單欄顯示。
-- 大檔案先載入可見頁面，再預載前後附近頁面；跳頁時優先顯示目的頁，不必等待整份文件產生預覽。
-- 翻回已看過的頁面會優先重用快取；切換標籤時暫停背景標籤的預覽工作。
+- 大檔案優先顯示目前閱讀的頁面；跳頁時不必等待整份文件載入。
 - 100% 對應 Windows 的 96 DPI 顯示尺度。
 - Fit 與全螢幕優先使用最近點擊且仍可見的頁面；未指定時使用預覽區中央附近的頁面。
 - Fit 的適應比例可超出滑桿的手動範圍，實際比例仍顯示於工具列。
@@ -118,6 +106,22 @@ uv run repdf
 - 點頁碼欄輸入號碼，按 <kbd>Enter</kbd> 跳到指定頁；按 <kbd>Esc</kbd> 或離開輸入欄可取消尚未送出的輸入。
 - 頁碼與頁面卡片上的原始頁碼一致；重新排序後，輸入同一頁碼仍會找到原本的頁面。
 - 跳頁保留目前縮放／Fit 模式；輸入超出範圍或無效內容時會顯示提示，不會改變目前頁面。
+
+### 列印
+
+- 點列印圖示，或按 <kbd>Ctrl</kbd>+<kbd>P</kbd>（macOS：<kbd>⌘</kbd>+<kbd>P</kbd>），直接開啟整合列印視窗；全螢幕中使用快捷鍵會先返回主視窗。
+- 選擇目前文件全部頁面、目前頁面、指定頁次或勾選頁面；指定頁次使用原始 PDF 頁碼，例如 `1,3,5-8`。
+- 勾選頁面沿用輸出規則：有勾選標籤時使用這些標籤內勾選的頁面；沒有勾選標籤時使用目前標籤內勾選的頁面。
+- 列印依目前標籤與頁面排列順序進行；列印視窗會顯示文件數與頁數。
+- 預設符合可列印範圍，也可選實際大小；每張紙放一頁並置中，不自動旋轉。實際大小超出可列印範圍時會裁切。
+- 左側可直接選擇印表機、紙張、方向、份數、逐份列印、雙面及色彩；雙面與色彩選項依印表機能力提供，調整紙張與範圍時會同步更新右側預覽。
+- 右側可用前後頁圖示、頁次輸入欄或 <kbd>Page Up</kbd>／<kbd>Page Down</kbd> 翻頁，並選擇符合視窗或放大檢視。預覽只載入目前頁面，大文件不會一次渲染全檔。
+- 預覽中的白色紙張依本次紙張尺寸與方向顯示，虛線表示可列印範圍；可切換符合範圍／實際大小，查看邊距與裁切效果。視窗縮窄時，設定與預覽改為上下排列，設定區可捲動。
+- 僅需紙匣、列印品質或其他驅動專屬選項時，再按「進階設定」開啟系統交談窗；返回後設定會同步至預覽。若在系統交談窗另選頁次，使用本次列印清單的 `1..N`。
+- 預覽顯示一份列印內容，份數另列於紙張資訊；確認後按「列印」才開始送印。關閉或取消預覽不會送印。
+- 列印 PDF 內容，不包含搜尋高亮、選字標記或操作介面。
+- 大文件逐頁處理，進度視窗可取消後續送印；已送出的頁面可能仍需從系統列印佇列取消。
+- 沒有印表機時仍可預覽，列印按鈕會停用；實際送印前需先安裝或設定系統印表機，不需要額外安裝列印工具。
 
 ### 書籤與目錄跳頁
 
@@ -149,7 +153,7 @@ uv run repdf
 - 每段正則匹配最多 1 秒；逾時會停止搜尋並標示結果不完整。也可按「停止」保留目前已找到的結果。
 - 可拖曳右側窗格寬度與上下結果區的分隔線；搜尋不改動選頁、排序或縮放模式。
 - 視窗寬度小於 640px 時，搜尋與 PDF 改為單一窗格切換；點結果後顯示 PDF，再點搜尋按鈕可返回結果。
-- 視窗高度小於 360px 時，範圍與規則表達式、區分大小寫、僅限單字設定收進三點「選項」選單；與原本按鈕的狀態同步。
+- 視窗較矮時，從三點「選項」選單調整範圍、規則表達式、區分大小寫與僅限單字設定。
 - 關閉搜尋窗格會停止搜尋並清除高亮，保留輸入與結果；文件關閉時會移除其結果。
 - 全螢幕使用搜尋快捷鍵時，會返回主視窗並開啟搜尋窗格。
 
@@ -185,6 +189,7 @@ uv run repdf
 - 輸出完整內嵌圖片，不套用頁面上的旋轉或裁切，也不包含周圍文字與向量圖形。
 - 點到空白處會顯示提示；同一位置有多張圖片時，選取最後繪製的圖片。
 - 掃描頁面通常會擷取整張掃描圖，無法從中直接分離照片或圖表。
+- OCR 支援繁體中文、簡體中文、英文、日文及多種拉丁字母語言，不支援韓文；辨識後請校對結果。完整操作與限制見 [OCR 說明](docs/OCR.md)。
 
 ## 語言與配色
 
@@ -196,20 +201,10 @@ uv run repdf
 - 語言與配色的選擇會記住，重新啟動仍保留。
 - 切換語言會更新既有頁面標籤、工具列、tooltip、狀態與對話框。
 - 切換語言不改動檔名、選頁、頁序或比例。
-- 檔案對話框採用 Qt 介面，按鈕與欄位會跟隨指定的中英文語言。
+- 檔案選擇視窗的按鈕與欄位會跟隨指定的中英文語言。
 
-## 測試
+## 其他文件
 
-- 文字選取的 OCR 備援與手動區域辨識共用多語言模型。
-- 支援繁／簡中文、英文、日文及多種拉丁字母語言，目前模型不支援韓文。
-- 專案的辨識品質測試主要集中在中英文；完整語言說明、操作與限制見 [OCR 說明](docs/OCR.md)。
-
-```powershell
-uv run pytest
-```
-
-## 開發與維護
-
-- 架構、背景預覽協定、縮放定義、輸出安全機制與修改入口：[實作與維護指南](docs/IMPLEMENTATION.md)。
-- 雲端建置、封裝驗證與 PyPI 發布：[打包與發布](docs/IMPLEMENTATION.md#15-打包與發布)。
-- 工具列、按鈕、圖示筆畫、字型與深淺配色規格：[UI 設計參考](docs/UI_DESIGN.md)，可供其他專案移植。
+- [OCR 操作與限制](docs/OCR.md)
+- [開發、測試與發布指南](docs/IMPLEMENTATION.md)
+- [UI 設計參考](docs/UI_DESIGN.md)

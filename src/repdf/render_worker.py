@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+from math import ceil
 import socket
 import sys
 from collections import OrderedDict
@@ -54,6 +55,7 @@ def render_document(
     pages: list[int] | None = None,
     password: str | None = None,
     document=None,
+    max_pixels: int | None = None,
 ) -> None:
     own_document = document is None
     if own_document:
@@ -68,7 +70,12 @@ def render_document(
                 width_points, height_points = page.get_size()
                 links = read_page_links(document, page)
                 page_label = read_page_label(document, page_index)
-                bitmap = page.render(scale=max(scale, 0.1))
+                render_scale = max(scale, 0.1)
+                if max_pixels is not None:
+                    render_scale = min(render_scale, (max_pixels / (width_points * height_points)) ** .5)
+                    while ceil(width_points * render_scale) * ceil(height_points * render_scale) > max_pixels:
+                        render_scale *= .999
+                bitmap = page.render(scale=render_scale)
                 try:
                     image = bitmap.to_pil().convert("RGB")
                     output = output_dir / f"g{generation}-p{page_index}.png"
@@ -243,6 +250,7 @@ def serve(
                         pages=request.get("pages"),
                         password=request.get('password'),
                         document=documents.get(request['source'], request.get('password')),
+                        max_pixels={'print_page': 30_000_000, 'print_preview': 4_000_000}.get(request.get('type')),
                     )
                 print(json.dumps({
                     "type": "done", "generation": int(request["generation"]),
