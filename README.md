@@ -1,6 +1,6 @@
-# RePDF — Rearrange PDF
+# RePDF — Read the PDF
 
-RePDF 是 **Rearrange PDF** 的意思，命令名稱與 Python 套件名稱為 `repdf`。這是使用 PySide6 製作的 Windows 桌面工具，可用標籤頁開啟多個 PDF、勾選指定頁面，並依標籤與頁面排列順序重組或拆分輸出。預覽縮圖不會影響輸出品質。
+RePDF 代表 **Read the PDF**，命令名稱與 Python 套件名稱維持 `repdf`。這是使用 PySide6 製作的桌面 PDF 閱讀器，支援多標籤閱讀、書籤與目錄跳頁、文字搜尋、選字複製、OCR 及圖片擷取，也可勾選頁面，依標籤與頁面排列順序重組或拆分輸出。預覽縮圖不會影響輸出品質。
 
 ## 安裝與啟動
 
@@ -54,6 +54,7 @@ uv run repdf
 | <picture><source media="(prefers-color-scheme: dark)" srcset="docs/images/toolbar-copy-text-dark.png"><img src="docs/images/toolbar-copy-text.png" width="24" alt="複製文字圖示"></picture> | 複製文字 | 啟用後拖曳選取文字，放開滑鼠即複製到剪貼簿；選取的文字會顯示高亮。 | — |
 | <picture><source media="(prefers-color-scheme: dark)" srcset="docs/images/toolbar-ocr-region-dark.png"><img src="docs/images/toolbar-ocr-region.png" width="24" alt="區域 OCR 圖示"></picture> | 區域 OCR | 拖曳矩形框選頁面或圖片，放開滑鼠後辨識並複製文字。 | — |
 | <picture><source media="(prefers-color-scheme: dark)" srcset="docs/images/toolbar-extract-image-dark.png"><img src="docs/images/toolbar-extract-image.png" width="24" alt="擷取圖片圖示"></picture> | 擷取圖片 | 啟用後點選內嵌點陣圖片，再選擇位置另存為 PNG。 | — |
+| <picture><source media="(prefers-color-scheme: dark)" srcset="docs/images/toolbar-bookmarks-dark.png"><img src="docs/images/toolbar-bookmarks.png" width="24" alt="書籤圖示"></picture> | 書籤 | 在左側章節樹展開或收合書籤，點選章節即可跳頁。 | — |
 | <picture><source media="(prefers-color-scheme: dark)" srcset="docs/images/toolbar-search-dark.png"><img src="docs/images/toolbar-search.png" width="24" alt="搜尋文字圖示"></picture> | 搜尋文字 | 在右側窗格搜尋文字，上方選檔案、下方選命中段落，單擊即可跳頁並高亮。 | Windows／Linux：<kbd>Ctrl</kbd>+<kbd>F</kbd>；macOS：<kbd>⌘</kbd>+<kbd>F</kbd> |
 | <picture><source media="(prefers-color-scheme: dark)" srcset="docs/images/toolbar-zoom-dark.png"><img src="docs/images/toolbar-zoom.png" width="160" alt="顯示比例與縮放滑桿"></picture> | 顯示比例 | 滑桿調整 25%–200%；點擊比例回到 100%。鍵盤縮放每次調整 25 個百分點。 | 放大：<kbd>Ctrl</kbd>+<kbd>+</kbd>／<kbd>Ctrl</kbd>+<kbd>=</kbd>；縮小：<kbd>Ctrl</kbd>+<kbd>-</kbd>；100%：<kbd>Ctrl</kbd>+<kbd>0</kbd> |
 | <picture><source media="(prefers-color-scheme: dark)" srcset="docs/images/toolbar-fit-dark.png"><img src="docs/images/toolbar-fit.png" width="24" alt="Fit 圖示"></picture> | Fit | 將目前單頁等比例縮放至預覽區；調整視窗大小時自動適應。拖動滑桿或使用縮放快捷鍵會回到手動比例。 | — |
@@ -108,6 +109,26 @@ uv run repdf
 - 全螢幕下一頁／下一組：<kbd>→</kbd>、<kbd>↓</kbd> 或 <kbd>Page Down</kbd>。
 - 跳至第一頁／最後一頁：<kbd>Home</kbd>／<kbd>End</kbd>，依目前頁面排列順序跳轉；全螢幕對頁與封面＋對頁則跳至第一組／最後一組。
 - 以上按鍵在縮放滑桿或頁面核取方塊取得焦點時仍可操作預覽區，不會改動縮放比例。
+
+### 頁碼與直接跳頁
+
+- 狀態列右側顯示目前頁碼與總頁數，捲動或使用搜尋、書籤跳頁時會同步更新。
+- PDF 有內建頁碼標籤時，會同時顯示書頁與原始頁次，例如「書頁 iii｜PDF 3 / 800」或「書頁 12｜PDF 20 / 800」。較長的標籤會截短，滑鼠停留可查看完整內容；沒有標籤時維持一般頁碼顯示。
+- 書頁使用 PDF 提供的標籤，不以 OCR 推測，也不保證與頁面上印出的數字相同；跳頁輸入欄仍使用原始 PDF 頁次。
+- 點頁碼欄輸入號碼，按 <kbd>Enter</kbd> 跳到指定頁；按 <kbd>Esc</kbd> 或離開輸入欄可取消尚未送出的輸入。
+- 頁碼與頁面卡片上的原始頁碼一致；重新排序後，輸入同一頁碼仍會找到原本的頁面。
+- 跳頁保留目前縮放／Fit 模式；輸入超出範圍或無效內容時會顯示提示，不會改變目前頁面。
+
+### 書籤與目錄跳頁
+
+- 點工具列的「書籤」圖示開啟左側章節樹，可展開或收合子章節，點選章節即可跳頁。
+- 書籤跟隨目前標籤頁切換；沒有內建書籤的文件會顯示提示。
+- 一般預覽與全螢幕都可直接點選 PDF 頁內的目錄連結；滑鼠移到可跳頁區域時會顯示手指游標與目的頁碼。
+- 跳頁保留目前縮放／Fit 模式。頁面已重新排序時，仍會找到目的章節所屬的原始頁面。
+- 視窗縮窄時，書籤與 PDF 以單一窗格切換；點選章節後返回 PDF，再點「書籤」可返回目錄。搜尋與書籤窗格可透過各自的工具按鈕切換。
+- 啟用複製文字、區域 OCR 或圖片擷取模式時，頁內連結暫停點選；停用後即可跳頁，拖曳頁面仍可排序。
+- 一般預覽與全螢幕可點選 PDF 內建的 HTTP／HTTPS 超連結，以系統預設瀏覽器開啟；滑鼠停留可查看網址。
+- 此功能使用 PDF 已有的書籤與連結；純文字或掃描圖片形式的目錄、網址不會自動變成連結。電子郵件、外部文件與其他動作不在支援範圍。
 
 ### 搜尋文字
 

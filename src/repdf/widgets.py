@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from html import escape
+
 from repdf.strings import tr
 
 from PySide6.QtCore import QEasingCurve, QMimeData, QPoint, QPropertyAnimation, QRect, QRectF, Qt, QTimer, Signal
@@ -235,10 +237,14 @@ class DragLabel(QLabel):
 class PagePreviewLabel(DragLabel):
     text_selected = Signal(QPoint, QPoint)
     selection_preview = Signal(QPoint, QPoint)
+    link_activated = Signal(object)
 
     def __init__(self, text: str, *, draggable: bool = True) -> None:
         super().__init__(text)
         self.draggable = draggable
+        self.links = []
+        self._link_press = None
+        self.setMouseTracking(True)
         self.text_mode = False
         self.region_mode = False
         self.image_mode = False
@@ -264,12 +270,26 @@ class PagePreviewLabel(DragLabel):
         self._selecting = False
         self._highlight_rects = []
         self._preview_timer.stop()
+        self._link_press = None
         self._press_position = None
         self.setCursor(Qt.CursorShape.PointingHandCursor if self.image_mode else Qt.CursorShape.CrossCursor if self.region_mode else Qt.CursorShape.IBeamCursor if enabled else
                        Qt.CursorShape.OpenHandCursor if self.draggable else Qt.CursorShape.ArrowCursor)
         self.setToolTip(tr('點選內嵌圖片並另存為 PNG') if self.image_mode else tr('框選區域並以 OCR 複製文字') if self.region_mode else tr('拖曳選取文字並複製到剪貼簿') if enabled else
                         tr('拖曳到另一頁可調整順序') if self.draggable else '')
         self.update()
+
+    def set_links(self, links):
+        self.links = links
+
+    def _link_at(self, position):
+        if self.text_mode or self.width() <= 0 or self.height() <= 0:
+            return None
+        x, y = position.x() / self.width(), position.y() / self.height()
+        for link in reversed(self.links):
+            left, top, right, bottom = link['rect']
+            if left <= x <= right and top <= y <= bottom:
+                return link
+        return None
 
     def set_text_highlights(self, rects) -> None:
         if not self._selecting:
@@ -289,6 +309,7 @@ class PagePreviewLabel(DragLabel):
 
     def mousePressEvent(self, event: QMouseEvent) -> None:
         if not self.text_mode:
+            self._link_press = (self._link_at(event.position()), event.position().toPoint()) if event.button() == Qt.MouseButton.LeftButton else None
             super().mousePressEvent(event)
             return
         if event.button() == Qt.MouseButton.LeftButton:
@@ -304,6 +325,13 @@ class PagePreviewLabel(DragLabel):
 
     def mouseMoveEvent(self, event: QMouseEvent) -> None:
         if not self.text_mode:
+            link = self._link_at(event.position())
+            self.setCursor(Qt.CursorShape.PointingHandCursor if link else Qt.CursorShape.OpenHandCursor if self.draggable else Qt.CursorShape.ArrowCursor)
+            self.setToolTip(('<qt>' + escape(link['destination']['url']) + '</qt>' if 'url' in link['destination'] else
+                            tr('跳至第 {p0} 頁', p0=link['destination']['page'] + 1)) if link else
+                            tr('拖曳到另一頁可調整順序') if self.draggable else '')
+            if self._link_press and (event.position().toPoint() - self._link_press[1]).manhattanLength() >= QApplication.startDragDistance():
+                self._link_press = None
             if self.draggable:
                 super().mouseMoveEvent(event)
             return
@@ -316,6 +344,14 @@ class PagePreviewLabel(DragLabel):
 
     def mouseReleaseEvent(self, event: QMouseEvent) -> None:
         if not self.text_mode:
+            pressed, self._link_press = self._link_press, None
+            if event.button() == Qt.MouseButton.LeftButton and pressed and pressed[0] is not None:
+                link = self._link_at(event.position())
+                if link is pressed[0] and (event.position().toPoint() - pressed[1]).manhattanLength() < QApplication.startDragDistance():
+                    self._press_position = None
+                    self.link_activated.emit(link['destination'])
+                    event.accept()
+                    return
             super().mouseReleaseEvent(event)
             return
         if event.button() == Qt.MouseButton.LeftButton and self._selecting:

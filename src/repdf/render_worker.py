@@ -11,6 +11,7 @@ import pypdfium2 as pdfium
 
 from repdf.ocr import OcrError, recognize_region, recognize_selection, suspicious_text
 from repdf.images import extract_clicked_image
+from repdf.pdf_navigation import read_bookmarks, read_page_label, read_page_links, resolve_destination
 
 
 class PdfDocumentCache:
@@ -65,6 +66,8 @@ def render_document(
             page = document[page_index]
             try:
                 width_points, height_points = page.get_size()
+                links = read_page_links(document, page)
+                page_label = read_page_label(document, page_index)
                 bitmap = page.render(scale=max(scale, 0.1))
                 try:
                     image = bitmap.to_pil().convert("RGB")
@@ -78,6 +81,8 @@ def render_document(
                 "type": "page", "generation": generation,
                 "page": page_index, "path": str(output),
                 "width_points": width_points, "height_points": height_points,
+                "links": links,
+                "page_label": page_label,
             }), file=output_stream, flush=True)
     finally:
         if own_document:
@@ -192,6 +197,12 @@ def serve(
                 request = json.loads(line)
                 if request.get('type') == 'release_document':
                     documents.release(request['source'])
+                elif request.get('type') in ('bookmarks', 'navigate'):
+                    document = documents.get(request['source'], request.get('password'))
+                    result = ({'bookmarks': read_bookmarks(document)} if request['type'] == 'bookmarks'
+                              else resolve_destination(document, request['destination']))
+                    print(json.dumps({'type': request['type'], 'generation': request['generation'], **result}),
+                          file=output_stream, flush=True)
                 elif request.get('type') == 'search':
                     from repdf.search import search_document
                     search_document(request, lambda message: print(json.dumps(message), file=output_stream, flush=True))

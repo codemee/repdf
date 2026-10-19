@@ -1,4 +1,4 @@
-"""PDF page selection and recombination tool."""
+"""RePDF (Read the PDF): desktop PDF reading and page rearrangement."""
 
 from importlib.metadata import version
 

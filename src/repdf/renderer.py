@@ -148,6 +148,19 @@ class RenderService(QObject):
             self._pending[payload['document_id']] = payload
             self._start_next()
 
+    def request_navigation(self, source, document_id, generation, kind, *, destination=None, password=None):
+        payload = {'type': kind, 'source': str(source), 'generation': generation,
+                   'document_id': document_id}
+        if destination is not None:
+            payload['destination'] = destination
+        if password is not None:
+            payload['password'] = password
+        key = (-3_000_000 if kind == 'bookmarks' else -4_000_000) - document_id
+        with self._lock:
+            self._pending[key] = payload
+            self._pending.move_to_end(key, last=False)
+            self._start_next()
+
     def request_image(self, source: Path, page: int, point, output_dir: Path,
                       generation: int, document_id: int, *, password: str | None = None) -> None:
         payload = {"type": "extract_image", "source": str(source), "page": page,

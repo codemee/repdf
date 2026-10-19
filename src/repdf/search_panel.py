@@ -223,6 +223,7 @@ class SearchController(QObject):
         p.paragraphs.itemActivated.connect(self._activate_item)
 
     def open(self):
+        self.owner.navigation.close()
         if self.owner._fullscreen_preview is not None:
             self.owner._fullscreen_preview.close()
         self.opened = True

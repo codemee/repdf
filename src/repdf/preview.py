@@ -67,6 +67,9 @@ class FullscreenPreview(QWidget):
             label = PagePreviewLabel('', draggable=False)
             label.setParent(self)
             source_label = self.document.page_cards[index].preview
+            label.set_links(self.document.page_links.get(index, []))
+            label.link_activated.connect(lambda destination: self.owner.navigation.activate(
+                self.document, destination, fullscreen=True))
             label.set_search_highlights(source_label._search_rects, source_label._active_search_rects)
             label.set_text_mode(self.owner._selection_active(), region=self.owner.region_ocr_action.isChecked(),
                                 image=self.owner.extract_image_action.isChecked())
@@ -135,6 +138,9 @@ class FullscreenPreview(QWidget):
             if index not in self.visible_pages:
                 return
             self.images[index] = image
+            self.document.page_links[index] = payload.get('links', [])
+            self.document.page_labels[index] = payload.get('page_label')
+            self.labels[index].set_links(self.document.page_links[index])
             unknown_size = index not in self.document.page_sizes
             self.document.page_sizes[index] = (
                 float(payload["width_points"]), float(payload["height_points"]))

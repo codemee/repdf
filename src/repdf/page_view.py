@@ -218,6 +218,7 @@ class PageViewport:
         d = self.doc
         if d.owner._closing or not d.ready or d.grid_host.drag_source is not None:
             return
+        d.owner._update_page_indicator()
         if d.owner.current_document() is not d:
             d.owner.render_service.cancel_pending(d.document_id)
             return
@@ -303,12 +304,15 @@ class PageViewport:
             return
         scale = self.batch_scale or self.scale()
         old_size = d.page_sizes.get(page)
+        d.page_links[page] = payload.get('links', [])
+        d.page_labels[page] = payload.get('page_label')
         d.page_sizes[page] = (float(payload.get('width_points', image.width() / scale)),
                               float(payload.get('height_points', image.height() / scale)))
         d.owner.preview_cache.put(self.key(page, scale), image)
         card = d.page_cards.realized.get(page)
         if card is not None:
             card.set_image(image)
+            card.preview.set_links(d.page_links[page])
             card.render_scale = scale
         if page not in d._render_received:
             d._render_received.add(page)

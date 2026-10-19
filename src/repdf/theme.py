@@ -93,7 +93,7 @@ class ThemeController(QObject):
             QToolButton:hover {{ background: {hover}; }}
             QToolButton:pressed {{ background: {pressed}; }}
             QToolButton#copyTextTool:checked, QToolButton#regionOcrTool:checked, QToolButton#extractImageTool:checked,
-            QToolButton#searchOptionButton:checked {{ background: {selected_tool};
+            QToolButton#searchOptionButton:checked, QToolButton#bookmarksTool:checked {{ background: {selected_tool};
                                                 border-color: {slider_fill}; }}
             QToolButton:focus {{ border-color: {slider_fill}; }}
             QToolButton:disabled {{ color: {disabled}; background: transparent; }}

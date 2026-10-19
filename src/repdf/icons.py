@@ -76,6 +76,9 @@ def toolbar_icon(kind: str) -> QIcon:
         elif kind == "stop":
             painter.setBrush(painter.pen().color())
             painter.drawRect(QRectF(6, 6, 12, 12))
+        elif kind == "bookmarks":
+            painter.drawPolygon(QPolygonF([QPointF(6, 3), QPointF(18, 3), QPointF(18, 21),
+                                            QPointF(12, 17), QPointF(6, 21)]))
         elif kind == "search":
             painter.drawEllipse(QRectF(3, 3, 13, 13))
             painter.drawLine(14, 14, 21, 21)

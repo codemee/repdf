@@ -5,6 +5,7 @@ from repdf.strings import tr, localize_text
 import sys
 import shutil
 import tempfile
+from html import escape
 from importlib.resources import files
 from pathlib import Path
 from shiboken6 import isValid
@@ -31,6 +32,7 @@ from PySide6.QtWidgets import (
     QFileDialog,
     QHBoxLayout,
     QLabel,
+    QLineEdit,
     QMainWindow,
     QMessageBox,
     QScrollArea,
@@ -62,6 +64,7 @@ from repdf.preview import FullscreenPreview
 from repdf.workers import ExportPdfTask, LoadPdfTask
 from repdf.search_panel import SearchController
 from repdf.page_view import PageViewport, PreviewCache
+from repdf.navigation import NavigationController
 
 
 class DocumentView(QWidget):
@@ -84,6 +87,9 @@ class DocumentView(QWidget):
         self._fit_navigation_pending = False
         self.focused_page = None
         self.page_sizes = {}
+        self.page_links = {}
+        self.page_labels = {}
+        self.bookmarks = None
         self.ready = False
         self._search_navigation = None
         self.password: str | None = None
@@ -169,6 +175,8 @@ class DocumentView(QWidget):
         card.selection_preview.connect(lambda index, start, end, preview=card.preview:
                                       self.owner._copy_text_selection(self, index, preview, start, end, copy=False))
         self.pages.prepare_card(card)
+        card.preview.set_links(self.page_links.get(page_index, []))
+        card.preview.link_activated.connect(lambda destination: self.owner.navigation.activate(self, destination))
         self.pages.chrome = max(1, card.sizeHint().height() - card.preview.height())
         return card
 
@@ -257,6 +265,7 @@ class DocumentView(QWidget):
 
     def _focus_page(self, page_index: int) -> None:
         self.focused_page = page_index
+        self.owner._update_page_indicator()
 
     def preview_page_index(self, *, prefer_focused=True) -> int:
         return self.pages.current_page(prefer_focused)
@@ -301,6 +310,8 @@ class DocumentView(QWidget):
             card.x() + (card.width() - viewport.width()) // 2)
         self._fit_navigation_pending = False
 
+        self.owner._update_page_indicator()
+
     def jump_to_search_result(self, page, rect):
         self.focused_page = page
         self._search_navigation = (page, rect)
@@ -309,6 +320,11 @@ class DocumentView(QWidget):
             self._fit_navigation_pending = True
             self._apply_fit()
         QTimer.singleShot(0, self._scroll_to_search_result)
+        self.owner._update_page_indicator()
+
+    def jump_to_page(self, page, point=(0, 0)):
+        x, y = point
+        self.jump_to_search_result(page, [x, y, x, y])
 
     def _scroll_to_search_result(self):
         if self.owner._closing or self._search_navigation is None:
@@ -324,6 +340,7 @@ class DocumentView(QWidget):
                                                    round((rect[1] + rect[3]) / 2 * label.height())))
         self.scroll_area.ensureVisible(point.x(), point.y(), 40, 40)
         self._fit_navigation_pending = False
+        self.owner._update_page_indicator()
 
     @Slot()
     def _queue_all_renders(self) -> None:
@@ -397,16 +414,127 @@ class MainWindow(QMainWindow):
         self.tabs.tabBar().tabMoved.connect(self._sync_controls)
         self.tabs.hide()
         root.addWidget(self.tabs)
-        self.search_controller = SearchController(self, central)
+        self.navigation = NavigationController(self, central)
+        self.search_controller = SearchController(self, self.navigation.workspace)
         self.setCentralWidget(self.search_controller.workspace)
         self.statusBar().setSizeGripEnabled(False)
         self.statusBar().showMessage(tr('就緒'))
+        self._build_page_navigation()
         self.language_controller.changed.connect(self._retranslate)
         self._update_preference_actions()
 
         QApplication.instance().installEventFilter(self)
 
+    def _build_page_navigation(self):
+        self._page_edit_dirty = False
+        self._page_edit_document = None
+        self.page_controls = QWidget()
+        self.page_controls.setSizePolicy(QSizePolicy.Policy.Maximum, QSizePolicy.Policy.Fixed)
+        row = QHBoxLayout(self.page_controls)
+        row.setContentsMargins(8, 0, 4, 0)
+        row.setSpacing(4)
+        self.book_page_label = QLabel()
+        self.book_page_label.setTextFormat(Qt.TextFormat.PlainText)
+        self.book_page_label.setMinimumWidth(0)
+        self.book_page_label.hide()
+        row.addWidget(self.book_page_label)
+        self.page_number_caption = QLabel(tr('頁碼'))
+        row.addWidget(self.page_number_caption)
+        self.page_number_input = QLineEdit()
+        self.page_number_input.setObjectName('pageNumberInput')
+        self.page_number_input.setAccessibleName(tr('目前頁碼，輸入後按 Enter 跳頁'))
+        self.page_number_input.setInputMethodHints(Qt.InputMethodHint.ImhDigitsOnly)
+        self.page_number_input.setMaxLength(10)
+        self.page_number_input.setAlignment(Qt.AlignmentFlag.AlignRight)
+        self.page_number_input.setFixedSize(48, 22)
+        self.page_number_input.textEdited.connect(lambda: setattr(self, '_page_edit_dirty', True))
+        self.page_number_input.returnPressed.connect(self._jump_from_page_field)
+        row.addWidget(self.page_number_input)
+        self.page_total = QLabel('/ 0')
+        row.addWidget(self.page_total)
+        self.statusBar().addPermanentWidget(self.page_controls)
+        self._update_page_indicator()
+
+    def _update_page_indicator(self):
+        if not hasattr(self, 'page_number_input') or self._closing:
+            return
+        doc = self.current_document()
+        ready = doc is not None and doc.ready and bool(doc.page_order)
+        document_id = doc.document_id if ready else None
+        if self._page_edit_document != document_id:
+            self._page_edit_dirty = False
+            self._page_edit_document = document_id
+        self.page_number_input.setEnabled(ready)
+        total = doc.page_count if ready else 0
+        self.page_total.setText(f'/ {total}')
+        digits = max(3, len(str(total)))
+        width = self.page_number_input.fontMetrics().horizontalAdvance('9' * digits) + 18
+        self.page_number_input.setFixedWidth(max(44, min(88, width)))
+        self.page_number_input.setToolTip(
+            tr('目前原始頁碼；輸入 1–{p0} 後按 Enter 跳頁，Esc 取消', p0=total)
+            if ready else tr('請先開啟 PDF 檔案'))
+        current = doc.preview_page_index() if ready else None
+        label = doc.page_labels.get(current) if ready else None
+        self.book_page_label.setVisible(bool(label))
+        self.page_number_caption.setText('PDF' if label else tr('頁碼'))
+        if label:
+            text = tr('書頁 {p0}｜', p0=' '.join(label.split()))
+            metrics = self.book_page_label.fontMetrics()
+            fixed = (self.page_number_input.width() + metrics.horizontalAdvance('PDF')
+                     + metrics.horizontalAdvance(self.page_total.text()) + 40)
+            available = min(180, max(24, self.width() - fixed - 24))
+            self.book_page_label.setMaximumWidth(available)
+            self.book_page_label.setText(metrics.elidedText(text, Qt.TextElideMode.ElideRight, available))
+            self.book_page_label.setAccessibleName(tr('書頁 {p0}', p0=label))
+            self.book_page_label.setToolTip('<qt>' + escape(tr('PDF 內建頁碼標籤：{p0}', p0=label)) + '</qt>')
+        else:
+            self.book_page_label.clear()
+            self.book_page_label.setToolTip('')
+            self.book_page_label.setAccessibleName('')
+        if not (self.page_number_input.hasFocus() and self._page_edit_dirty):
+            page = current + 1 if ready else '-'
+            self.page_number_input.setText(str(page))
+
+    def _jump_from_page_field(self):
+        doc = self.current_document()
+        if doc is None or not doc.ready:
+            return
+        try:
+            text = self.page_number_input.text().strip()
+            if not text.isdecimal():
+                raise ValueError
+            number = int(text)
+            if not 1 <= number <= doc.page_count:
+                raise ValueError
+        except ValueError:
+            self.statusBar().showMessage(tr('請輸入 1–{p0} 的頁碼', p0=doc.page_count), 3000)
+            self.page_number_input.selectAll()
+            return
+        self._page_edit_dirty = False
+        page = number - 1
+        doc.focused_page = page
+        doc._search_navigation = None
+        if doc.fit_mode:
+            doc.fit_page_index = page
+            doc._fit_navigation_pending = True
+            doc._apply_fit()
+        else:
+            rect = doc.pages.rect(page)
+            doc.scroll_area.verticalScrollBar().setValue(rect.y())
+            doc.scroll_area.horizontalScrollBar().setValue(
+                rect.x() + (rect.width() - doc.scroll_area.viewport().width()) // 2)
+            doc.pages.schedule()
+        self.page_number_input.clearFocus()
+        doc.scroll_area.setFocus()
+        self._update_page_indicator()
+
     def eventFilter(self, watched, event) -> bool:
+        if watched is getattr(self, 'page_number_input', None):
+            if event.type() == QEvent.Type.FocusIn:
+                QTimer.singleShot(0, self.page_number_input.selectAll)
+            elif event.type() == QEvent.Type.FocusOut:
+                self._page_edit_dirty = False
+                QTimer.singleShot(0, self._update_page_indicator)
         controller = getattr(self, 'search_controller', None)
         if (controller is not None and not self._closing and isinstance(watched, QWidget)
                 and watched.window() is self
@@ -419,6 +547,10 @@ class MainWindow(QMainWindow):
             return True
         if controller is not None and isinstance(watched, QWidget) and (
                 watched is controller.panel or controller.panel.isAncestorOf(watched)):
+            return super().eventFilter(watched, event)
+        navigation = getattr(self, 'navigation', None)
+        if navigation is not None and isinstance(watched, QWidget) and (
+                watched is navigation.panel or navigation.panel.isAncestorOf(watched)):
             return super().eventFilter(watched, event)
         if (not self._closing and isinstance(watched, QWidget) and watched.window() is self
                 and event.type() in (QEvent.Type.ShortcutOverride, QEvent.Type.KeyPress)):
@@ -434,6 +566,13 @@ class MainWindow(QMainWindow):
                     reverse = event.key() == Qt.Key.Key_Backtab or bool(modifiers & Qt.KeyboardModifier.ShiftModifier)
                     self._cycle_tab(-1 if reverse else 1)
                 return True
+        if watched is getattr(self, 'page_number_input', None) and event.type() == QEvent.Type.KeyPress:
+            if event.key() == Qt.Key.Key_Escape:
+                self._page_edit_dirty = False
+                self.page_number_input.clearFocus()
+                self._update_page_indicator()
+                return True
+            return super().eventFilter(watched, event)
         keys = (Qt.Key.Key_Left, Qt.Key.Key_Right, Qt.Key.Key_Up, Qt.Key.Key_Down,
                 Qt.Key.Key_PageUp, Qt.Key.Key_PageDown, Qt.Key.Key_Home, Qt.Key.Key_End)
         if (not self._closing and isinstance(watched, QWidget) and watched.window() is self
@@ -447,6 +586,8 @@ class MainWindow(QMainWindow):
         super().resizeEvent(event)
         if hasattr(self, 'search_controller'):
             self.search_controller.layout()
+            self.navigation.layout()
+            self._update_page_indicator()
 
     def _navigate_preview(self, key) -> None:
         doc = self.current_document()
@@ -575,6 +716,12 @@ class MainWindow(QMainWindow):
         self.extract_image_action.toggled.connect(self._set_image_mode)
         self.toolbar.addAction(self.extract_image_action)
         self.toolbar.widgetForAction(self.extract_image_action).setObjectName('extractImageTool')
+        self.bookmark_action = QAction(tr('書籤'), self)
+        self.bookmark_action.setCheckable(True)
+        self.bookmark_action.setToolTip(tr('書籤：開啟章節目錄，點選即可跳頁'))
+        self.bookmark_action.triggered.connect(lambda: self.navigation.toggle())
+        self.toolbar.addAction(self.bookmark_action)
+        self.toolbar.widgetForAction(self.bookmark_action).setObjectName('bookmarksTool')
         self.search_action = QAction(tr('搜尋文字'), self)
         self.search_action.setShortcuts(QKeySequence.keyBindings(QKeySequence.StandardKey.Find))
         self.search_action.setToolTip(tr('搜尋文字（{p0}）：在右側窗格搜尋目前、勾選或所有標籤頁',
@@ -656,6 +803,7 @@ class MainWindow(QMainWindow):
                              (self.region_ocr_action, "ocr_region"),
                              (self.extract_image_action, "extract_image"),
                              (self.search_action, "search"),
+                             (self.bookmark_action, "bookmarks"),
                              (self.fit_action, "fit"),
                              (self.fullscreen_action, "fullscreen"),
                              (self.spread_action, "fullscreen_spread"),
@@ -708,6 +856,7 @@ class MainWindow(QMainWindow):
         self.statusBar().showMessage(status)
         self._update_preference_actions()
         self.search_controller.retranslate()
+        self.navigation.retranslate()
 
     def changeEvent(self, event: QEvent) -> None:
         super().changeEvent(event)
@@ -913,10 +1062,13 @@ class MainWindow(QMainWindow):
                 doc._queue_all_renders()
             doc._reflow_grid()
         self._sync_controls()
+        if hasattr(self, 'navigation'):
+            self.navigation.show_document()
 
     def _sync_controls(self, *_args) -> None:
         if not hasattr(self, "tabs") or self._closing:
             return
+        self._update_page_indicator()
         doc = self.current_document()
         ready = doc is not None and doc.ready
         self.close_tab_action.setEnabled(self.tabs.count() > 0 and not self._export_running)
@@ -1142,6 +1294,7 @@ class MainWindow(QMainWindow):
                 self._render_documents.pop(generation)
         self.documents.pop(doc.document_id, None)
         self.search_controller.remove_document(doc.document_id)
+        self.navigation.remove_document(doc)
         self.tabs.removeTab(index)
         doc.deleteLater()
         if not self.tabs.count():
@@ -1155,6 +1308,8 @@ class MainWindow(QMainWindow):
     @Slot(object)
     def _handle_render_message(self, payload) -> None:
         if not isinstance(payload, dict):
+            return
+        if self.navigation.receive(payload):
             return
         try:
             generation = int(payload.get("generation", -1))

@@ -19,7 +19,7 @@ SCALE = 2
 ICON_KINDS = {
     "open": "open", "export": "export", "split": "split",
     "copy-text": "copy_text", "ocr-region": "ocr_region", "extract-image": "extract_image",
-    "search": "search",
+    "search": "search", "bookmarks": "bookmarks",
     "fit": "fit", "fullscreen": "fullscreen", "fullscreen-spread": "fullscreen_spread",
     "fullscreen-cover": "fullscreen_cover", "language-system": "language_system",
     "language-zh": "language_zh", "language-en": "language_en",
