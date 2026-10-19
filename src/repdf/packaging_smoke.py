@@ -4,13 +4,26 @@ import json
 import os
 import tempfile
 import traceback
+from contextlib import ExitStack
 from pathlib import Path
+
+
+def _stop_backend(process):
+    process.terminate()
+    try:
+        process.wait(timeout=5)
+    except Exception:
+        process.kill()
+        process.wait(timeout=5)
+    finally:
+        for stream in (process.stdin, process.stdout, process.stderr):
+            if stream is not None:
+                stream.close()
 
 
 def main(report_path: str) -> int:
     report = Path(report_path)
     report.parent.mkdir(parents=True, exist_ok=True)
-    process = None
     try:
         os.environ["QT_QPA_PLATFORM"] = "offscreen"
         from PySide6.QtGui import QImage
@@ -47,7 +60,7 @@ def main(report_path: str) -> int:
         ocr_result = _engine()(ocr_image)
         if not ocr_result.txts or ocr_result.txts[0] != 'Copy this text':
             raise RuntimeError(f"Packaged OCR failed: {ocr_result.txts}")
-        with tempfile.TemporaryDirectory(prefix="repdf-smoke-") as directory:
+        with tempfile.TemporaryDirectory(prefix="repdf-smoke-") as directory, ExitStack() as resources:
             root = Path(directory)
             ocr_source = root / 'ocr-image.pdf'
             ocr_image.save(ocr_source, 'PDF', resolution=72)
@@ -69,6 +82,7 @@ def main(report_path: str) -> int:
             with source.open("wb") as stream:
                 writer.write(stream)
             process = start_render_backend()
+            resources.callback(_stop_backend, process)
             process.stdin.write(json.dumps({
                 "source": str(source), "output_dir": str(root),
                 "scale": 0.5, "generation": 1,
@@ -121,14 +135,3 @@ def main(report_path: str) -> int:
     except Exception:
         report.write_text(json.dumps({"ok": False, "error": traceback.format_exc()}), encoding="utf-8")
         return 1
-    finally:
-        if process is not None:
-            process.terminate()
-            try:
-                process.wait(timeout=5)
-            except Exception:
-                process.kill()
-                process.wait(timeout=5)
-            for stream in (process.stdin, process.stdout, process.stderr):
-                if stream is not None:
-                    stream.close()
