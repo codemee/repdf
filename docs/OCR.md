@@ -1,5 +1,7 @@
 # OCR 文字擷取
 
+[繁體中文](OCR.md) | [English](OCR.en.md)
+
 提供文字選取的 OCR 備援與手動區域 OCR；辨識結果只複製到剪貼簿，不變更 PDF。
 
 ## 操作

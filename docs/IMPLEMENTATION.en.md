@@ -1,0 +1,404 @@
+# RePDF implementation and maintenance guide
+
+[繁體中文](IMPLEMENTATION.md) | [English](IMPLEMENTATION.en.md)
+
+This guide describes RePDF's current architecture, data flow, design decisions, and maintenance considerations. RePDF stands for Read the PDF: a PDF reader with search, bookmarks, OCR, and page rearrangement. The command, package, and Python module name remain `repdf`. Start here before adding features or debugging, then follow the entry points in `src/repdf/app.py`.
+
+## 1. Project overview
+
+RePDF is a Python desktop application for Windows and macOS. Its main features are:
+
+1. Open multiple PDFs in checkable, reorderable, closable tabs.
+2. Load previews around visible pages, with zoom, fullscreen, search, bookmarks, links, and page navigation.
+3. Configure ranges, printers, and paper in an integrated print window, then preview and print page by page.
+4. Copy selected text, recognize text with OCR, and extract embedded raster images.
+5. Rearrange tabs and pages, then export or split selected pages.
+
+The environment is managed with `uv` and requires Python 3.11 or later. After cloning, run these commands in the project directory:
+
+```sh
+uv sync
+uv run repdf
+uv run --locked python -m pytest
+```
+
+## 2. Technology stack
+
+| Package | Purpose |
+| --- | --- |
+| PySide6 | Windows, controls, themes, thread pools, and Qt signals |
+| pypdf (crypto extra) | Validate/unlock source PDFs, read page counts, and copy selected pages without rasterizing |
+| cryptography | Native AES PDF encryption/decryption support, collected by uv and desktop packaging |
+| pypdfium2 | Render PDF pages in a separate process |
+| Pillow | Save PDFium bitmaps as PNGs |
+| pytest | Core and integration tests |
+| pytest-qt | Qt GUI and asynchronous behavior tests |
+
+## 3. Directories and module responsibilities
+
+```text
+src/repdf/
+├── app.py             MainWindow, per-document DocumentView, tabs, and GUI coordination
+├── core.py            GUI-independent selection, validation, and PDF output logic
+├── widgets.py         Individual PageCard previews
+├── page_view.py       Visible-page scheduling, card virtualization, and shared image cache
+├── navigation.py      Bookmark sidebar and internal-link navigation
+├── printing.py        Print settings, range snapshots, and page-by-page printing
+├── print_preview.py   On-demand print preview and paper layout canvas
+├── pdf_navigation.py  Backend bookmark/link/destination extraction
+├── preview.py         Fullscreen single-page/spread/cover view, fitting, and selection
+├── theme.py           System/light/dark modes and control styling
+├── workers.py         QRunnable PDF loading and export tasks
+├── renderer.py        Communication with the persistent rendering backend
+├── render_worker.py   PDFium service in the child process
+└── assets/            PNG and Windows ICO application icons
+
+tests/
+├── test_core.py       Selection rules, PDF validation, and export tests
+├── test_gui.py        GUI state, tabs, cross-file output, and preview integration
+└── test_renderer.py   Request coalescing, priority, and cancellation tests
+```
+
+## 4. Startup and component lifecycle
+
+The public entry point is `repdf.entrypoint:main`. Ordinary startup delegates to `repdf.app:main`; entrypoint also dispatches packaged backend and `--self-test` modes.
+
+Startup order is intentional:
+
+1. `start_render_backend()` starts the persistent PDF preview child process.
+2. Create `QApplication`.
+3. `configure_application()` configures Fusion, icons, and Traditional Chinese font fallbacks.
+4. Create `ThemeController`, apply the current system theme, and monitor changes.
+5. Create `MainWindow` and pass the existing backend to `RenderService`.
+
+Do not move rendering back onto the GUI thread or call PDFium concurrently from multiple threads. PDFium is not thread-safe. A persistent child process isolates native rendering state and keeps preview work from freezing the main window.
+
+On window close, `closeEvent()`:
+
+- Sets `_closing`, stops document zoom timers, and invalidates pending old results.
+- Stops the preview child process.
+- Clears Qt tasks that have not started and waits for active export tasks.
+- Removes temporary preview PNG directories.
+
+## 5. Main window and state
+
+`MainWindow.__init__()` builds the toolbar, central document tabs/scrollable page grid, and bottom status bar.
+
+- The fixed toolbar contains file actions and a fixed-width zoom percentage followed by its slider. Clicking the percentage resets to 100%; its tooltip describes zoom controls. Zoom QActions belong to the main window and provide shortcuts without separate buttons.
+- File QActions centralize enabled state and shortcuts. Tabs show full source paths in tooltips. The window title remains `RePDF <version>`, independent of language and current file.
+- Odd/even tri-state checkboxes follow file actions.
+- `close_tab_action` uses `QKeySequence.StandardKey.Close`, a window-scoped shortcut, and the existing `close_tab()` cleanup. It is disabled during closing or without tabs. Close-button tooltips show platform shortcuts.
+- The status bar reports loading, selection, and export progress.
+
+`MainWindow` owns shared controls, `QTabWidget`, stable document IDs, and export job IDs. Each `DocumentView` owns its source, page count, `selected_pages`, `page_order`, `page_cards`, zoom, render generation, and scroll area. Tab changes synchronize toolbar and parity states without rebuilding document content. Tab checkboxes and close buttons bind to document objects rather than mutable tab indices.
+
+`_active_tasks` retains Python references to `QRunnable` objects until completion or failure. Loading results carry document IDs; export results carry `_export_id`, independently of the active tab.
+
+## 6. PDF loading
+
+`choose_pdf()` uses a multiple-file dialog and shares `load_pdfs()` with file drops:
+
+1. Create loading tabs in input order. A duplicate resolved path activates its existing tab.
+2. Run `core.inspect_pdf()` through `LoadPdfTask` in the shared `QThreadPool`.
+3. Read `/Count` from the page-tree root rather than expanding the whole tree with `len(reader.pages)`. Fall back to full inspection only if the count is invalid. Read page content and actual dimensions when rendering requires them.
+4. `DocumentView`'s `PageViewport` requests visible pages plus one screen before and after them. Background tabs pause preview requests; images remain in a bounded shared cache.
+5. Remove failed tabs without disturbing successful files. Batch errors are combined after loading finishes.
+6. Results for closed documents only finish task cleanup; they do not recreate tabs.
+
+### Password-protected documents
+
+- `inspect_pdf(source, password=None)` first tries an empty password so encrypted PDFs without an opening password load directly.
+- `PasswordRequiredError` requests a password; `IncorrectPasswordError` reports a failed attempt. Both inherit `UnsupportedEncryptedPdfError` for caller compatibility.
+- `LoadPdfTask.password_required` identifies the document and whether the password was incorrect. The GUI queues requests and shows one `PdfPasswordDialog` at a time.
+- Accepted passwords are stored in `DocumentView.password` before retrying. Canceling removes only that tab and completes its batch cleanup.
+- Input is masked by default with an option to reveal it, and is cleared after the dialog closes. Passwords are not written to QSettings, command lines, or logs.
+- Preview, fullscreen, text, region OCR, and image requests carry passwords through existing local communication. PDFium opens the original file; no decrypted temporary PDF is created.
+- `DocumentSelection` carries a password field excluded from repr. Each export source uses its own password. Outputs are always unencrypted, explicitly stated in dialogs and completion messages.
+- Closing a file/application clears document password references and cancels queued tasks/password requests. Load/export tasks release references after completion; the backend also removes password fields and input-line references after each request.
+- `pypdf[crypto]` brings in `cryptography` for AES-128/AES-256 support. Output password configuration is not provided.
+
+## 7. Preview rendering architecture
+
+### 7.1 Separate process
+
+`pypdfium2` is imported only in the `render_worker.py` child process. The GUI does not load PDFium directly, isolating native thread-safety concerns from GUI font/painting state.
+
+`RenderService` exchanges one JSON object per line over stdin/stdout. A request has this general form:
+
+```json
+{
+  "source": "C:/path/input.pdf",
+  "scale": 1.3333333333,
+  "output_dir": "C:/Temp/repdf-preview-...",
+  "generation": 4
+}
+```
+
+Per-page result:
+
+```json
+{
+  "type": "page",
+  "generation": 4,
+  "page": 0,
+  "path": "C:/Temp/repdf-preview-.../g4-p0.png"
+}
+```
+
+Completion or failure:
+
+```json
+{"type": "done", "generation": 4}
+{"type": "error", "generation": 4, "message": "..."}
+```
+
+The GUI copies each PNG completely into a `QImage`, immediately deletes the temporary PNG, and updates its card.
+
+Text-copy mode converts drag endpoints to page-relative coordinates and calls `RenderService.request_text()` on the same backend. PDFium accounts for page rotation, finds endpoint characters, and extracts the intervening text; character boxes determine the range if endpoints cannot be found. Results include `text` and normalized character boxes for highlights. A 90 ms timer updates selection previews while dragging; only the final released selection writes to the clipboard. Mode changes, document closure, and newer requests invalidate older results. Image-only PDFs without text leave the clipboard unchanged.
+
+### 7.2 Latest requests take priority
+
+The backend executes one rendering request at a time. `RenderService` maintains a document-ID-keyed pending queue with only the newest request per document, prioritizing the active tab. Each main-window batch contains at most two pages: visible pages first, then nearby pages. Scheduling is reconsidered against the viewport after each batch. A 40 ms timer coalesces scrolling; manual zoom waits for a 250 ms pause and temporarily scales old images. `cancel_pending()` removes queued requests when leaving a tab or closing a document.
+
+Generation numbers increase globally in the main window and map to document IDs through `_render_documents`. Results go to their source document independently of active tab or tab order. Obsolete-scale or closed-document results have their temporary images deleted. Active native rendering is not forcibly interrupted.
+
+Requests can include `pages`, an array of zero-based page indices. Omitting it renders the entire document. Page results include `width_points` and `height_points` for actual-size Fit/fullscreen calculations. Fullscreen uses a negative document ID as its independent scheduling key and maintains its own generations. Navigation invalidates old results immediately; closing cancels pending requests.
+
+The main window always supplies `pages`, so opening or zooming never previews the entire file. `PreviewCache` uses document ID, original page index, and render scale as keys, with a shared 128 MiB LRU image budget. Cards outside the nearby range release their pixmaps; closing a document removes its cache. The budget covers cached `QImage` data, not displayed pixmaps, Qt widgets, PDFium handles, or total process memory.
+
+The backend's `PdfDocumentCache` holds at most three PDFium documents, keyed by source path, size, modification time, and password. Batches and fullscreen reuse these handles. All PDFium operations run on one thread in that backend. Tab closure sends `release_document`; backend shutdown releases all handles.
+
+### 7.3 Zoom definition
+
+100% maps PDF's 72 DPI points to the Windows-standard 96 DPI display scale:
+
+```text
+render_scale = slider_percent / 100 × 96 / 72
+```
+
+A 300pt-wide page is therefore about 400px wide at 100%. Each page uses its actual dimensions; landscape pages are not forced to portrait width.
+
+Fit chooses the most recently clicked still-visible page, or the page nearest the viewport center. After subtracting card header and padding, it uses the smaller available-width/page-width and available-height/page-height ratio. It does not subtract the entire grid's vertical margins from height. After rendering, it centers the reference page in the viewport to avoid bottom gaps or exposing the next page. Each document retains Fit mode and its reference page. Resize updates use a 150 ms timer; manual zoom exits Fit. Fit may exceed the manual 25%–200% range.
+
+`FullscreenPreview` is a separate modal top-level window. It preserves document zoom and synchronizes selection through `PageCard.set_selected()` and `DocumentView._page_selection_changed()`. Groups follow `page_order`: `single` uses one page per group; `spread` pairs from the first page; `cover` puts the first page alone before pairs. An odd final page appears alone. Opening selects the group containing the current preview page.
+
+Fullscreen reserves a 30px selection header. Spreads use a shared scale calculated from total page width and maximum height. Device pixel ratio provides sharp images. Only the current group renders, capped at 30 million raster pixels in total. <kbd>F11</kbd> / <kbd>Esc</kbd> returns; arrow keys or <kbd>Page Up</kbd> / <kbd>Page Down</kbd> switch groups.
+
+Main and fullscreen windows each install an application event filter, handling only unmodified navigation keys in their own window, without affecting file dialogs. Normal view uses scrollbar single/page steps; Fit changes and refits the reference page. Navigation still works when sliders or fullscreen checkboxes have focus.
+
+The slider's 250 ms debounce sends a request only after changes pause. If changing the zoom range or DPI definition, also check:
+
+- `DocumentView._preview_scale()`
+- `DocumentView._target_preview_width()`
+- `render_worker.render_document()`
+- `test_pdf_loads_and_renders_page_previews`
+
+## 8. Grid and page cards
+
+The grid is top-aligned and horizontally centered, with cards centered within their columns. When page dimensions or window width change the scroll range, horizontal scrolling returns to center. Arrow keys and scrollbars still expose content wider than the viewport. Fit uses one column. Fit navigation starts at the visible page nearest the viewport center; pending navigation/rendering retains the requested reference page so rapid repeated keys stay ordered. Boundary attempts do not trigger zoom or scroll requests.
+
+`PageCard` holds a natural-page-number `QCheckBox`, a preview/error `QLabel`, and a zero-based `page_index`.
+
+Images update fixed card dimensions using their actual width/height. `DocumentView._reflow_grid()` computes columns from the widest current card and available viewport width. Resize and new images reflow without reparsing the PDF.
+
+Documents over 64 pages use virtualization: only visible/nearby cards exist. Whole-document state consists of order, selection, known dimensions, and geometry. `PageCards` indices remain original page indices; iteration visits only existing cards, so iteration positions must not be interpreted as page numbers. Unknown sizes temporarily use A4 proportions. New sizes trigger reflow while preserving the visible page's scroll position. Search highlights are stored separately and restored on card recreation. Drag/drop converts nearby-card geometry into whole-document insertion positions.
+
+Documents of 64 pages or fewer retain the ordinary grid, with images still loaded on demand. `PageGridLayout` computes actual row heights beyond Qt's aggregate size limit of approximately 524287px, preventing tall pages from being compressed. Virtual layout directly uses page geometry and is unaffected by that aggregate limit.
+
+`PageGrid` freezes original positions, pauses layout, and hides the source card during dragging. `QDrag` uses a numbered thumbnail capped at 180 × 240px. The left/right halves of original slots determine before/after insertion, avoiding unstable hit testing against moving cards. Other cards move with a 180 ms OutCubic animation around a dashed placeholder, wrapping in grid order. The preview does not modify `page_order`; release commits through `_insert_page()`, while cancellation restores the original grid. Layout resumes and reflows afterward. Export disables starting a drag.
+
+## 9. Page selection rules
+
+Internal indices are zero-based; displayed page numbers are one-based. `core.py` provides pure functions:
+
+- `indices_for_parity()`: indices corresponding to odd/even natural page numbers.
+- `set_parity()`: add/remove one parity group without changing the other.
+- `parity_state()`: return `NONE`, `PARTIAL`, or `ALL`.
+
+Odd/even controls are tri-state checkboxes. Partial manual selections show the intermediate state; selecting both groups selects all pages. Programmatic synchronization must preserve `_syncing_bulk` or block signals to avoid reentering selection logic.
+
+## 10. PDF output and file safety
+
+`choose_output()` uses a save dialog with default filename `<source_stem>_selected.pdf`. Export is enabled only with at least one selected page and no active export.
+
+`core.export_documents()` behaves as follows; `export_selected_pages()` remains a single-file wrapper:
+
+1. Collect checked documents in tab order, or only the current document if no tabs are checked. Filter each `page_order` by `selected_pages` into immutable `DocumentSelection(source, pages)` snapshots. Empty selections contribute no pages.
+2. Reject destinations that match any participating or open source file.
+3. Validate page ranges and source existence.
+4. Add original pages directly with pypdf, without rebuilding from thumbnails.
+5. Copy metadata from the first document that contributes pages.
+6. Write a `.repdf-*.pdf` temporary file in the destination directory.
+7. Complete writing and `fsync()`, then atomically replace the destination with `os.replace()`.
+8. Delete temporary files on failure, leaving no partial output.
+
+Reordering changes only original indices in `page_order`; `page_cards` and `selected_pages` keep original-page identities. Parity is independent of visual position.
+
+`choose_split_output()` shares the save flow and uses `ExportPdfTask(split=True)` to call `core.split_documents()`; `split_selected_pages()` remains a single-file wrapper. `split_output_paths()` generates continuous zero-padded numbers with at least two digits, based on total output count. The GUI confirms overwriting actual single-page targets before starting; core logic again rejects source overwrites.
+
+Each source is read once. Pages retain their source content and metadata. All PDFs are generated in a temporary directory within the destination directory, then published individually with atomic operations. Without overwrite authorization, existing targets are rejected. Generation failure leaves output unchanged. A disk error during publication reports the number already completed and retains published files.
+
+During export, users may switch tabs, read, and zoom, but cannot open/close files, check/reorder tabs, or select/reorder pages. Background export uses the immutable starting snapshot. Empty selections disable output without falling back to another file. Split numbering is continuous across source files.
+
+## 11. Themes, fonts, and icons
+
+The toolbar's `language_action` cycles `system → zh → en`; `theme_action` cycles `system → light → dark`. `QSettings("repdf", "repdf")` stores `ui/language` and `ui/theme`, defaulting to `system` and falling back to it for invalid values. On first startup, valid language/theme preferences from `QSettings("PDFPick", "PDFPick")` populate unset new keys, without overwriting existing repdf preferences or deleting old settings.
+
+`preferences.LanguageController` prefers the first display language in `QLocale.system().uiLanguages()`, falling back to locale language only if none is available. Chinese selects Traditional Chinese; other languages select English. `LocaleChange` reevaluates language only in system mode. `strings.py` centralizes translations and `tr()` for GUI/core/backend errors. `localize_text()` updates existing text while preserving formatting arguments. Switching language updates text/tooltips without rebuilding documents or rerendering pages.
+
+File dialogs use `DontUseNativeDialog`, Qt's `qtbase_zh_TW.qm`, and standard-button translations. Packaging locates Qt translations via `QLibraryInfo.TranslationsPath` and collects qm files into `repdf/assets`. Source execution also reads Qt's translations directory. Missing translations fall back to source text. `packaging_smoke.py` checks qm availability and English translation behavior. GUI tests isolate user preferences in separate settings.
+
+`ThemeController` reads `QGuiApplication.styleHints().colorScheme()` and listens to `colorSchemeChanged` in system mode; explicit light/dark settings take priority. The main window owns the controller. Applying a theme updates the Qt palette, card/preview borders, base button sizes, slider colors, and flat styles for toolbar controls, checkboxes, scrollbars, and dialog buttons. `icons.py` draws line icons; the main window rebuilds them on palette changes for readable light/dark and disabled states.
+
+`configure_application()` tries Microsoft JhengHei UI, Microsoft JhengHei, Noto Sans TC, then Arial.
+
+Application assets are `src/repdf/assets/repdf.png` and `repdf.ico`. Runtime QIcon uses PNG. Windows EXE packaging uses ICO with 16, 24, 32, 48, 64, 128, and 256px sizes.
+
+## 12. Test coverage
+
+Tests cover:
+
+- Parity selection, clearing, and tri-state detection.
+- Default output filenames.
+- Source-order output for sets and drag-order output for ordered lists.
+- Consistency of visual order, original-page parity, and output after reordering.
+- Preserved page dimensions after export.
+- Empty-selection and source-overwrite rejection.
+- Damaged and password-protected PDFs.
+- Initial GUI controls and icon loading.
+- Manual selection/parity synchronization and zoom debounce.
+- Integration from PDF loading through background preview rendering.
+- On-demand preview, long-document virtualization, cache eviction, and navigation.
+- Search scopes, regular expressions, word boundaries, highlights, bookmarks, and internal/external links.
+- Print scopes/order, margins, scaling, copies, preview caching, cancellation, and backend cleanup.
+- Ordinary integrated printing without native dialogs; preview without a printer while printing stays disabled.
+- OCR damaged-text detection, region recognition, offline models, and clipboard flow. Recognition quality testing focuses on Chinese and English.
+
+Tests use `QT_QPA_PLATFORM=offscreen`. The offscreen plugin can differ slightly from native Windows rendering. Font, icon, theme, and layout changes also require native-window visual checks.
+
+## 13. Common modification entry points
+
+| Change | Main entry point | Considerations |
+| --- | --- | --- |
+| Main layout | `MainWindow.__init__()` | Preserve toolbar/content/status regions |
+| Zoom range or DPI | Slider/scale methods in `app.py` | Update tests and README together |
+| Thumbnail format/quality | `render_worker.render_document()` | GUI expects a path readable by `QImage` |
+| Backend scheduling | `renderer.RenderService` | Preserve generation-based invalidation |
+| New selection method | Pure functions in `core.py` and `_selection_updated()` | Keep zero-based internal indices |
+| Output order | `DocumentView.page_order`, `_move_page()`, `core.export_selected_pages()` | Separate original indices from visual positions |
+| Password support | `_unlock()`, `PdfPasswordDialog`, main-window password queue, backend requests | Keep passwords per document, clean up on close, disclose unencrypted output |
+| App icon replacement | `assets/` and `load_app_icon()` | Update PNG and ICO together |
+| Theme colors | `ThemeController.apply()` | Check both system themes |
+
+## 14. Known limitations and extension areas
+
+- No page dragging across tabs or session restoration after restart.
+- Opening PDFs with passwords is supported; assigning output passwords is not.
+- No page rotation, cropping, or content editing. Cross-document exports follow checked pages and visual order.
+- Thumbnails load on demand with a bounded cache, but displayed high-resolution pages and PDF state still consume additional memory.
+- Active native PDFium calls are not forcibly interrupted. A new location may wait for the current batch of at most two pages; a very complex individual page can still cause delays.
+- GitHub Actions builds Windows single-file EXEs and macOS App/DMGs. Developer signing and macOS notarization are not configured.
+
+## 15. Packaging and releases
+
+Packaged smoke tests must stop render backends holding cached PDFs before removing temporary test directories, on both success and failure. This avoids Windows file locks preventing test PDF cleanup.
+
+### Build policy and artifacts
+
+- All packaging runs in GitHub Actions. Local development runs source and tests without building desktop packages.
+- Windows x86_64 uses PyInstaller onefile/windowed mode for a single EXE.
+- macOS Apple Silicon (arm64) uses an onedir App bundle, preserving native-library symlinks, packaged into a DMG.
+- Each desktop artifact is built on a native runner for its platform.
+- Desktop artifacts include SHA256 checksum files and the OCR runtime/models.
+- Windows code signing and macOS Developer ID signing/notarization are not configured; downloaded apps may trigger system security prompts.
+
+### Desktop workflow
+
+- Configuration: [`.github/workflows/build-desktop.yml`](../.github/workflows/build-desktop.yml), named “Build desktop apps”.
+- Publishing a release triggers a build from its tag. The tagged commit must include packaging configuration.
+- The Actions “Run workflow” button also supports manual builds with a branch/tag `ref`.
+- A manual `release_tag` takes precedence as the build source and attaches successful artifacts to that existing release.
+- The workflow installs locked dependencies and runs regression tests before packaging and packaged smoke tests.
+- Actions artifacts are retained for 30 days. Manual builds without `release_tag` are downloaded there.
+- Release builds and manual builds with `release_tag` upload release assets only after both Windows and macOS builds succeed.
+
+### Packaging configuration and resources
+
+- [`packaging/repdf.spec`](../packaging/repdf.spec) defines Windows EXE/macOS App modes and collected resources.
+- RapidOCR configuration, recognition/detection models, and ONNX Runtime native libraries are collected. The unused orientation classification model is excluded.
+- Installed `repdf` distribution metadata is collected so window and package versions agree.
+- [`scripts/build_desktop.py`](../scripts/build_desktop.py) runs PyInstaller, packaged functional checks, DMG creation, and SHA256 generation.
+- macOS uses system `ditto` and `hdiutil` to create and verify DMGs.
+- [`entrypoint.py`](../src/repdf/entrypoint.py) detects backend and smoke-test modes before loading the GUI, preventing child processes from opening another window.
+- [`renderer.py`](../src/repdf/renderer.py) uses stdin/stdout in source mode. Frozen mode uses loopback TCP, a one-time random handshake token, and UTF-8 streams because Windows windowed bootloaders lack standard streams.
+
+### Packaged smoke tests
+
+- Entry point: [`packaging_smoke.py`](../src/repdf/packaging_smoke.py), invoked through the packaged executable during builds.
+- Verify Qt, app icons, and dialog translation resources.
+- Run actual OCR inference and region recognition rather than checking imports alone.
+- Verify AES-256 password loading and unencrypted output to check bundled cryptographic dependencies.
+- Render a two-page PDF through the backend and verify ordered PDF export.
+
+### PyPI publishing
+
+- Configuration: [`.github/workflows/publish.yml`](../.github/workflows/publish.yml), named “Publish to PyPI”.
+- Configure the PyPI `repdf` project's Trusted Publisher for `codemee/repdf`, and set repository variable `PYPI_PUBLISH_ENABLED` to `true`.
+- If disabled, PyPI publishing is skipped and distribution uses GitHub Releases only.
+- Publishing a release triggers the workflow; manual runs can specify an existing release using `tag`.
+- Check out the tag, verify it matches `pyproject.toml`, and build the wheel/source distribution in the cloud.
+- Attach Python packages to the GitHub Release, then publish to PyPI using Trusted Publishing.
+
+## 16. Text search
+
+- `SearchController` in `search_panel.py` manages the right pane, exclusive scope, query generations, results, and cancellation. `SearchPanel` supplies input, options, and upper/lower result lists.
+- Search snapshots loaded documents, tab order, and page order at execution. Tab checkboxes control document scope; page checkboxes do not filter searches.
+- A dedicated PDF backend starts lazily for the first search, reusing source/frozen communication without sharing the preview/OCR/image queue.
+- `RenderService.request_search()` sends one file at a time with `type=search`, document ID, generation, source, original page indices, query, regex/case/whole-word flags, and any password.
+- `search_page` results carry original page index, progress, paragraph IDs/text, match ranges, normalized glyph rectangles, and counts. `done`/`error` also carry document IDs.
+- `search.py` reads Unicode and positions by PDFium glyph index and maps text back to glyphs. Extracted-string offsets are not assumed to equal glyph indices. OCR is not invoked.
+- Geometric text lines form paragraphs. Empty lines, columns, page boundaries, and gaps over 1.5 line heights split paragraphs. Continued lines need horizontal overlap of at least 50% of the shorter line's width. Chinese/Japanese continuations join directly; others receive a space with no corresponding glyph rectangle.
+- The `regex` package escapes literal input in ordinary mode and uses Python-compatible syntax in regex mode. Matching is limited to one second per paragraph; zero-length matches are skipped.
+- The backend's `whole_word` flag wraps the entire query in negative lookarounds using Unicode `\w`. It combines with regex/case options but does not segment Chinese text.
+- Line grouping uses full vertical extents and spacing so low glyphs such as underscores remain attached, preserving boundaries for strings such as `cat_`. Trailing comments in verbose regex mode cannot consume appended boundary conditions.
+- Stop, a new query, or closing the pane terminates the search backend and invalidates old generations. Closing a searched file removes it and reschedules remaining unfinished files. Single-file failures preserve other results; timeouts stop the whole search and mark it incomplete.
+- `PagePreviewLabel` stores search rectangles independently of selection highlights using normalized coordinates. `DocumentView.jump_to_search_result()` locates stable page indices, preserves zoom/Fit, and scrolls to matches after rendering.
+- The search pane starts at width 320px with resizable width and list divider. Below width 640px it shares a single pane with the PDF; below height 360px scope/flags move into a menu, preserving the 320 × 240 minimum window.
+- Opening search from toolbar overflow reactivates the main window on the next event-loop turn before focusing input, avoiding a lingering active menu window on macOS.
+- Passwords travel only through local communication. No decrypted PDF, disk text index, or password log is created. Search history and results last only for the current session.
+
+## 17. Bookmarks and internal links
+
+- `NavigationController` manages the left bookmark tree, per-document expansion/selection, and request generations. Search and bookmarks share the sidebar space. Below width 640px, bookmarks and the PDF share one pane; selecting a chapter returns to the PDF.
+- The bookmark button uses 34 × 34 / 20 × 20 sizing and theme-aware colors. The tree preserves original PDF titles and shows a message without bookmarks. Closing tabs clears their state and queued navigation requests.
+- The first expansion sends a `bookmarks` request. The existing single-threaded PDFium backend reuses document handles, and results remain for the document session. `get_toc(max_depth=64)` preserves hierarchy, with traversal-cycle protection provided by the PDFium wrapper.
+- `render_document()` enumerates link annotations only on requested pages and attaches normalized rectangles/destinations to `page.links`. Navigation never requires scanning all pages. Main/fullscreen views share `DocumentView.page_links`, restoring links after card recreation or image-cache hits.
+- PDFium resolves direct/named destinations and same-document GoTo actions. `FPDFAction_GetURIPath()` reads URI actions, supporting UTF-8 and BOM-marked UTF-16. Only HTTP/HTTPS URLs with hostnames are accepted. Email, external-document, application-launch, and JavaScript actions are not executed.
+- HTTP/HTTPS links use the same on-demand reading, caching, and click detection, and open through `QDesktopServices.openUrl()` in the default browser. URLs are revalidated before opening; failures appear in the status bar, and tooltips HTML-escape URLs.
+- Clicking sends `navigate`, opening only the destination page to read actual size, crop, and rotation. XYZ, FitH, FitV, FitR, and other destinations become normalized display positions. The main window preserves zoom/Fit, locates the original page, and scrolls using current `page_order`; fullscreen switches to the containing group.
+- In normal mode, `PagePreviewLabel` shows a pointing hand and destination tooltip. A link activates only if left-button press/release remain in the same region within the drag threshold. Text selection, OCR, and image extraction take priority and disable links. Dragging still uses page reordering.
+- New navigation invalidates old generations. Results arriving after tab switches or document closure cannot change the active document. Only existing PDF navigation data is used; plain/scanned contents are not linked automatically. Bookmark editing and rebuilding output bookmarks are not provided.
+
+## 18. Status-bar page numbers
+
+- PDFium `get_page_label()` reads labels on demand during page rendering/destination resolution into `DocumentView.page_labels`; opening never scans all pages. Keys are original page indices, surviving reorder and image-cache eviction. Missing labels return `None`; labels are not synthesized.
+- Labels appear beside original PDF page numbers. Input still uses original page numbers. Labels are plain, single-line, width-elided text with full HTML-escaped tooltips, without increasing the minimum window size.
+- A permanent status widget holds the original-page input and total count, so OCR/search/export messages do not replace it. Without a loaded document it shows `- / 0` and disables input.
+- `_update_page_indicator()` uses the active document's `preview_page_index()`, matching preview/Fit visible-page selection. Control state, page focus, search navigation, and coalesced scrolling update it.
+- Draft input is tracked separately from document ID. Focused, edited text is not overwritten. Switching tabs, leaving input, or pressing <kbd>Esc</kbd> restores the current page, preventing drafts from carrying across documents.
+- <kbd>Enter</kbd> validates a decimal integer in `1..page_count`, then locates the original page. Manual zoom scrolls directly; Fit updates/refits the reference page. Virtual geometry avoids creating intervening cards.
+- Arrow keys and <kbd>Home</kbd> / <kbd>End</kbd> edit the field rather than navigating the PDF. Submission returns focus to the reading area. Input height is 22px; width depends on page digits without increasing the minimum window size.
+
+## 19. Printing
+
+- `PrintOptions` is the integrated range/scaling widget, snapshotting original page numbers, tab/page order, and passwords. It offers all/current/custom/checked scopes, with checked scope using `output_selection()`. Custom ranges are deduplicated into visual order. Invalid or empty selections cannot be submitted.
+- Printer, paper, orientation, copies, collation, duplex, and color operate directly on `QPrinter`, with capabilities from `QPrinterInfo`. Ordinary use opens no system dialog. Only Advanced settings uses `QPrintDialog`, then synchronizes accepted native settings back. Scope changes clear native page filtering to avoid stale positions from another list.
+- Native advanced ranges use `1..N` in the print list. `printer_pages()` applies ranges/reverse order, expanding copies and collated/uncollated order only if the driver lacks multiple-copy support, avoiding duplication.
+- `PrintJob` has a dedicated `RenderService`/backend. Each `print_page` request renders one page at 300 DPI, capped at 30 million pixels. It reuses packaged backend startup/authentication without reconstructing a whole PDF or using preview thumbnails. PyInstaller's Qt hooks collect Qt Print Support and platform printing components.
+- `QPainter` draws page by page on the GUI thread into `QPrinter`, using full-paper coordinates, centering and clipping to the printable rectangle. Fit scales proportionally; actual size converts PDF points to printer DPI. Paper/orientation follow printer settings, without auto-rotation or per-page paper changes.
+- A nonmodal progress window supports cancellation, attempting `QPrinter.abort()`. Pages already spooled may not be recalled. Only the current image is retained. Completion, error, cancellation, and app closure stop the backend before removing temporary data and password references.
+- Toolbar and standard print shortcuts share one controller; only one print job runs at once. Fullscreen invocation preserves its current page, returns to the main window, and opens integrated printing. Canceling preview stops its backend without creating a print job.
+- Packaged smoke tests use `QPrinter.PdfFormat` for page-by-page output and backend verification, without native dialogs or physical printers.
+- The entry point opens `PrintPreviewDialog` with horizontal panels in wide windows and stacked panels in narrow ones. Only confirmation transfers the final snapshot through `accepted_pages` and creates `PrintJob`. Without a printer, preview remains available while printing is disabled. `ordered_print_pages()` reads ranges/order without consuming or changing copies/reverse settings. Preview shows one copy, with the copy count in paper information.
+- Preview uses a separate backend with one-page `print_preview` requests at 150 DPI, capped at 4 million pixels and three cached pages. Rapid navigation coalesces pending requests; stale-generation results are deleted and ignored. Zoom/paper changes share `print_rect()` for drawing/clipping on white paper. Monochrome preview converts to grayscale according to settings. Driver duplex/binding is not simulated as paper flipping.
+- Preview supports navigation, page input, view zoom, print scaling, and reopening printer settings. Closing/canceling stops the backend before clearing images, temporary files, and password snapshots. Printing is disabled until a preview loads successfully. Packaged smoke tests also verify preview loading without creating print output files.

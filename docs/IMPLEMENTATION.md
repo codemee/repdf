@@ -1,5 +1,7 @@
 # RePDF 實作與維護指南
 
+[繁體中文](IMPLEMENTATION.md) | [English](IMPLEMENTATION.en.md)
+
 本文件描述 RePDF 目前的程式架構、主要資料流、重要設計決策與修改注意事項。RePDF 代表 Read the PDF，定位為支援搜尋、書籤、OCR 與頁面重組的 PDF 閱讀器；命令、套件與 Python 模組名稱維持 `repdf`。若要新增功能或除錯，建議先閱讀本文件，再從 `src/repdf/app.py` 進入程式。
 
 ## 1. 專案概觀

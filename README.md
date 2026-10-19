@@ -1,5 +1,7 @@
 # RePDF — Read the PDF
 
+[繁體中文](README.md) | [English](README.en.md)
+
 RePDF 代表 **Read the PDF**，命令與 Python 套件名稱為 `repdf`。這是一套桌面 PDF 閱讀器，支援多標籤閱讀、列印、書籤與目錄跳頁、文字搜尋、選字複製、OCR 及圖片擷取，也可勾選頁面，依標籤與頁面排列順序重組或拆分輸出。重組與拆分保留原始頁面品質。
 
 ## 重點特色
