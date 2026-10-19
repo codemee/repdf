@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 import socket
 import sys
+from collections import OrderedDict
 from pathlib import Path
 from typing import TextIO
 
@@ -12,13 +13,50 @@ from repdf.ocr import OcrError, recognize_region, recognize_selection, suspiciou
 from repdf.images import extract_clicked_image
 
 
+class PdfDocumentCache:
+    """PDFium handles stay on the backend's single execution thread."""
+
+    def __init__(self, limit=3):
+        self.limit = limit
+        self.documents = OrderedDict()
+
+    def get(self, source, password=None):
+        path = Path(source).resolve()
+        stat = path.stat()
+        key = (path, stat.st_size, stat.st_mtime_ns, password)
+        if key not in self.documents:
+            self.documents[key] = pdfium.PdfDocument(str(path), password=password)
+        self.documents.move_to_end(key)
+        while len(self.documents) > self.limit:
+            _, document = self.documents.popitem(last=False)
+            document.close()
+        return self.documents[key]
+
+    def release(self, source):
+        path = Path(source).resolve()
+        for key in list(self.documents):
+            if key[0] == path:
+                self.documents.pop(key).close()
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *_args):
+        for document in self.documents.values():
+            document.close()
+        self.documents.clear()
+
+
 def render_document(
     source: Path, scale: float, output_dir: Path, generation: int,
     output_stream: TextIO | None = None,
     pages: list[int] | None = None,
     password: str | None = None,
+    document=None,
 ) -> None:
-    document = pdfium.PdfDocument(str(source), password=password)
+    own_document = document is None
+    if own_document:
+        document = pdfium.PdfDocument(str(source), password=password)
     try:
         indices = range(len(document)) if pages is None else pages
         for page_index in indices:
@@ -42,7 +80,8 @@ def render_document(
                 "width_points": width_points, "height_points": height_points,
             }), file=output_stream, flush=True)
     finally:
-        document.close()
+        if own_document:
+            document.close()
 
 
 def extract_selection_result(source: Path, page_index: int, start: list[float],
@@ -146,67 +185,71 @@ def serve(
     if token is not None:
         ready["token"] = token
     print(json.dumps(ready), file=output_stream, flush=True)
-    for line in input_stream:
-        request: dict[str, object] = {}
-        try:
-            request = json.loads(line)
-            if request.get('type') == 'search':
-                from repdf.search import search_document
-                search_document(request, lambda message: print(json.dumps(message), file=output_stream, flush=True))
-            elif request.get('type') == 'extract_image':
-                generation = int(request['generation'])
-                destination = Path(request['output_dir']) / f"g{generation}-image.png"
-                result = extract_clicked_image(Path(request['source']), int(request['page']),
-                                               request['point'], destination, password=request.get('password'))
-                print(json.dumps({'type': 'image', 'generation': generation, 'image': result}),
-                      file=output_stream, flush=True)
-            elif request.get('type') == 'ocr_region':
-                document = pdfium.PdfDocument(str(request['source']), password=request.get('password'))
-                try:
-                    page_index = int(request['page'])
-                    if not 0 <= page_index < len(document):
-                        raise ValueError('Invalid OCR page index')
-                    page = document[page_index]
+    with PdfDocumentCache() as documents:
+        for line in input_stream:
+            request: dict[str, object] = {}
+            try:
+                request = json.loads(line)
+                if request.get('type') == 'release_document':
+                    documents.release(request['source'])
+                elif request.get('type') == 'search':
+                    from repdf.search import search_document
+                    search_document(request, lambda message: print(json.dumps(message), file=output_stream, flush=True))
+                elif request.get('type') == 'extract_image':
+                    generation = int(request['generation'])
+                    destination = Path(request['output_dir']) / f"g{generation}-image.png"
+                    result = extract_clicked_image(Path(request['source']), int(request['page']),
+                                                   request['point'], destination, password=request.get('password'))
+                    print(json.dumps({'type': 'image', 'generation': generation, 'image': result}),
+                          file=output_stream, flush=True)
+                elif request.get('type') == 'ocr_region':
+                    document = pdfium.PdfDocument(str(request['source']), password=request.get('password'))
                     try:
-                        extracted = recognize_region(page, request['start'], request['end'])
+                        page_index = int(request['page'])
+                        if not 0 <= page_index < len(document):
+                            raise ValueError('Invalid OCR page index')
+                        page = document[page_index]
+                        try:
+                            extracted = recognize_region(page, request['start'], request['end'])
+                        finally:
+                            page.close()
                     finally:
-                        page.close()
-                finally:
-                    document.close()
-                print(json.dumps({'type': 'text', 'generation': int(request['generation']),
-                                  **extracted}), file=output_stream, flush=True)
-            elif request.get("type") == "copy_text":
-                extracted = extract_selection_result(Path(request["source"]), int(request["page"]),
-                    request["start"], request["end"], allow_ocr=bool(request.get('allow_ocr', False)),
-                    password=request.get('password'),
-                    on_ocr=lambda: print(json.dumps({'type': 'ocr', 'generation': int(request['generation'])}),
-                                         file=output_stream, flush=True))
-                print(json.dumps({"type": "text", "generation": int(request["generation"]),
-                                  **extracted}), file=output_stream, flush=True)
-            else:
-                render_document(
-                    Path(request["source"]), float(request["scale"]),
-                    Path(request["output_dir"]), int(request["generation"]), output_stream,
-                    pages=request.get("pages"),
-                    password=request.get('password'),
-                )
-            print(json.dumps({
-                "type": "done", "generation": int(request["generation"]),
-                "document_id": request.get('document_id'),
-            }), file=output_stream, flush=True)
-        except Exception as exc:
-            print(json.dumps({
-                "type": "error",
-                "generation": request.get("generation", -1) if isinstance(request, dict) else -1,
-                "message": str(exc),
-                "document_id": request.get('document_id') if isinstance(request, dict) else None,
-                "timeout": isinstance(exc, TimeoutError),
-            }), file=output_stream, flush=True)
-        finally:
-            # Release credential references before waiting for the next request.
-            if isinstance(request, dict):
-                request.pop('password', None)
-            line = ''
+                        document.close()
+                    print(json.dumps({'type': 'text', 'generation': int(request['generation']),
+                                      **extracted}), file=output_stream, flush=True)
+                elif request.get("type") == "copy_text":
+                    extracted = extract_selection_result(Path(request["source"]), int(request["page"]),
+                        request["start"], request["end"], allow_ocr=bool(request.get('allow_ocr', False)),
+                        password=request.get('password'),
+                        on_ocr=lambda: print(json.dumps({'type': 'ocr', 'generation': int(request['generation'])}),
+                                             file=output_stream, flush=True))
+                    print(json.dumps({"type": "text", "generation": int(request["generation"]),
+                                      **extracted}), file=output_stream, flush=True)
+                else:
+                    render_document(
+                        Path(request["source"]), float(request["scale"]),
+                        Path(request["output_dir"]), int(request["generation"]), output_stream,
+                        pages=request.get("pages"),
+                        password=request.get('password'),
+                        document=documents.get(request['source'], request.get('password')),
+                    )
+                print(json.dumps({
+                    "type": "done", "generation": int(request["generation"]),
+                    "document_id": request.get('document_id'),
+                }), file=output_stream, flush=True)
+            except Exception as exc:
+                print(json.dumps({
+                    "type": "error",
+                    "generation": request.get("generation", -1) if isinstance(request, dict) else -1,
+                    "message": str(exc),
+                    "document_id": request.get('document_id') if isinstance(request, dict) else None,
+                    "timeout": isinstance(exc, TimeoutError),
+                }), file=output_stream, flush=True)
+            finally:
+                # Release credential references before waiting for the next request.
+                if isinstance(request, dict):
+                    request.pop('password', None)
+                line = ''
     return 0
 
 

@@ -5,7 +5,7 @@ from repdf.strings import tr
 from PySide6.QtCore import QEasingCurve, QMimeData, QPoint, QPropertyAnimation, QRect, QRectF, Qt, QTimer, Signal
 from PySide6.QtGui import QColor, QDrag, QDragEnterEvent, QDragLeaveEvent, QDragMoveEvent, QDropEvent, QImage, QMouseEvent, QPainter, QPainterPath, QPixmap
 from PySide6.QtWidgets import (QApplication, QCheckBox, QDialog, QDialogButtonBox, QFrame,
-                              QHBoxLayout, QLabel, QLineEdit, QVBoxLayout, QWidget)
+                              QGridLayout, QHBoxLayout, QLabel, QLineEdit, QVBoxLayout, QWidget)
 
 
 class PdfPasswordDialog(QDialog):
@@ -37,6 +37,40 @@ class PdfPasswordDialog(QDialog):
         self.password_edit.setFocus()
 
 
+class PageGridLayout(QGridLayout):
+    """Keep long documents above Qt's capped aggregate layout size hints."""
+
+    _QT_LAYOUT_MAX = (1 << 19) - 1
+
+    def _content_height(self, minimum=False):
+        rows = {}
+        for index in range(self.count()):
+            item = self.itemAt(index)
+            row, _column, _row_span, _column_span = self.getItemPosition(index)
+            size = item.minimumSize() if minimum else item.sizeHint()
+            rows[row] = max(rows.get(row, 0), size.height())
+        margins = self.contentsMargins()
+        return (margins.top() + margins.bottom() + sum(rows.values())
+                + max(0, len(rows) - 1) * self.verticalSpacing())
+
+    def minimumSize(self):
+        size = super().minimumSize()
+        if size.height() >= self._QT_LAYOUT_MAX:
+            size.setHeight(max(size.height(), self._content_height(minimum=True)))
+        return size
+
+    def sizeHint(self):
+        size = super().sizeHint()
+        if size.height() >= self._QT_LAYOUT_MAX:
+            size.setHeight(max(size.height(), self._content_height()))
+        return size
+
+    def maximumSize(self):
+        size = super().maximumSize()
+        size.setHeight(max(size.height(), self.minimumSize().height(), self.sizeHint().height()))
+        return size
+
+
 class PageGrid(QWidget):
     """Keep drop hit areas stable while cards animate into preview slots."""
 
@@ -56,9 +90,21 @@ class PageGrid(QWidget):
         self._gap.setStyleSheet("border: 2px dashed palette(highlight); border-radius: 8px; background: transparent;")
         self._gap.hide()
 
+    def sizeHint(self):
+        return getattr(self, 'virtual_size', super().sizeHint())
+
+    def minimumSizeHint(self):
+        return getattr(self, 'virtual_size', super().minimumSizeHint())
+
     def begin_drag(self, source) -> None:
         self.layout().activate()
-        self.cards = [self.layout().itemAt(i).widget() for i in range(self.layout().count())]
+        document = getattr(self, 'virtual_document', None)
+        if document is not None:
+            self.cards = sorted(document.page_cards, key=lambda card: document.pages.order_positions[card.page_index])
+            self._insertion_offset = document.pages.order_positions[self.cards[0].page_index]
+        else:
+            self.cards = [self.layout().itemAt(i).widget() for i in range(self.layout().count())]
+            self._insertion_offset = 0
         self._slots = [card.geometry() for card in self.cards]
         self.drag_source = source
         self._insertion = self.cards.index(source)
@@ -149,7 +195,7 @@ class PageGrid(QWidget):
             event.ignore()
             return
         self.preview_at(event.position().toPoint())
-        self.insertion_requested.emit(self.drag_source.page_index, self._insertion)
+        self.insertion_requested.emit(self.drag_source.page_index, self._insertion + self._insertion_offset)
         event.acceptProposedAction()
 
 
@@ -444,6 +490,12 @@ class PageCard(QFrame):
         self.preview.setMinimumHeight(max(80, int(width * 1.3)))
         self.preview.setText(tr('載入中…'))
         self.preview.setPixmap(QPixmap())
+
+    def set_preview_size(self, width, height):
+        self.target_width = width
+        self.setFixedWidth(width + 24)
+        self.preview.setFixedSize(width, height)
+        self.preview.setScaledContents(True)
 
     def set_image(self, image: QImage) -> None:
         pixmap = QPixmap.fromImage(image)

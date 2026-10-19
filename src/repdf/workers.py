@@ -25,7 +25,7 @@ class LoadPdfTask(QRunnable):
     @Slot()
     def run(self) -> None:
         try:
-            info = inspect_pdf(self.source, self.password)
+            info = inspect_pdf(self.source, self.password, quick=True)
             self.signals.loaded.emit(self.session_id, info.path, info.page_count)
         except (PasswordRequiredError, IncorrectPasswordError) as exc:
             self.signals.password_required.emit(self.session_id, isinstance(exc, IncorrectPasswordError))

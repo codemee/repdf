@@ -87,7 +87,7 @@ class RenderService(QObject):
         self._lock = threading.Lock()
         self._busy = False
         self._active_payload = None
-        self._pending: OrderedDict[int, dict[str, object]] = OrderedDict()
+        self._pending: OrderedDict[object, dict[str, object]] = OrderedDict()
         self._closed = False
         self._reader = threading.Thread(target=self._read_loop, daemon=True)
         self._reader.start()
@@ -133,6 +133,13 @@ class RenderService(QObject):
     def cancel_pending(self, document_id: int) -> None:
         with self._lock:
             self._pending.pop(document_id, None)
+
+    def release_document(self, document_id, source):
+        with self._lock:
+            self._pending[('release', document_id)] = {
+                'type': 'release_document', 'source': str(source), 'generation': -1,
+            }
+            self._start_next()
 
     def request_search(self, payload):
         with self._lock:

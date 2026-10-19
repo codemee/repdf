@@ -29,7 +29,6 @@ from PySide6.QtWidgets import (
     QAbstractButton,
     QAbstractSlider,
     QFileDialog,
-    QGridLayout,
     QHBoxLayout,
     QLabel,
     QMainWindow,
@@ -57,11 +56,12 @@ from repdf.icons import toolbar_icon
 from repdf.theme import ThemeController
 from repdf.preferences import LanguageController, migrate_preferences
 from repdf.renderer import RenderService, start_render_backend
-from repdf.widgets import PageCard, PageGrid, PdfPasswordDialog
+from repdf.widgets import PageCard, PageGrid, PageGridLayout, PdfPasswordDialog
 from repdf.toolbar import OverflowToolBar
 from repdf.preview import FullscreenPreview
 from repdf.workers import ExportPdfTask, LoadPdfTask
 from repdf.search_panel import SearchController
+from repdf.page_view import PageViewport, PreviewCache
 
 
 class DocumentView(QWidget):
@@ -112,7 +112,7 @@ class DocumentView(QWidget):
         self.grid_host = PageGrid()
         self.grid_host.insertion_requested.connect(self._insert_page)
         self.grid_host.drag_finished.connect(self._reflow_grid)
-        self.grid = QGridLayout(self.grid_host)
+        self.grid = PageGridLayout(self.grid_host)
         self.grid.setContentsMargins(12, 12, 12, 12)
         self.grid.setSpacing(12)
         self.grid.setAlignment(Qt.AlignmentFlag.AlignTop | Qt.AlignmentFlag.AlignHCenter)
@@ -129,6 +129,7 @@ class DocumentView(QWidget):
         self.fit_timer.setSingleShot(True)
         self.fit_timer.setInterval(150)
         self.fit_timer.timeout.connect(self._apply_fit)
+        self.pages = PageViewport(self)
 
     def loaded(self, page_count: int) -> None:
         self.page_count = page_count
@@ -152,23 +153,24 @@ class DocumentView(QWidget):
             self.owner.statusBar().showMessage(message)
 
     def _create_page_cards(self) -> None:
-        self.page_order = list(range(self.page_count))
-        width = self._target_preview_width()
-        for page_index in range(self.page_count):
-            card = PageCard(page_index, width)
-            card.set_text_copy_mode(self.owner._selection_active(), region=self.owner.region_ocr_action.isChecked(),
-                                    image=self.owner.extract_image_action.isChecked())
-            card.selection_changed.connect(self._page_selection_changed)
-            card.reorder_requested.connect(self._move_page)
-            card.focused.connect(self._focus_page)
-            card.text_selected.connect(
-                lambda index, start, end, preview=card.preview:
-                self.owner._copy_text_selection(self, index, preview, start, end))
-            card.selection_preview.connect(
-                lambda index, start, end, preview=card.preview:
-                self.owner._copy_text_selection(self, index, preview, start, end, copy=False))
-            self.page_cards.append(card)
-        self._reflow_grid()
+        self.pages.initialize()
+
+    def _make_page_card(self, page_index):
+        card = PageCard(page_index, self._target_preview_width())
+        card.setParent(self.grid_host)
+        card.set_text_copy_mode(self.owner._selection_active(), region=self.owner.region_ocr_action.isChecked(),
+                                image=self.owner.extract_image_action.isChecked())
+        card.checkbox.setEnabled(not self.owner._export_running)
+        card.selection_changed.connect(self._page_selection_changed)
+        card.reorder_requested.connect(self._move_page)
+        card.focused.connect(self._focus_page)
+        card.text_selected.connect(lambda index, start, end, preview=card.preview:
+                                  self.owner._copy_text_selection(self, index, preview, start, end))
+        card.selection_preview.connect(lambda index, start, end, preview=card.preview:
+                                      self.owner._copy_text_selection(self, index, preview, start, end, copy=False))
+        self.pages.prepare_card(card)
+        self.pages.chrome = max(1, card.sizeHint().height() - card.preview.height())
+        return card
 
     def _target_preview_width(self) -> int:
         return max(
@@ -180,22 +182,7 @@ class DocumentView(QWidget):
         return self.zoom / 100 * self.SCREEN_DPI / self.PDF_DPI
 
     def _reflow_grid(self) -> None:
-        if self.grid_host.drag_source is not None:
-            return
-        if not self.page_cards:
-            return
-        while self.grid.count():
-            self.grid.takeAt(0)
-        card_width = max(card.width() for card in self.page_cards)
-        available = max(1, self.scroll_area.viewport().width() - 24)
-        columns = max(1, (available + self.grid.spacing()) // (card_width + self.grid.spacing()))
-        if self.fit_mode:
-            columns = 1
-        for position, page_index in enumerate(self.page_order):
-            card = self.page_cards[page_index]
-            self.grid.addWidget(card, position // columns, position % columns,
-                                Qt.AlignmentFlag.AlignHCenter)
-        self.grid.activate()
+        self.pages.reflow()
 
     @Slot(int, int)
     def _insert_page(self, source_index: int, insertion: int) -> None:
@@ -257,24 +244,25 @@ class DocumentView(QWidget):
         if self.zoom == value:
             return
         self.zoom = value
+        self.pages.batch = []
+        self._render_pending = 0
+        self.owner.render_service.cancel_pending(self.document_id)
+        self.render_generation = -1
+        for generation, document_id in list(self.owner._render_documents.items()):
+            if document_id == self.document_id:
+                self.owner._render_documents.pop(generation)
         if self.page_cards:
+            self._reflow_grid()
             self.render_timer.start()
 
     def _focus_page(self, page_index: int) -> None:
         self.focused_page = page_index
 
     def preview_page_index(self, *, prefer_focused=True) -> int:
-        visible = self.scroll_area.viewport().rect().translated(
-            self.scroll_area.horizontalScrollBar().value(), self.scroll_area.verticalScrollBar().value())
-        if prefer_focused and self.focused_page is not None and self.page_cards[self.focused_page].geometry().intersects(visible):
-            return self.focused_page
-        return min(self.page_order, key=lambda index:
-                   (self.page_cards[index].geometry().center() - visible.center()).manhattanLength())
+        return self.pages.current_page(prefer_focused)
 
     def fit_page(self) -> None:
         index = self.preview_page_index()
-        if index not in self.page_sizes:
-            return
         self.fit_page_index = index
         self.fit_mode = True
         self._apply_fit()
@@ -283,9 +271,7 @@ class DocumentView(QWidget):
         if not self.fit_mode or self.owner._closing:
             return
         card = self.page_cards[self.fit_page_index]
-        points = self.page_sizes.get(self.fit_page_index)
-        if points is None:
-            return
+        points = self.pages.page_size(self.fit_page_index)
         width, height = points
         margins = self.grid.contentsMargins()
         chrome = max(0, card.sizeHint().height() - card.preview.height())
@@ -307,7 +293,7 @@ class DocumentView(QWidget):
         if self._search_navigation and self._search_navigation[0] == self.fit_page_index:
             self._scroll_to_search_result()
             return
-        card = self.page_cards[self.fit_page_index]
+        card = self.pages.rect(self.fit_page_index)
         viewport = self.scroll_area.viewport()
         self.scroll_area.verticalScrollBar().setValue(
             card.y() + (card.height() - viewport.height()) // 2)
@@ -328,7 +314,9 @@ class DocumentView(QWidget):
         if self.owner._closing or self._search_navigation is None:
             return
         page, rect = self._search_navigation
-        label = self.page_cards[page].preview
+        label = self.pages.ensure_page(page).preview
+        if self.pages.virtual:
+            self.scroll_area.ensureWidgetVisible(label, 40, 40)
         if label.pixmap().isNull():
             return
         from PySide6.QtCore import QPoint
@@ -339,92 +327,16 @@ class DocumentView(QWidget):
 
     @Slot()
     def _queue_all_renders(self) -> None:
-        if not self.ready or self.owner._closing:
-            return
-        self.owner._next_generation += 1
-        for generation, document_id in list(self.owner._render_documents.items()):
-            if document_id == self.document_id:
-                self.owner._render_documents.pop(generation)
-        self.render_generation = self.owner._next_generation
-        self.owner._render_documents[self.render_generation] = self.document_id
-        generation = self.render_generation
-        self.render_timer.stop()
-        self._render_pending = self.page_count
-        self._render_done_generation = -1
-        self._render_received.clear()
-        width = self._target_preview_width()
-        for card in self.page_cards:
-            card.set_target_width(width)
-        self._reflow_grid()
-        self.show_status(tr('正在產生頁面預覽…'))
-        self._reset_render_state()
-        self.owner.render_service.request(
-            self.source_path,
-            self._preview_scale(),
-            Path(self.owner.preview_temp.name),
-            generation,
-            document_id=self.document_id,
-            password=self.password,
-        )
+        # Keep this entry point for toolbar/tab callers; work is now viewport-only.
+        self.pages.request_visible()
 
     @Slot(object)
     def _handle_render_message(self, payload: object) -> None:
-        if not isinstance(payload, dict):
-            return
-        kind = payload.get("type")
-        try:
-            generation = int(payload.get("generation", -1))
-        except (TypeError, ValueError):
-            return
-        if generation != self.render_generation:
-            return
-        if kind == "page":
-            self._accept_render_page(payload)
-        elif kind == "done":
-            self._render_done_generation = generation
-            self.show_status(
-                tr('已載入 {p0} 頁；已選取 {p1} 頁', p0=self.page_count, p1=len(self.selected_pages))
-            )
-        elif kind == "error":
-            for page_index, card in enumerate(self.page_cards):
-                if page_index not in self._render_received:
-                    card.set_render_error()
-            self.show_status(tr('部分頁面無法產生預覽'))
-            QMessageBox.warning(
-                self.owner, tr('預覽失敗'), tr('無法完成頁面預覽：\n{p0}', p0=payload.get('message', ''))
-            )
+        if isinstance(payload, dict) and payload.get('generation') == self.render_generation:
+            self.pages.receive(payload)
 
-    def _accept_render_page(self, payload: dict[str, object]) -> None:
-        try:
-            page_index = int(payload["page"])
-            image_path = Path(payload["path"])
-        except (KeyError, TypeError, ValueError):
-            return
-        image = QImage(str(image_path)).copy()
-        if 0 <= page_index < len(self.page_cards) and not image.isNull():
-            self.page_sizes[page_index] = (
-                float(payload.get("width_points", image.width() / self._preview_scale())),
-                float(payload.get("height_points", image.height() / self._preview_scale())),
-            )
-            self.page_cards[page_index].set_image(image)
-            self._reflow_grid()
-            if self._search_navigation and self._search_navigation[0] == page_index:
-                QTimer.singleShot(0, self._scroll_to_search_result)
-            if self.fit_mode and page_index == self.fit_page_index:
-                self.fit_timer.start()
-        elif 0 <= page_index < len(self.page_cards):
-            self.page_cards[page_index].set_render_error()
-        image_path.unlink(missing_ok=True)
-        if page_index not in self._render_received:
-            self._render_received.add(page_index)
-            self._render_pending -= 1
-        if self._render_pending == 0:
-            self.show_status(
-                tr('已載入 {p0} 頁；已選取 {p1} 頁', p0=self.page_count, p1=len(self.selected_pages))
-            )
-        self.owner._sync_controls()
-        if self.fit_mode and page_index == self.fit_page_index:
-            QTimer.singleShot(0, self._scroll_to_fit_page)
+    def _accept_render_page(self, payload) -> None:
+        self.pages.accept(payload)
 
     def _reset_render_state(self) -> None:
         self._render_received.clear()
@@ -446,6 +358,7 @@ class MainWindow(QMainWindow):
         self.thread_pool = QThreadPool(self)
         self.thread_pool.setMaxThreadCount(4)
         self.preview_temp = tempfile.TemporaryDirectory(prefix="repdf-preview-")
+        self.preview_cache = PreviewCache()
         self.render_service = RenderService(render_backend if render_backend is not None else start_render_backend(), self)
         self.render_service.message.connect(self._handle_render_message, Qt.ConnectionType.QueuedConnection)
         self.documents = {}
@@ -987,6 +900,9 @@ class MainWindow(QMainWindow):
         if self._closing:
             return
         doc = self.current_document()
+        for other in self.documents.values():
+            if other is not doc:
+                other.pages.suspend()
         self._update_window_title()
         if doc is not None:
             self.zoom_slider.blockSignals(True)
@@ -1211,9 +1127,12 @@ class MainWindow(QMainWindow):
             self._finish_load(doc.document_id)
         doc.render_timer.stop()
         doc.fit_timer.stop()
+        doc.pages.scroll_timer.stop()
+        self.preview_cache.remove_document(doc.document_id)
         doc.grid_host.finish_drag()
         self.render_service.cancel_pending(doc.document_id)
         self.render_service.cancel_pending(-1_000_000 - doc.document_id)
+        self.render_service.release_document(doc.document_id, doc.source_path)
         self._text_requests = {generation: request for generation, request in self._text_requests.items()
                                if request[0] != doc.document_id}
         self._image_requests = {generation: request for generation, request in self._image_requests.items()
@@ -1402,6 +1321,7 @@ class MainWindow(QMainWindow):
             doc.password = None
             doc.render_timer.stop()
             doc.fit_timer.stop()
+            doc.pages.scroll_timer.stop()
             doc.grid_host.finish_drag()
         self.render_service.close()
         self.thread_pool.clear()

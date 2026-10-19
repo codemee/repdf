@@ -21,6 +21,56 @@ def wait_for_preview(qtbot, doc):
                    and not doc.render_timer.isActive() and not doc.fit_timer.isActive(), timeout=15000)
 
 
+def test_long_page_grid_preserves_full_preview_and_reflows(qtbot):
+    from PySide6.QtCore import QPoint
+    from PySide6.QtWidgets import QScrollArea
+    from repdf.widgets import PageCard, PageGrid, PageGridLayout
+
+    area = QScrollArea()
+    qtbot.addWidget(area)
+    area.setWidgetResizable(True)
+    host = PageGrid()
+    layout = PageGridLayout(host)
+    layout.setContentsMargins(12, 12, 12, 12)
+    layout.setSpacing(12)
+    layout.setAlignment(Qt.AlignmentFlag.AlignTop | Qt.AlignmentFlag.AlignHCenter)
+    # Enough rows to exceed Qt's 524287px aggregate layout limit without
+    # rendering hundreds of PDF pages or allocating large pixmaps.
+    cards = [PageCard(i, 100) for i in range(70)]
+    for i, card in enumerate(cards):
+        card.preview.setFixedSize(100, 8000)
+        layout.addWidget(card, i, 0, Qt.AlignmentFlag.AlignHCenter)
+    area.setWidget(host)
+    area.resize(360, 500)
+    area.show()
+    qtbot.waitUntil(lambda: host.height() > 524287)
+    layout.activate()
+    for card in (cards[0], cards[35], cards[-1]):
+        assert card.height() >= card.sizeHint().height()
+        bottom = card.preview.mapTo(card, QPoint(0, card.preview.height() - 1))
+        assert card.rect().contains(bottom)
+    assert cards[-1].geometry().bottom() <= host.height()
+    area.verticalScrollBar().setValue(area.verticalScrollBar().maximum())
+    last_bottom = cards[-1].mapTo(area.viewport(), cards[-1].rect().bottomLeft())
+    assert 0 <= last_bottom.y() < area.viewport().height()
+    while layout.count():
+        layout.takeAt(0)
+    for i, card in enumerate(cards):
+        layout.addWidget(card, i // 2, i % 2, Qt.AlignmentFlag.AlignHCenter)
+    layout.activate()
+    qtbot.waitUntil(lambda: host.height() < 524287)
+    assert cards[0].height() >= cards[0].sizeHint().height()
+    assert cards[1].y() == cards[0].y()
+    # A subsequent smaller zoom must also release the tall scroll range.
+    for card in cards:
+        card.preview.setFixedHeight(100)
+    layout.invalidate()
+    layout.activate()
+    qtbot.waitUntil(lambda: host.height() < 20000)
+    for card in cards:
+        assert card.height() >= card.sizeHint().height()
+
+
 @pytest.mark.parametrize("size", [(595, 842), (842, 595)])
 def test_fit_page_and_resize_then_manual_zoom(qtbot, tmp_path, size):
     source = tmp_path / "fit.pdf"

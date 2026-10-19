@@ -653,7 +653,9 @@ def test_real_multi_file_previews_survive_rapid_switch_and_zoom(qtbot, tmp_path)
     window.zoom_slider.setValue(200)
     window.zoom_slider.setValue(50)
     window.tabs.setCurrentWidget(b)
-    qtbot.waitUntil(lambda: a.page_cards[0].preview.pixmap().width() == 120
-                   and b.page_cards[0].preview.pixmap().width() == 400, timeout=10_000)
+    qtbot.waitUntil(lambda: b.page_cards[0].preview.pixmap().width() == 400, timeout=10_000)
+    assert a.page_cards[0].preview.pixmap().isNull()
+    window.tabs.setCurrentWidget(a)
+    qtbot.waitUntil(lambda: a.page_cards[0].preview.pixmap().width() == 120, timeout=10_000)
     assert a.zoom == 50 and b.zoom == 100
     assert a.render_generation != b.render_generation

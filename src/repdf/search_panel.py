@@ -282,8 +282,7 @@ class SearchController(QObject):
         self.selected = None
         for doc in self.owner.documents.values():
             doc._search_navigation = None
-            for card in doc.page_cards:
-                card.preview.set_search_highlights([], [])
+            doc.pages.clear_highlights()
         viewer = self.owner._fullscreen_preview
         if viewer is not None:
             for label in viewer.labels.values():
@@ -453,7 +452,7 @@ class SearchController(QObject):
             return
         self.clear_highlights()
         self.selected = (document_id, page, paragraph_id)
-        doc.page_cards[page].preview.set_search_highlights(
+        doc.pages.set_highlights(page,
             [box for p in results for box in p['rects']], result['rects'])
         self.owner.tabs.setCurrentWidget(doc)
         if self.owner.width() < 640:

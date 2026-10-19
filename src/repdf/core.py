@@ -182,14 +182,16 @@ def split_documents(
     return outputs
 
 
-def inspect_pdf(source: str | Path, password: str | None = None) -> PdfInfo:
+def inspect_pdf(source: str | Path, password: str | None = None, *, quick=False) -> PdfInfo:
     path = Path(source).resolve()
     if not path.is_file():
         raise InvalidPdfError(tr('找不到來源 PDF 檔案。'))
     try:
         reader = PdfReader(path)
         _unlock(reader, password)
-        page_count = len(reader.pages)
+        page_count = reader.trailer['/Root']['/Pages'].get('/Count') if quick else None
+        if not isinstance(page_count, int) or isinstance(page_count, bool) or page_count < 1:
+            page_count = len(reader.pages)
     except UnsupportedEncryptedPdfError:
         raise
     except Exception as exc:
