@@ -65,6 +65,7 @@ class FullscreenPreview(QWidget):
         for index in self.visible_pages:
             self.images[index] = self.document.page_cards[index].preview.pixmap().toImage()
             label = PagePreviewLabel('', draggable=False)
+            label.set_search_highlight_color(self.owner.search_controller.highlight_color)
             label.setParent(self)
             source_label = self.document.page_cards[index].preview
             label.set_links(self.document.page_links.get(index, []))

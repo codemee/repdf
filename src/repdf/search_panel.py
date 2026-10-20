@@ -2,10 +2,10 @@
 
 from html import escape
 
-from PySide6.QtCore import QEvent, QObject, QSize, Qt, QTimer
-from PySide6.QtGui import QAction, QActionGroup
+from PySide6.QtCore import QEvent, QObject, QRectF, QSize, Qt, QTimer, Signal
+from PySide6.QtGui import QAction, QActionGroup, QColor, QIcon, QPainter, QPen, QPixmap
 from PySide6.QtWidgets import (
-    QAbstractItemView, QComboBox, QHBoxLayout, QLabel, QLayout, QLineEdit, QListView, QListWidget,
+    QAbstractItemView, QColorDialog, QComboBox, QHBoxLayout, QLabel, QLayout, QLineEdit, QListView, QListWidget,
     QListWidgetItem, QMenu, QSplitter, QStyle, QStyledItemDelegate, QStyleOptionViewItem,
     QToolButton, QVBoxLayout, QWidget,
 )
@@ -52,9 +52,30 @@ class ParagraphDelegate(QStyledItemDelegate):
         return QSize(0, option.fontMetrics.height() + 10)
 
 
+class SearchOptionButton(QToolButton):
+    """Paint the thin rounded outline with antialiasing at the current DPI."""
+
+    def __init__(self):
+        super().__init__()
+        # Retain QSS backgrounds and sizing, replacing only its raster outline.
+        self.setStyleSheet('QToolButton { border-color: transparent; }')
+
+    def paintEvent(self, event):
+        super().paintEvent(event)
+        if self.isEnabled() and (self.isChecked() or self.hasFocus()):
+            painter = QPainter(self)
+            painter.setRenderHint(QPainter.RenderHint.Antialiasing)
+            painter.setPen(QPen(self.palette().highlight().color(), 1.0))
+            painter.setBrush(Qt.BrushStyle.NoBrush)
+            painter.drawRoundedRect(QRectF(self.rect()).adjusted(0.5, 0.5, -0.5, -0.5), 3.5, 3.5)
+            painter.end()
+
+
 class SearchPanel(QWidget):
+    highlight_color_changed = Signal(str)
+
     def _button(self, kind, label):
-        button = QToolButton()
+        button = SearchOptionButton() if kind in ('regex', 'case_sensitive', 'whole_word') else QToolButton()
         button.setText(tr(label))
         button.setToolTip(tr(label))
         button.setAccessibleName(tr(label))
@@ -73,6 +94,7 @@ class SearchPanel(QWidget):
         layout.setSpacing(6)
         layout.setSizeConstraint(QLayout.SizeConstraint.SetNoConstraint)
         self._icon_buttons = []
+        self.highlight_color = '#ffe13c'
         self.close_button = self._button('close', '關閉搜尋窗格')
         row = QHBoxLayout()
         self.query = QLineEdit()
@@ -106,6 +128,9 @@ class SearchPanel(QWidget):
         options.addWidget(self.regular_expression)
         options.addWidget(self.case_sensitive)
         options.addWidget(self.whole_word)
+        self.highlight_color_button = self._button('highlight_color', '命中標示顏色')
+        self.highlight_color_button.clicked.connect(self.choose_highlight_color)
+        options.addWidget(self.highlight_color_button)
         layout.addWidget(self.options_box)
         status_row = QHBoxLayout()
         self.compact_options = self._button('more', '選項')
@@ -129,6 +154,8 @@ class SearchPanel(QWidget):
             action.toggled.connect(button.setChecked)
             button.toggled.connect(action.setChecked)
             menu.addAction(action)
+        self.highlight_color_action = menu.addAction(tr('命中標示顏色'))
+        self.highlight_color_action.triggered.connect(self.choose_highlight_color)
         self.compact_options.setMenu(menu)
         self.compact_options.hide()
         status_row.addWidget(self.compact_options)
@@ -161,7 +188,38 @@ class SearchPanel(QWidget):
 
     def refresh_icons(self):
         for button, kind in self._icon_buttons:
-            button.setIcon(toolbar_icon(kind))
+            button.setIcon(self._highlight_icon() if kind == 'highlight_color' else toolbar_icon(kind))
+        if hasattr(self, 'highlight_color_action'):
+            self.highlight_color_action.setIcon(self._highlight_icon())
+
+    def _highlight_icon(self):
+        pixmap = QPixmap(48, 48)
+        pixmap.fill(Qt.GlobalColor.transparent)
+        painter = QPainter(pixmap)
+        painter.scale(2, 2)
+        painter.setRenderHint(QPainter.RenderHint.Antialiasing)
+        painter.setPen(self.palette().buttonText().color())
+        painter.setBrush(QColor(self.highlight_color))
+        painter.drawRoundedRect(4, 4, 16, 16, 2, 2)
+        painter.end()
+        return QIcon(pixmap)
+
+    def set_highlight_color(self, color):
+        color = QColor(str(color))
+        if not color.isValid():
+            color = QColor('#ffe13c')
+        value = color.name()
+        changed = value != self.highlight_color
+        self.highlight_color = value
+        self.refresh_icons()
+        if changed:
+            self.highlight_color_changed.emit(value)
+
+    def choose_highlight_color(self):
+        color = QColorDialog.getColor(QColor(self.highlight_color), self, tr('命中標示顏色'),
+                                     QColorDialog.ColorDialogOption.DontUseNativeDialog)
+        if color.isValid():
+            self.set_highlight_color(color.name())
 
     def changeEvent(self, event):
         super().changeEvent(event)
@@ -174,6 +232,7 @@ class SearchPanel(QWidget):
             self.scope.setItemText(i, tr(label))
             self.scope_actions[i].setText(tr(label))
         self.scope_menu.setTitle(tr('搜尋範圍'))
+        self.highlight_color_action.setText(tr('命中標示顏色'))
         self.scope.setCurrentIndex(index)
         self.query.setPlaceholderText(tr('輸入文字或規則表達式'))
 
@@ -214,6 +273,9 @@ class SearchController(QObject):
         self._refresh_timer.setInterval(100)
         self._refresh_timer.timeout.connect(self._refresh_files)
         p = self.panel
+        p.set_highlight_color(owner.settings.value('search/highlight_color', '#ffe13c'))
+        self.highlight_color = p.highlight_color
+        p.highlight_color_changed.connect(self._set_highlight_color)
         p.query.returnPressed.connect(self.start)
         p.search_button.clicked.connect(self.start)
         p.stop_button.clicked.connect(self.stop)
@@ -221,6 +283,17 @@ class SearchController(QObject):
         p.files.currentItemChanged.connect(self._show_paragraphs)
         p.paragraphs.itemClicked.connect(self._activate_item)
         p.paragraphs.itemActivated.connect(self._activate_item)
+
+    def _set_highlight_color(self, color):
+        self.highlight_color = color
+        self.owner.settings.setValue('search/highlight_color', color)
+        for doc in self.owner.documents.values():
+            for card in doc.page_cards:
+                card.preview.set_search_highlight_color(color)
+        viewer = self.owner._fullscreen_preview
+        if viewer is not None:
+            for label in viewer.labels.values():
+                label.set_search_highlight_color(color)
 
     def open(self):
         self.owner.navigation.close()

@@ -332,10 +332,9 @@ class DocumentView(QWidget):
             return
         page, rect = self._search_navigation
         label = self.pages.ensure_page(page).preview
-        if self.pages.virtual:
-            self.scroll_area.ensureWidgetVisible(label, 40, 40)
-        if label.pixmap().isNull():
-            return
+        # Scroll using the placeholder geometry before its image is available.
+        # On-demand rendering only starts once the target enters the viewport;
+        # the render callback then refines this position with the actual size.
         from PySide6.QtCore import QPoint
         point = label.mapTo(self.grid_host, QPoint(round((rect[0] + rect[2]) / 2 * label.width()),
                                                    round((rect[1] + rect[3]) / 2 * label.height())))

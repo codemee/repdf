@@ -146,7 +146,7 @@ The toolbar controls are described below. Hover over a control to see its toolti
 2. Enter a query and choose the current tab, checked tabs, or all tabs. On the same row, the `.*`, `Aa`, and underlined `ab` toggle buttons control regular expressions, case sensitivity, and whole-word matching. A highlighted button means the option is enabled.
 3. Press <kbd>Enter</kbd> or Search. After changing the criteria, run the search again to update results.
 4. Select a matching file in the upper list. The lower list shows matching paragraphs on alternating backgrounds, with original page numbers and match counts. Each paragraph occupies one line; long text ends with `...`. Hover to read the full paragraph.
-5. Click a paragraph to switch to its tab and page. Matches on the page are pale yellow; matches in the selected paragraph are emphasized in a darker amber.
+5. Click a paragraph to switch to its tab and page and scroll to the match. Pages that have not been loaded are loaded automatically. Matches use yellow highlighting by default; matches in the selected paragraph use a darker shade of the same color.
 
 - By default, search covers the current tab, ignores case, and does not use regular expressions. The three search scopes are mutually exclusive.
 - Whole-word matching is off by default. When enabled, matches cannot be immediately adjacent to Unicode letters, digits, underscores, or combining marks. For example, `cat` does not match `catalog`. This works with regular expressions but does not segment continuous Chinese text into words.
@@ -154,12 +154,13 @@ The toolbar controls are described below. Hover over a control to see its toolti
 - Search covers all pages in successfully loaded files within the chosen scope, regardless of page selection. Password-protected files must be unlocked first.
 - Search uses existing text layers and does not run OCR. Scanned images or damaged text layers may not produce results.
 - Multiple matches in the same paragraph are grouped into one result. Paragraphs are inferred from text lines and layout. Search does not span pages; columns and complex layouts may affect paragraph boundaries.
-- Visual line breaks are joined. Chinese and Japanese characters are joined without added spaces; other continued lines are joined with spaces.
+- Search can span lines within the same paragraph: visual line breaks are joined, with no added spaces between Chinese/Japanese characters and spaces between other continued lines. Matches spanning lines highlight the corresponding text on each line.
 - Regular expressions use Python-compatible syntax. Invalid patterns display an error; zero-length matches are excluded from highlighted results.
 - Regular expression matching has a one-second limit per paragraph. A timeout stops the search and marks results as incomplete. You can also click Stop to keep the results found so far.
 - Drag the right pane's edge or the divider between result lists to resize them. Search does not change page selection, order, or zoom mode.
 - Below a window width of 640 px, search and the PDF share a single pane. Selecting a result displays the PDF; click Search again to return to results.
 - In short windows, use the three-dot Options menu to change scope, regular expression, case-sensitive, and whole-word settings.
+- Click the color swatch in the search options row to choose the match highlight color. In short windows, use Options → Match highlight color. Changes immediately recolor existing highlights without rerunning the search, including fullscreen and pages loaded later. Your choice is remembered; canceling the color picker leaves it unchanged.
 - Closing the search pane stops searching and clears highlights while retaining the query and results. Closing a document removes its results.
 - Using the search shortcut in fullscreen returns to the main window and opens the search pane.
 
@@ -203,6 +204,7 @@ Two three-state buttons on the right of the toolbar follow the system by default
 
 - Language: System → Traditional Chinese → English → System. System mode uses Traditional Chinese when the system display language is Chinese, and English otherwise. The tooltip shows both the selected mode and the effective language.
 - Theme: System → Light → Dark → System. A manually chosen theme remains fixed; System mode follows system changes immediately.
+- Dark mode uses an Evangelion Unit-01-inspired palette with purple-black backgrounds, purple panels, neon-green accents, and touches of orange. PDF pages retain their original colors.
 - Language and theme choices are remembered across restarts.
 - Changing language updates existing page labels, toolbar controls, tooltips, status messages, and dialogs.
 - Language changes preserve filenames, selected pages, page order, and zoom.

@@ -53,22 +53,42 @@ def test_theme_cycle_respects_manual_override_and_system_changes(qtbot, monkeypa
     qtbot.addWidget(window)
     theme = window._theme_controller
     color = lambda: QApplication.palette().color(QPalette.ColorRole.Window).name()
-    assert theme.mode == "system" and color() == "#202124"
+    assert theme.mode == "system" and color() == "#171321"
     window.theme_action.trigger()
     assert theme.mode == "light" and color() == "#f5f6f8"
     theme.apply()
     assert color() == "#f5f6f8"
     window.theme_action.trigger()
-    assert theme.mode == "dark" and color() == "#202124"
+    assert theme.mode == "dark" and color() == "#171321"
     scheme[0] = Qt.ColorScheme.Light
     theme.apply()
-    assert color() == "#202124"
+    assert color() == "#171321"
     window.theme_action.trigger()
     assert theme.mode == "system" and color() == "#f5f6f8"
     scheme[0] = Qt.ColorScheme.Dark
     theme.apply()
-    assert color() == "#202124"
+    assert color() == "#171321"
     assert window.language_controller.mode == "system"
+
+
+def test_dark_theme_text_and_selected_text_remain_readable(qtbot):
+    window = MainWindow()
+    qtbot.addWidget(window)
+    window._theme_controller.set_mode('dark')
+    palette = QApplication.palette()
+
+    def luminance(color):
+        channels = [color.redF(), color.greenF(), color.blueF()]
+        linear = [value / 12.92 if value <= 0.04045 else ((value + 0.055) / 1.055) ** 2.4
+                  for value in channels]
+        return sum(value * weight for value, weight in zip(linear, (0.2126, 0.7152, 0.0722)))
+
+    for text, background in ((QPalette.ColorRole.Text, QPalette.ColorRole.Base),
+                             (QPalette.ColorRole.WindowText, QPalette.ColorRole.Window),
+                             (QPalette.ColorRole.ButtonText, QPalette.ColorRole.Button),
+                             (QPalette.ColorRole.HighlightedText, QPalette.ColorRole.Highlight)):
+        light, dark = sorted((luminance(palette.color(text)), luminance(palette.color(background))), reverse=True)
+        assert (light + 0.05) / (dark + 0.05) >= 4.5
 
 
 def test_preferences_are_restored_on_next_window(qtbot):

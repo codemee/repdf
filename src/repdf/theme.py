@@ -30,16 +30,20 @@ class ThemeController(QObject):
         palette = QPalette()
         colors = (
             {
-                QPalette.ColorRole.Window: "#202124",
-                QPalette.ColorRole.WindowText: "#f1f3f4",
-                QPalette.ColorRole.Base: "#17181a",
-                QPalette.ColorRole.AlternateBase: "#292a2d",
-                QPalette.ColorRole.Text: "#f1f3f4",
-                QPalette.ColorRole.Button: "#303134",
-                QPalette.ColorRole.ButtonText: "#f1f3f4",
-                QPalette.ColorRole.Highlight: "#8ab4f8",
-                QPalette.ColorRole.HighlightedText: "#202124",
-                QPalette.ColorRole.PlaceholderText: "#9aa0a6",
+                QPalette.ColorRole.Window: "#171321",
+                QPalette.ColorRole.WindowText: "#eee7f7",
+                QPalette.ColorRole.Base: "#100e18",
+                QPalette.ColorRole.AlternateBase: "#261d38",
+                QPalette.ColorRole.Text: "#eee7f7",
+                QPalette.ColorRole.Button: "#34264f",
+                QPalette.ColorRole.ButtonText: "#eee7f7",
+                QPalette.ColorRole.Highlight: "#a8ed42",
+                QPalette.ColorRole.HighlightedText: "#13190d",
+                QPalette.ColorRole.PlaceholderText: "#b5a7c5",
+                QPalette.ColorRole.Link: "#ff9d45",
+                QPalette.ColorRole.LinkVisited: "#c3a1ed",
+                QPalette.ColorRole.ToolTipBase: "#2b2142",
+                QPalette.ColorRole.ToolTipText: "#eee7f7",
             }
             if dark
             else {
@@ -57,23 +61,23 @@ class ThemeController(QObject):
         )
         for role, color in colors.items():
             palette.setColor(role, QColor(color))
-        palette.setColor(
-            QPalette.ColorGroup.Disabled,
-            QPalette.ColorRole.ButtonText,
-            QColor("#777b80" if dark else "#9aa0a6"),
-        )
+        disabled = "#8f829f" if dark else "#9aa0a6"
+        palette.setColor(QPalette.ColorGroup.Disabled, QPalette.ColorRole.ButtonText, QColor(disabled))
+        if dark:
+            for role in (QPalette.ColorRole.WindowText, QPalette.ColorRole.Text):
+                palette.setColor(QPalette.ColorGroup.Disabled, role, QColor(disabled))
         self.app.setPalette(palette)
-        border = "#4a4d51" if dark else "#d5d8dc"
-        card = "#292a2d" if dark else "#ffffff"
-        slider_track = "#5f6368" if dark else "#c4c7c5"
-        slider_fill = "#8ab4f8" if dark else "#0b57d0"
-        slider_handle = "#aecbfa" if dark else "#0b57d0"
-        hover = "#35383d" if dark else "#e7ebf0"
-        pressed = "#41464e" if dark else "#d8e3f3"
-        selected_tool = "#294366" if dark else "#d8e7ff"
-        disabled = "#777b80" if dark else "#9aa0a6"
-        check = files("repdf").joinpath("assets", "check.svg").as_posix()
-        partial = files("repdf").joinpath("assets", "partial.svg").as_posix()
+        border = "#625079" if dark else "#d5d8dc"
+        card = "#2b2142" if dark else "#ffffff"
+        slider_track = "#695580" if dark else "#c4c7c5"
+        slider_fill = "#a8ed42" if dark else "#0b57d0"
+        slider_handle = "#ff9d45" if dark else "#0b57d0"
+        hover = "#3b2a56" if dark else "#e7ebf0"
+        pressed = "#4d376e" if dark else "#d8e3f3"
+        selected_tool = "#36432b" if dark else "#d8e7ff"
+        mark_suffix = "-dark" if dark else ""
+        check = files("repdf").joinpath("assets", f"check{mark_suffix}.svg").as_posix()
+        partial = files("repdf").joinpath("assets", f"partial{mark_suffix}.svg").as_posix()
         self.app.setStyleSheet(
             f"""
             QFrame#pageCard {{ background: {card}; border: 1px solid {border};
@@ -110,9 +114,9 @@ class ThemeController(QObject):
                                     border: 1px solid {border}; border-radius: 3px;
                                     background: {card}; }}
             QCheckBox::indicator:hover {{ border-color: {slider_fill}; }}
-            QCheckBox::indicator:checked {{ background: #0b57d0; border-color: #0b57d0;
+            QCheckBox::indicator:checked {{ background: {slider_fill}; border-color: {slider_fill};
                                             image: url("{check}"); }}
-            QCheckBox::indicator:indeterminate {{ background: #0b57d0; border-color: #0b57d0;
+            QCheckBox::indicator:indeterminate {{ background: {slider_fill}; border-color: {slider_fill};
                                                   image: url("{partial}"); }}
             QCheckBox::indicator:disabled {{ background: {hover}; border-color: {border}; }}
             QScrollArea {{ border: 1px solid {border}; border-radius: 6px; }}

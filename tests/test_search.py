@@ -22,7 +22,7 @@ def test_sidebar_icon_buttons_and_single_line_results(qtbot):
     qtbot.addWidget(panel)
     panel.resize(320, 420)
     panel.show()
-    for button in (panel.search_button, panel.stop_button, panel.close_button, panel.compact_options,
+    for button in (panel.search_button, panel.stop_button, panel.close_button, panel.compact_options, panel.highlight_color_button,
                    panel.regular_expression, panel.case_sensitive, panel.whole_word):
         assert button.size() == QSize(34, 34)
         assert button.iconSize() == QSize(20, 20)
@@ -375,6 +375,37 @@ def test_one_file_error_and_closing_pending_file_keep_other_results(qtbot, tmp_p
     assert c.panel.files.count() == 1
 
 
+def test_click_search_result_loads_offscreen_page(qtbot, tmp_path):
+    from test_page_view import settled
+
+    path = tmp_path / 'offscreen-hit.pdf'
+    search_pdf(path, [[(40, 220, 'target' if index == 9 else 'other')]
+                      for index in range(46)])
+    window = MainWindow()
+    qtbot.addWidget(window)
+    window.show()
+    window.load_pdf(path)
+    qtbot.waitUntil(lambda: window.current_document().ready, timeout=10000)
+    doc = window.current_document()
+    c = window.search_controller
+    c.open()
+    qtbot.waitUntil(lambda: settled(doc), timeout=15000)
+    c.panel.query.setText('target')
+    c.start()
+    wait_search(qtbot, c)
+    assert c.panel.paragraphs.count() == 1
+    assert doc.page_cards[9].preview.pixmap().isNull()
+    item_rect = c.panel.paragraphs.visualItemRect(c.panel.paragraphs.item(0))
+    qtbot.mouseClick(c.panel.paragraphs.viewport(), Qt.MouseButton.LeftButton, pos=item_rect.center())
+    qtbot.waitUntil(lambda: doc.preview_page_index() == 9 and settled(doc), timeout=15000)
+    label = doc.page_cards[9].preview
+    assert not label.pixmap().isNull()
+    rect = label._active_search_rects[0]
+    point = label.mapTo(doc.grid_host, QPoint(round((rect[0] + rect[2]) * label.width() / 2),
+                                            round((rect[1] + rect[3]) * label.height() / 2)))
+    assert doc.pages.visible_rect().contains(point)
+
+
 def test_search_highlight_is_independent_and_persists_through_zoom(qtbot, tmp_path, monkeypatch):
     monkeypatch.setattr(DocumentView, '_queue_all_renders', lambda self: None)
     path = tmp_path / 'a.pdf'
@@ -464,6 +495,72 @@ def test_search_uses_each_documents_password_and_disambiguates_names(qtbot, tmp_
     assert c.panel.files.count() == 2
     assert c.panel.files.item(0).toolTip() != c.panel.files.item(1).toolTip()
     assert len(c.results) == 2
+
+
+def test_highlight_color_updates_pixels_fullscreen_and_persists(qtbot, tmp_path, monkeypatch):
+    from PySide6.QtGui import QColor
+    from repdf.preview import FullscreenPreview
+
+    monkeypatch.setattr(DocumentView, '_queue_all_renders', lambda self: None)
+    monkeypatch.setattr(FullscreenPreview, 'request_render', lambda self: None)
+    window = MainWindow()
+    qtbot.addWidget(window)
+    doc = loaded_document(window, tmp_path / 'colors.pdf')
+    window.show()
+    controller = window.search_controller
+    panel = controller.panel
+    controller.open()
+    boxes = [(0.1, 0.1, 0.3, 0.2), (0.5, 0.5, 0.7, 0.6)]
+    doc.pages.set_highlights(0, boxes, [boxes[1]])
+    generation = controller.generation
+    monkeypatch.setattr('repdf.search_panel.QColorDialog.getColor', lambda *args: QColor('#55aaff'))
+    qtbot.mouseClick(panel.highlight_color_button, Qt.MouseButton.LeftButton)
+    assert controller.generation == generation  # Recolor without rerunning the query.
+    assert window.settings.value('search/highlight_color') == '#55aaff'
+
+    def check_pixels(label):
+        image = label.grab().toImage()
+        normal = image.pixelColor(round(label.width() * 0.2), round(label.height() * 0.15))
+        active = image.pixelColor(round(label.width() * 0.6), round(label.height() * 0.55))
+        assert normal.blue() > normal.red()
+        assert active.blue() > active.red()
+        assert active.red() < normal.red()
+
+    check_pixels(doc.page_cards[0].preview)
+    window._show_fullscreen_preview()
+    viewer = window._fullscreen_preview
+    check_pixels(viewer.label)
+    panel.set_highlight_color('#6699ff')
+    assert viewer.label._search_color.name() == '#6699ff'
+    viewer.close()
+    window._theme_controller.set_mode('dark')
+    assert doc.page_cards[0].preview._search_color.name() == '#6699ff'
+    assert doc.page_cards[0].preview._active_search_rects == [boxes[1]]
+    panel.set_compact(True)
+    monkeypatch.setattr('repdf.search_panel.QColorDialog.getColor', lambda *args: QColor())
+    panel.highlight_color_action.trigger()
+    assert panel.highlight_color == '#6699ff'  # Cancel leaves the choice unchanged.
+    window.language_controller.set_mode('en')
+    assert panel.highlight_color_action.text() == 'Match highlight color'
+    assert panel.highlight_color_button.toolTip() == 'Match highlight color'
+    window.close()
+
+    restored = MainWindow()
+    qtbot.addWidget(restored)
+    assert restored.search_controller.panel.highlight_color == '#6699ff'
+    virtual = restored._new_document(tmp_path / 'virtual.pdf')
+    virtual.loaded(100)
+    assert virtual.pages.ensure_page(50).preview._search_color.name() == '#6699ff'
+
+
+def test_invalid_highlight_color_preference_uses_default(qtbot):
+    window = MainWindow()
+    qtbot.addWidget(window)
+    window.settings.setValue('search/highlight_color', 'invalid-color')
+    window.close()
+    restored = MainWindow()
+    qtbot.addWidget(restored)
+    assert restored.search_controller.highlight_color == '#ffe13c'
 
 
 def test_search_opens_from_overflow_and_focuses_query(qtbot):

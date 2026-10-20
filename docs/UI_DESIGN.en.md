@@ -2,7 +2,7 @@
 
 [繁體中文](UI_DESIGN.md) | [English](UI_DESIGN.en.md)
 
-This document describes the implementation in RePDF 0.0.17 as a reference for other desktop projects. Values come from the code. “Fixed” means an explicitly configured size; “automatic” means Qt, fonts, or content determine the size.
+This document describes the implementation in RePDF 0.0.18 as a reference for other desktop projects. Values come from the code. “Fixed” means an explicitly configured size; “automatic” means Qt, fonts, or content determine the size.
 
 ## 1. Style and units
 
@@ -111,7 +111,7 @@ Shapes do not necessarily fill the canvas. Some circles use `(3, 3, 18, 18)`, fo
 - Extract image: image frame, mountains, and downward arrow.
 - Search text: magnifying glass, using a 20 × 20 icon in a 34 × 34 button. Documentation provides light and dark variants.
 - Tab close: the text character `×`, rather than a drawn toolbar icon.
-- Checkbox check/partial marks: 16 × 16 SVGs, white strokes of width **2**, with round caps. Their stroke specification differs from toolbar icons.
+- Checkbox check/partial marks: 16 × 16 SVGs, strokes of width **2** with round caps; white in light mode and dark green-black in dark mode. Their stroke specification differs from toolbar icons.
 
 ## 5. Other controls
 
@@ -125,7 +125,7 @@ Shapes do not necessarily fill the canvas. Some circles use `(3, 3, 18, 18)`, fo
 | Tab behavior | Drag to reorder; full file path in tooltip |
 | Checkbox indicator | QSS width/height 16 × 16, plus 1px border; radius 3 |
 | Checkbox/text spacing | 6 |
-| Checked checkbox background | `#0b57d0` in both themes |
+| Checked checkbox background | `#0b57d0` in light; `#a8ed42` in dark |
 | Standard QPushButton | QSS minimum content height 30, padding top/bottom 2 and left/right 12, border 1, radius 5 |
 | Zoom slider | Fixed width 150; automatic height |
 | Slider groove | Height 2, radius 1 |
@@ -172,22 +172,24 @@ If none is available, QApplication's default font and size are retained. Font me
 
 | Purpose | Light | Dark |
 | --- | --- | --- |
-| Window/toolbar/status background | `#f5f6f8` | `#202124` |
-| Base/input background | `#ffffff` | `#17181a` |
-| Alternate base | `#eef0f3` | `#292a2d` |
-| Card/custom text button background | `#ffffff` | `#292a2d` |
-| QPalette.Button | `#ffffff` | `#303134` |
-| Main text/normal icons | `#202124` | `#f1f3f4` |
-| Borders/separators | `#d5d8dc` | `#4a4d51` |
-| Accent/focus/filled slider | `#0b57d0` | `#8ab4f8` |
-| Selected text foreground | `#ffffff` | `#202124` |
-| Hover background | `#e7ebf0` | `#35383d` |
-| Pressed background | `#d8e3f3` | `#41464e` |
-| Active text/OCR tool background | `#d8e7ff` | `#294366` |
-| Disabled text/icons | `#9aa0a6` | `#777b80` |
-| Placeholder text | `#6f7378` | `#9aa0a6` |
-| Slider groove/scrollbar handle | `#c4c7c5` | `#5f6368` |
-| Circular slider handle | `#0b57d0` | `#aecbfa` |
+| Window/toolbar/status background | `#f5f6f8` | `#171321` |
+| Base/input background | `#ffffff` | `#100e18` |
+| Alternate base | `#eef0f3` | `#261d38` |
+| Card/custom text button background | `#ffffff` | `#2b2142` |
+| QPalette.Button | `#ffffff` | `#34264f` |
+| Main text/normal icons | `#202124` | `#eee7f7` |
+| Borders/separators | `#d5d8dc` | `#625079` |
+| Accent/focus/filled slider | `#0b57d0` | `#a8ed42` |
+| Selected text foreground | `#ffffff` | `#13190d` |
+| Hover background | `#e7ebf0` | `#3b2a56` |
+| Pressed background | `#d8e3f3` | `#4d376e` |
+| Active text/OCR tool background | `#d8e7ff` | `#36432b` |
+| Disabled text/icons | `#9aa0a6` | `#8f829f` |
+| Placeholder text | `#6f7378` | `#b5a7c5` |
+| Slider groove/scrollbar handle | `#c4c7c5` | `#695580` |
+| Circular slider handle | `#0b57d0` | `#ff9d45` |
+
+Dark mode uses an Evangelion Unit-01-inspired palette: purple-black backgrounds, purple panels, neon-green accents, and orange slider handles and links. PDF page content retains its original colors.
 
 System, Light, and Dark modes are available and remembered. System mode listens for system theme changes and updates the palette, QSS, and toolbar icons.
 
@@ -221,6 +223,10 @@ Search, Stop, Close, and compact Options buttons in the search pane also use 34 
 
 The scope dropdown and `.*` (regular expression), `Aa` (case-sensitive), and underlined `ab` (whole-word) toggle buttons share one row. Toggles use the same dimensions, with the toolbar's selected background and border when active. In compact-height mode, the options menu provides the same synchronized settings.
 
+`SearchOptionButton` paints checked/focused outlines with QPainter antialiasing: stroke width 1, path inset 0.5, and centerline radius 3.5, corresponding to outer radius 4. Existing QSS backgrounds and dimensions remain in place, avoiding a broken appearance at thin rounded corners.
+
+A color swatch on the same row configures match highlighting, using a 34 × 34 button and 20 × 20 icon canvas. Its 24 × 24 design canvas contains a 16 × 16 swatch with radius 2 and a one-unit outline. Compact mode provides the option in the menu. Highlights default to yellow with customizable RGB; selected paragraphs overlay a darker shade of the same color, independently of the interface theme.
+
 ## 10. Implementation sources
 
 - [render_doc_icons.py](../scripts/render_doc_icons.py) generates documentation icons. Run `uv run python scripts/render_doc_icons.py` to update `docs/images/`.
@@ -237,4 +243,4 @@ The scope dropdown and `.*` (regular expression), `Aa` (case-sensitive), and und
 - Printing uses one integrated window: scrollable settings on the left, preview on the right. Below width 720, they stack vertically. Minimum window size is 320 × 420; initial size is 1060 × 760. Advanced settings, Print, and Cancel remain at the bottom.
 - Range and scaling hints appear below the options and update with them. The page range input appears only for custom ranges; a document/page summary remains below. Resolution and other implementation details belong in documentation.
 - Print preview uses a white sheet with the actual paper proportions and a gray dashed printable boundary; the outer canvas follows the interface theme. Navigation buttons use 34 × 34 / 20 × 20 dimensions, with preview zoom on a separate row.
-- [check.svg](../src/repdf/assets/check.svg) and [partial.svg](../src/repdf/assets/partial.svg): white checkbox symbols.
+- [check.svg](../src/repdf/assets/check.svg) and [partial.svg](../src/repdf/assets/partial.svg): white checkbox symbols for light mode; [check-dark.svg](../src/repdf/assets/check-dark.svg) and [partial-dark.svg](../src/repdf/assets/partial-dark.svg) provide dark marks for the neon-green background in dark mode.

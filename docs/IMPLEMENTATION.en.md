@@ -351,6 +351,7 @@ Packaged smoke tests must stop render backends holding cached PDFs before removi
 
 ## 16. Text search
 
+- A swatch button or compact options menu opens `QColorDialog` for match colors, stored as RGB in `search/highlight_color`. The default and fallback for invalid settings is `#ffe13c`. Ordinary highlights use alpha 100; selected paragraphs overlay `darker(120)` with alpha 115. Changes repaint without rerunning searches. Existing pages, recreated virtual cards, and fullscreen share this setting independently of the interface theme.
 - `SearchController` in `search_panel.py` manages the right pane, exclusive scope, query generations, results, and cancellation. `SearchPanel` supplies input, options, and upper/lower result lists.
 - Search snapshots loaded documents, tab order, and page order at execution. Tab checkboxes control document scope; page checkboxes do not filter searches.
 - A dedicated PDF backend starts lazily for the first search, reusing source/frozen communication without sharing the preview/OCR/image queue.
@@ -362,7 +363,7 @@ Packaged smoke tests must stop render backends holding cached PDFs before removi
 - The backend's `whole_word` flag wraps the entire query in negative lookarounds using Unicode `\w`. It combines with regex/case options but does not segment Chinese text.
 - Line grouping uses full vertical extents and spacing so low glyphs such as underscores remain attached, preserving boundaries for strings such as `cat_`. Trailing comments in verbose regex mode cannot consume appended boundary conditions.
 - Stop, a new query, or closing the pane terminates the search backend and invalidates old generations. Closing a searched file removes it and reschedules remaining unfinished files. Single-file failures preserve other results; timeouts stop the whole search and mark it incomplete.
-- `PagePreviewLabel` stores search rectangles independently of selection highlights using normalized coordinates. `DocumentView.jump_to_search_result()` locates stable page indices, preserves zoom/Fit, and scrolls to matches after rendering.
+- `PagePreviewLabel` stores search rectangles independently of selection highlights using normalized coordinates. `DocumentView.jump_to_search_result()` locates stable page indices and preserves zoom/Fit. Before an image is available, it scrolls using placeholder geometry to trigger on-demand rendering. Actual dimensions from the target and neighboring pages refine the still-visible match position; neighboring updates do not pull users back after they scroll away.
 - The search pane starts at width 320px with resizable width and list divider. Below width 640px it shares a single pane with the PDF; below height 360px scope/flags move into a menu, preserving the 320 × 240 minimum window.
 - Opening search from toolbar overflow reactivates the main window on the next event-loop turn before focusing input, avoiding a lingering active menu window on macOS.
 - Passwords travel only through local communication. No decrypted PDF, disk text index, or password log is created. Search history and results last only for the current session.

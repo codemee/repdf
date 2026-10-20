@@ -142,6 +142,7 @@ class PageViewport:
 
     def prepare_card(self, card):
         d = self.doc
+        card.preview.set_search_highlight_color(d.owner.search_controller.highlight_color)
         width, height = self.dimensions(card.page_index)
         card.set_preview_size(width, height)
         card.set_selected(card.page_index in d.selected_pages)
@@ -304,6 +305,12 @@ class PageViewport:
             return
         scale = self.batch_scale or self.scale()
         old_size = d.page_sizes.get(page)
+        # Nearby pages can change the grid geometry after the hit page renders.
+        # Keep a visible search destination aligned, but do not pull the user
+        # back after they have scrolled away from it.
+        navigation = d._search_navigation
+        navigation_visible = (navigation is not None
+                              and self.rect(navigation[0]).intersects(self.visible_rect()))
         d.page_links[page] = payload.get('links', [])
         d.page_labels[page] = payload.get('page_label')
         d.page_sizes[page] = (float(payload.get('width_points', image.width() / scale)),
@@ -322,7 +329,7 @@ class PageViewport:
         if d.fit_mode and page == d.fit_page_index:
             d.fit_timer.start()
             QTimer.singleShot(0, d._scroll_to_fit_page)
-        if d._search_navigation and page == d._search_navigation[0]:
+        if navigation and (page == navigation[0] or (old_size != d.page_sizes[page] and navigation_visible)):
             QTimer.singleShot(0, d._scroll_to_search_result)
         d.owner._sync_controls()
 

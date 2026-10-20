@@ -112,6 +112,7 @@ ENGLISH = {
     "規則表達式": "Regular expression",
     "區分大小寫": "Match case",
     "僅限單字": "Whole words only",
+    "命中標示顏色": "Match highlight color",
     "輸入條件後按 Enter 或搜尋鈕": "Press Enter or Search to start",
     "有命中的檔案": "Files with matches",
     "命中段落": "Matching paragraphs",

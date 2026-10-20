@@ -2,8 +2,9 @@ import io
 import json
 from pathlib import Path
 
+import pytest
 from pypdf import PdfWriter
-from PySide6.QtCore import Qt
+from PySide6.QtCore import QPoint, Qt
 from PySide6.QtGui import QImage
 
 from repdf.app import MainWindow
@@ -76,6 +77,46 @@ def test_large_document_only_renders_nearby_pages_and_reuses_cache(qtbot, tmp_pa
     doc.jump_to_search_result(400, boxes[0])
     qtbot.waitUntil(lambda: 400 in doc.page_cards.realized and settled(doc), timeout=15000)
     assert doc.page_cards[400].preview._active_search_rects == boxes
+
+
+@pytest.mark.parametrize('page_count', [46, 100])
+@pytest.mark.parametrize('fit', [False, True])
+def test_search_jump_to_unrendered_page_scrolls_then_loads(qtbot, tmp_path, page_count, fit):
+    path = tmp_path / 'search-navigation.pdf'
+    make_document(path, page_count)
+    window = MainWindow()
+    qtbot.addWidget(window)
+    window.show()
+    window.load_pdf(path)
+    qtbot.waitUntil(lambda: window.current_document().ready, timeout=10000)
+    doc = window.current_document()
+    qtbot.waitUntil(lambda: settled(doc), timeout=15000)
+    if fit:
+        doc.fit_page()
+        qtbot.waitUntil(lambda: settled(doc), timeout=15000)
+
+    # The target is outside both the rendered range and the image cache.
+    target = page_count - 5
+    assert window.preview_cache.get(doc.pages.key(target)) is None
+    assert target not in doc.page_sizes
+    boxes = [(0.2, 0.55, 0.4, 0.6)]
+    doc.pages.set_highlights(target, boxes, boxes)
+    assert doc.page_cards[target].preview.pixmap().isNull()
+    doc.jump_to_search_result(target, boxes[0])
+    qtbot.waitUntil(lambda: doc.pages.rect(target).intersects(doc.pages.visible_rect()), timeout=3000)
+    qtbot.waitUntil(lambda: settled(doc), timeout=15000)
+    label = doc.page_cards[target].preview
+    assert not label.pixmap().isNull()
+    assert label._active_search_rects == boxes
+    point = label.mapTo(doc.grid_host, QPoint(round(label.width() * 0.3), round(label.height() * 0.575)))
+    assert doc.pages.visible_rect().contains(point)
+    assert doc.preview_page_index() == target
+    assert doc.fit_mode == fit
+    if not fit:
+        # Loading elsewhere after a manual scroll must not restore the old hit.
+        doc.scroll_area.verticalScrollBar().setValue(0)
+        qtbot.waitUntil(lambda: settled(doc), timeout=15000)
+        assert doc.preview_page_index(prefer_focused=False) == 0
 
 
 def test_virtual_drag_uses_global_order_and_preserves_selection(qtbot, tmp_path, monkeypatch):

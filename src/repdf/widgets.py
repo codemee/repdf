@@ -250,6 +250,7 @@ class PagePreviewLabel(DragLabel):
         self.image_mode = False
         self._search_rects = []
         self._active_search_rects = []
+        self._search_color = QColor('#ffe13c')
         self._selection_start = None
         self._selection_end = None
         self._selecting = False
@@ -301,6 +302,11 @@ class PagePreviewLabel(DragLabel):
     def set_search_highlights(self, rects, active):
         self._search_rects = rects
         self._active_search_rects = active
+        self.update()
+
+    def set_search_highlight_color(self, color):
+        value = QColor(color)
+        self._search_color = value if value.isValid() else QColor('#ffe13c')
         self.update()
 
     def _preview_selection(self) -> None:
@@ -370,8 +376,11 @@ class PagePreviewLabel(DragLabel):
         super().paintEvent(event)
         if self._search_rects:
             painter = QPainter(self)
-            for boxes, color in ((self._search_rects, QColor(255, 225, 60, 100)),
-                                 (self._active_search_rects, QColor(255, 170, 0, 115))):
+            normal = QColor(self._search_color)
+            normal.setAlpha(100)
+            active = self._search_color.darker(120)
+            active.setAlpha(115)
+            for boxes, color in ((self._search_rects, normal), (self._active_search_rects, active)):
                 path = QPainterPath()
                 path.setFillRule(Qt.FillRule.WindingFill)
                 for left, top, right, bottom in boxes:
