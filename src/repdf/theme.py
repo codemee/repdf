@@ -74,7 +74,6 @@ class ThemeController(QObject):
         slider_handle = "#ff9d45" if dark else "#0b57d0"
         hover = "#3b2a56" if dark else "#e7ebf0"
         pressed = "#4d376e" if dark else "#d8e3f3"
-        selected_tool = "#36432b" if dark else "#d8e7ff"
         mark_suffix = "-dark" if dark else ""
         check = files("repdf").joinpath("assets", f"check{mark_suffix}.svg").as_posix()
         partial = files("repdf").joinpath("assets", f"partial{mark_suffix}.svg").as_posix()
@@ -96,10 +95,11 @@ class ThemeController(QObject):
                            border-radius: 4px; padding: 4px; color: palette(button-text); }}
             QToolButton:hover {{ background: {hover}; }}
             QToolButton:pressed {{ background: {pressed}; }}
-            QToolButton#copyTextTool:checked, QToolButton#regionOcrTool:checked, QToolButton#extractImageTool:checked,
-            QToolButton#searchOptionButton:checked, QToolButton#bookmarksTool:checked {{ background: {selected_tool};
-                                                border-color: {slider_fill}; }}
             QToolButton:focus {{ border-color: {slider_fill}; }}
+            QToolButton[stateButton="true"] {{ border-color: transparent; border-radius: 8px; }}
+            QToolButton[stateButton="true"]:checked {{ background: {hover}; border-color: transparent; }}
+            QToolButton[stateButton="true"]:checked:hover {{ background: {pressed}; }}
+            QToolButton[stateButton="true"]:disabled {{ background: transparent; }}
             QToolButton:disabled {{ color: {disabled}; background: transparent; }}
             QPushButton {{ background: {card}; color: palette(button-text);
                            border: 1px solid {border}; border-radius: 5px;

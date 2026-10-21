@@ -2,7 +2,7 @@
 
 [繁體中文](UI_DESIGN.md) | [English](UI_DESIGN.en.md)
 
-This document describes the implementation in RePDF 0.0.18 as a reference for other desktop projects. Values come from the code. “Fixed” means an explicitly configured size; “automatic” means Qt, fonts, or content determine the size.
+This document describes the implementation in RePDF 0.1.0 as a reference for other desktop projects. Values come from the code. “Fixed” means an explicitly configured size; “automatic” means Qt, fonts, or content determine the size.
 
 ## 1. Style and units
 
@@ -47,7 +47,7 @@ The main layout contains the toolbar, document tabs, scrollable reading area, an
 | Icon-area clearance within button | 7 on all sides, including the border area |
 | Tool button QSS padding | 4; this style declaration is not the final icon clearance |
 | Tool button border | 1; transparent in normal state to avoid size changes |
-| Tool button radius | 4 |
+| Tool button radius | 4 for ordinary buttons; 8 for state buttons |
 | Normal tool button background | Transparent |
 | Tool button text | Hidden by default; name and shortcut appear in the tooltip |
 | Percentage text button | **64 × 34**, with extra width for text |
@@ -64,11 +64,11 @@ File, selection, and text tools are on the left. Stretchable space separates the
 | Normal | Transparent background/border, normal icon color |
 | Hover | Hover background |
 | Pressed | Pressed background |
-| Keyboard focus | Accent border |
+| Keyboard focus | Accent border for ordinary tools; state buttons remain borderless |
 | Disabled | Transparent background, disabled icon/text colors |
-| Copy text / region OCR / extract image active | Selected background and accent border; the three modes are mutually exclusive |
+| State button active | Hover background with accent-colored icon and no outline; pressed background when hovered |
 
-Copy text, region OCR, and image extraction have explicitly customized checked backgrounds. Other checkable tools, such as Fit, also retain Fusion's checked-state handling and should not be treated as having the same custom styling.
+Copy text, region OCR, image extraction, bookmarks, Fit, and search options share the borderless `stateButton` styling with background radius 8. Copy text, region OCR, and image extraction remain mutually exclusive.
 
 ## 4. Icon drawing specifications
 
@@ -84,6 +84,7 @@ Copy text, region OCR, and image extraction have explicitly customized checked b
 | Line joins | `RoundJoin` |
 | Antialiasing | Enabled |
 | Normal icon color | `QPalette.ButtonText` |
+| Active state icon color | `QPalette.Highlight`, including while hovered |
 | Disabled icon color | `QPalette.Disabled.ButtonText` |
 | Theme updates | Regenerate icons when the palette changes |
 
@@ -183,7 +184,8 @@ If none is available, QApplication's default font and size are retained. Font me
 | Selected text foreground | `#ffffff` | `#13190d` |
 | Hover background | `#e7ebf0` | `#3b2a56` |
 | Pressed background | `#d8e3f3` | `#4d376e` |
-| Active text/OCR tool background | `#d8e7ff` | `#36432b` |
+| Active state button background | `#e7ebf0` | `#3b2a56` |
+| Hovered active state button background | `#d8e3f3` | `#4d376e` |
 | Disabled text/icons | `#9aa0a6` | `#8f829f` |
 | Placeholder text | `#6f7378` | `#b5a7c5` |
 | Slider groove/scrollbar handle | `#c4c7c5` | `#695580` |
@@ -201,6 +203,7 @@ toolbar.padding             = 4
 toolbar.spacing             = 4
 toolButton.size             = 34 × 34
 toolButton.radius           = 4
+stateToolButton.radius      = 8
 toolButton.border           = 1
 toolButton.iconSize         = 20 × 20
 icon.designCanvas           = 24 × 24
@@ -221,9 +224,9 @@ These values are a starting point for desktop tools. Adapt fixed button sizes, i
 
 Search, Stop, Close, and compact Options buttons in the search pane also use 34 × 34 buttons and 20 × 20 icons, with tooltips, accessible names, and theme-aware colors. Each matching paragraph occupies one line, elided with `...`; the tooltip contains the complete text. Adjacent results alternate between palette Base and AlternateBase backgrounds.
 
-The scope dropdown and `.*` (regular expression), `Aa` (case-sensitive), and underlined `ab` (whole-word) toggle buttons share one row. Toggles use the same dimensions, with the toolbar's selected background and border when active. In compact-height mode, the options menu provides the same synchronized settings.
+The scope dropdown and `.*` (regular expression), `Aa` (case-sensitive), and underlined `ab` (whole-word) toggle buttons share one row. Selected backgrounds indicate active options; hovering changes the background without an outline. In compact-height mode, the options menu provides the same synchronized settings.
 
-`SearchOptionButton` paints checked/focused outlines with QPainter antialiasing: stroke width 1, path inset 0.5, and centerline radius 3.5, corresponding to outer radius 4. Existing QSS backgrounds and dimensions remain in place, avoiding a broken appearance at thin rounded corners.
+Search options and toolbar state buttons share borderless styling with background radius 8, retaining 34 × 34 buttons, 20 × 20 icons, and one-unit icon design strokes. Active buttons use the theme hover background; hovering an active button uses the pressed background. Transparent border space prevents icon movement between states. Ordinary non-state tool buttons retain radius 4.
 
 A color swatch on the same row configures match highlighting, using a 34 × 34 button and 20 × 20 icon canvas. Its 24 × 24 design canvas contains a 16 × 16 swatch with radius 2 and a one-unit outline. Compact mode provides the option in the menu. Highlights default to yellow with customizable RGB; selected paragraphs overlay a darker shade of the same color, independently of the interface theme.
 

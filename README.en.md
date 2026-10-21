@@ -188,7 +188,7 @@ The toolbar controls are described below. Hover over a control to see its toolti
 ### Copy text, region OCR, and image extraction
 
 - These three modes are mutually exclusive and work in normal and fullscreen view.
-- Active modes have a highlighted button background. Turning the mode off restores drag-and-drop reordering.
+- Active modes use the hover background and an accent-colored icon without an outline. Turning the mode off restores drag-and-drop reordering.
 - Copy text: drag to select text, then release to copy it. Use region OCR for text in scanned images.
 - Region OCR: draw a rectangle, then release to recognize and copy text. An empty region leaves the clipboard unchanged.
 - Extract image: click an embedded raster image and choose where to save it as a PNG.

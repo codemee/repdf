@@ -799,6 +799,9 @@ class MainWindow(QMainWindow):
         for action in self.toolbar.actions():
             button = self.toolbar.widgetForAction(action)
             if isinstance(button, QToolButton):
+                if action.isCheckable():
+                    button.setProperty('stateButton', True)
+                    button.setAttribute(Qt.WidgetAttribute.WA_Hover, True)
                 if button is self.zoom_display:
                     button.setFixedHeight(34)
                 else:

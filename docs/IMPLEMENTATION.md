@@ -247,6 +247,8 @@ Fit 使用最近點擊且仍可見的頁面，或距預覽區中央最近的頁�
 
 ## 11. 主題、字型與圖示
 
+- 工具列可切換狀態的按鈕與搜尋選項以 `stateButton` 屬性共用樣式：啟用時使用 hover 底色，移入已啟用按鈕時使用 pressed 底色，圓角 8，保留透明邊框但不顯示外框。`icons.py` 為 QIcon 的 On 狀態提供 `QPalette.Highlight` 圖示，Normal／Active 模式一致；停用時仍使用停用圖示色。尺寸維持 34 × 34、圖示 20 × 20 與設計筆畫 1。
+
 工具列提供 `language_action`、`theme_action` 三態按鈕，分別循環 `system → zh → en` 與 `system → light → dark`。`QSettings("repdf", "repdf")` 的 `ui/language`、`ui/theme` 保存選擇，預設均為 `system`，無效值回退為系統模式。首次啟動會將舊版 `QSettings("PDFPick", "PDFPick")` 的有效語言與配色選擇複製到尚未設定的新欄位，不覆蓋 repdf 已有設定，也不刪除舊設定。
 
 `preferences.LanguageController` 優先使用 `QLocale.system().uiLanguages()` 的第一個顯示語言，沒有顯示語言時才回退至 locale 語言；中文使用繁體中文，其餘使用英文。主視窗收到 `LocaleChange` 時僅在系統模式重新判斷。`strings.py` 集中翻譯表與 `tr()`，由 GUI、核心和背景錯誤共用；`localize_text()` 更新既有介面文字並保留格式化參數。切換時更新文字與提示，不重建文件或重新渲染頁面。

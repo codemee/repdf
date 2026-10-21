@@ -20,6 +20,57 @@ def ready_document(window, path, count, *, zoom=100):
     return doc
 
 
+def test_all_state_buttons_use_borderless_hover_colors(qtbot, monkeypatch):
+    from PySide6.QtCore import QSize
+    from PySide6.QtGui import QIcon, QPalette
+    from PySide6.QtWidgets import QApplication
+
+    monkeypatch.setattr(DocumentView, '_queue_all_renders', lambda self: None)
+    window = MainWindow()
+    qtbot.addWidget(window)
+    doc = ready_document(window, Path('sample.pdf'), 1)
+    doc.page_sizes[0] = (300, 400)
+    window._sync_controls()
+    window.resize(1400, 760)
+    window.show()
+    qtbot.waitExposed(window)
+    window.activateWindow()
+    qtbot.waitUntil(window.isActiveWindow)
+    buttons = [window.toolbar.widgetForAction(action) for action in (
+        window.copy_text_action, window.region_ocr_action, window.extract_image_action,
+        window.bookmark_action, window.fit_action)]
+    window.search_controller.open()
+    panel = window.search_controller.panel
+    buttons += [panel.regular_expression, panel.case_sensitive, panel.whole_word]
+
+    def pixel(button, x, y):
+        image = button.grab().toImage()
+        ratio = image.devicePixelRatio()
+        return image.pixelColor(round(x * ratio), round(y * ratio)).name()
+
+    for mode, selected, hovered in (('light', '#e7ebf0', '#d8e3f3'),
+                                     ('dark', '#3b2a56', '#4d376e')):
+        window._theme_controller.set_mode(mode)
+        for button in buttons:
+            assert button.property('stateButton') is True
+            qtbot.mouseMove(window.statusBar())
+            button.setChecked(True)
+            assert pixel(button, 17, 29) == selected
+            assert pixel(button, 17, 0) != QApplication.palette().color(QPalette.ColorRole.Highlight).name()
+            for icon_mode in (QIcon.Mode.Normal, QIcon.Mode.Active):
+                icon = button.icon().pixmap(QSize(48, 48), icon_mode, QIcon.State.On).toImage()
+                color = max((icon.pixelColor(x, y) for x in range(icon.width()) for y in range(icon.height())),
+                            key=lambda value: value.alpha())
+                assert color.name() == QApplication.palette().highlight().color().name()
+            qtbot.mouseMove(button, pos=QPoint(17, 17))
+            def assert_hovered():
+                assert pixel(button, 17, 29) == hovered, button.objectName()
+            qtbot.waitUntil(assert_hovered)
+            qtbot.mouseMove(window.statusBar())
+            assert pixel(button, 17, 29) == selected
+            button.setChecked(False)
+
+
 def test_toolbar_overflow_popup_and_resize(qtbot, monkeypatch):
     monkeypatch.setattr(DocumentView, "_queue_all_renders", lambda self: None)
     window = MainWindow()

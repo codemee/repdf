@@ -7,14 +7,17 @@ from PySide6.QtWidgets import QApplication
 
 def toolbar_icon(kind: str) -> QIcon:
     icon = QIcon()
-    for mode, group in ((QIcon.Mode.Normal, QPalette.ColorGroup.Active),
-                        (QIcon.Mode.Disabled, QPalette.ColorGroup.Disabled)):
+    for mode, group, state, role in (
+            (QIcon.Mode.Normal, QPalette.ColorGroup.Active, QIcon.State.Off, QPalette.ColorRole.ButtonText),
+            (QIcon.Mode.Normal, QPalette.ColorGroup.Active, QIcon.State.On, QPalette.ColorRole.Highlight),
+            (QIcon.Mode.Disabled, QPalette.ColorGroup.Disabled, QIcon.State.Off, QPalette.ColorRole.ButtonText),
+            (QIcon.Mode.Disabled, QPalette.ColorGroup.Disabled, QIcon.State.On, QPalette.ColorRole.ButtonText)):
         pixmap = QPixmap(48, 48)
         pixmap.fill(Qt.GlobalColor.transparent)
         painter = QPainter(pixmap)
         painter.setRenderHint(QPainter.RenderHint.Antialiasing)
         painter.scale(2, 2)
-        painter.setPen(QPen(QApplication.palette().color(group, QPalette.ColorRole.ButtonText),
+        painter.setPen(QPen(QApplication.palette().color(group, role),
                             1.0, Qt.PenStyle.SolidLine, Qt.PenCapStyle.RoundCap,
                             Qt.PenJoinStyle.RoundJoin))
         if kind == "more":
@@ -158,5 +161,7 @@ def toolbar_icon(kind: str) -> QIcon:
             if kind == "zoom_in":
                 painter.drawLine(9, 6, 9, 13)
         painter.end()
-        icon.addPixmap(pixmap, mode)
+        icon.addPixmap(pixmap, mode, state)
+        if mode == QIcon.Mode.Normal:
+            icon.addPixmap(pixmap, QIcon.Mode.Active, state)
     return icon

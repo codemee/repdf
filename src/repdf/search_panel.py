@@ -2,8 +2,8 @@
 
 from html import escape
 
-from PySide6.QtCore import QEvent, QObject, QRectF, QSize, Qt, QTimer, Signal
-from PySide6.QtGui import QAction, QActionGroup, QColor, QIcon, QPainter, QPen, QPixmap
+from PySide6.QtCore import QEvent, QObject, QSize, Qt, QTimer, Signal
+from PySide6.QtGui import QAction, QActionGroup, QColor, QIcon, QPainter, QPixmap
 from PySide6.QtWidgets import (
     QAbstractItemView, QColorDialog, QComboBox, QHBoxLayout, QLabel, QLayout, QLineEdit, QListView, QListWidget,
     QListWidgetItem, QMenu, QSplitter, QStyle, QStyledItemDelegate, QStyleOptionViewItem,
@@ -52,30 +52,11 @@ class ParagraphDelegate(QStyledItemDelegate):
         return QSize(0, option.fontMetrics.height() + 10)
 
 
-class SearchOptionButton(QToolButton):
-    """Paint the thin rounded outline with antialiasing at the current DPI."""
-
-    def __init__(self):
-        super().__init__()
-        # Retain QSS backgrounds and sizing, replacing only its raster outline.
-        self.setStyleSheet('QToolButton { border-color: transparent; }')
-
-    def paintEvent(self, event):
-        super().paintEvent(event)
-        if self.isEnabled() and (self.isChecked() or self.hasFocus()):
-            painter = QPainter(self)
-            painter.setRenderHint(QPainter.RenderHint.Antialiasing)
-            painter.setPen(QPen(self.palette().highlight().color(), 1.0))
-            painter.setBrush(Qt.BrushStyle.NoBrush)
-            painter.drawRoundedRect(QRectF(self.rect()).adjusted(0.5, 0.5, -0.5, -0.5), 3.5, 3.5)
-            painter.end()
-
-
 class SearchPanel(QWidget):
     highlight_color_changed = Signal(str)
 
     def _button(self, kind, label):
-        button = SearchOptionButton() if kind in ('regex', 'case_sensitive', 'whole_word') else QToolButton()
+        button = QToolButton()
         button.setText(tr(label))
         button.setToolTip(tr(label))
         button.setAccessibleName(tr(label))
@@ -125,6 +106,8 @@ class SearchPanel(QWidget):
         for button in (self.regular_expression, self.case_sensitive, self.whole_word):
             button.setObjectName('searchOptionButton')
             button.setCheckable(True)
+            button.setProperty('stateButton', True)
+            button.setAttribute(Qt.WidgetAttribute.WA_Hover, True)
         options.addWidget(self.regular_expression)
         options.addWidget(self.case_sensitive)
         options.addWidget(self.whole_word)

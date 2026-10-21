@@ -70,7 +70,6 @@ def test_copy_tool_switches_drag_mode_and_copies_text(qtbot, tmp_path, monkeypat
     assert card.preview.text_mode
     assert card.text_copy_mode
     assert window.toolbar.widgetForAction(window.copy_text_action).isChecked()
-    assert 'QToolButton#copyTextTool:checked' in QApplication.instance().styleSheet()
     QApplication.clipboard().setText('before')
     def send_mouse(kind, point, buttons):
         event = QMouseEvent(kind, point, point, point, Qt.MouseButton.LeftButton, buttons,
