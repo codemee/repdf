@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import hashlib
+import math
 import re
 import time
 import unicodedata
@@ -10,9 +11,14 @@ from importlib.util import find_spec
 from pathlib import Path
 
 from PIL import ImageOps
+from repdf.ocr_models import PROFILES, installed_profiles, model_available, model_path
 
 
 class OcrError(RuntimeError):
+    pass
+
+
+class OcrModelMissing(OcrError):
     pass
 
 
@@ -37,28 +43,39 @@ DETECTION_SHA256 = '090f04abcd9d9a7498bc4ebf677e4cb9bdce1fe4197ddb7e529f1ef44e1f
 
 
 @lru_cache(maxsize=1)
-def _engine():
+def _engine(profile='builtin'):
     """Load only on first damaged selection, in the existing background process."""
     try:
         spec = find_spec('rapidocr')
         if spec is None or spec.origin is None:
             raise OcrError('RapidOCR is not installed. Run uv sync.')
-        model = Path(spec.origin).parent / 'models' / MODEL_NAME
+        if profile not in PROFILES:
+            raise OcrError('Unknown OCR language.')
+        bundled = Path(spec.origin).parent / 'models'
+        model = bundled / MODEL_NAME
+        if profile != 'builtin':
+            if not model_available(profile):
+                raise OcrModelMissing('OCR language model is missing or damaged.')
+            model = model_path(profile)
         if not model.is_file():
             raise OcrError('Bundled OCR model is missing. Reinstall RapidOCR 3.10.0.')
-        if hashlib.sha256(model.read_bytes()).hexdigest() != MODEL_SHA256:
+        if profile == 'builtin' and hashlib.sha256(model.read_bytes()).hexdigest() != MODEL_SHA256:
             raise OcrError('Bundled OCR model checksum mismatch.')
-        from rapidocr import RapidOCR
-        engine = RapidOCR(params={
+        from rapidocr import ModelType, OCRVersion, RapidOCR
+        params = {
             'Global.use_det': False,
             'Global.use_cls': False,
             'Global.use_preprocess_img': False,
             'Global.log_level': 'error',
             'Rec.model_path': str(model),  # Explicit local path disables model downloads.
-            'Det.model_path': str(model.parent / DETECTION_MODEL),
+            'Det.model_path': str(bundled / DETECTION_MODEL),
             'EngineConfig.onnxruntime.intra_op_num_threads': 2,
             'EngineConfig.onnxruntime.inter_op_num_threads': 1,
-        })
+        }
+        if profile != 'builtin':
+            params.update({'Rec.ocr_version': OCRVersion.PPOCRV5, 'Rec.model_type': ModelType.MOBILE,
+                           'Rec.lang_type': profile})
+        engine = RapidOCR(params=params)
         return engine
     except OcrError:
         raise
@@ -92,18 +109,13 @@ def _line_regions(rects: list[list[float]]) -> list[list[float]]:
     return lines
 
 
-def recognize_selection(page, rects: list[list[float]]) -> str:
-    """Render selected glyphs at 400 DPI; do not OCR arbitrary/image-only regions."""
-    if not rects:
-        raise OcrError('No selected text bounds are available.')
+def _recognize_candidates(page, lines, profile, deadline, *, tolerate_errors=False):
     width, height = page.get_size()
     scale = 400 / 72
-    lines = _line_regions(rects)
-    if len(lines) > 30:
-        raise OcrError('Please select at most 30 lines for OCR.')
-    engine = _engine()
+    if time.monotonic() >= deadline:
+        raise OcrError('OCR time limit reached.')
+    engine = _engine() if profile == 'builtin' else _engine(profile)
     output = []
-    deadline = time.monotonic() + 60
     for left, top, right, bottom in lines:
         # Small padding preserves antialiased glyph edges without adding neighbours.
         x0, y0 = max(0, left * width - 0.5), max(0, top * height - 0.5)
@@ -120,19 +132,94 @@ def recognize_selection(page, rects: list[list[float]]) -> str:
         try:
             result = engine(image, use_det=False, use_cls=False, use_rec=True)
         except Exception as exc:
+            if time.monotonic() >= deadline:
+                raise OcrError('OCR time limit reached.') from exc
+            if tolerate_errors:
+                output.append(None)
+                continue
             raise OcrError(f'RapidOCR failed: {exc}') from exc
+        if time.monotonic() >= deadline:
+            raise OcrError('OCR time limit reached.')
         if not result.txts or not result.scores:
-            raise OcrError('OCR did not return usable text.')
+            output.append(None)
+            continue
         text = result.txts[0].strip()
-        if not text or suspicious_text(text) or min(result.scores) < 0.8:
+        score = min(result.scores)
+        if not text or suspicious_text(text) or not math.isfinite(score) or not .8 <= score <= 1:
+            output.append(None)
+        else:
+            output.append((_clean_line(text), score))
+    return output
+
+
+_SCRIPT_NAMES = {'korean': ('HANGUL',), 'th': ('THAI',), 'cyrillic': ('CYRILLIC',),
+                 'arabic': ('ARABIC',), 'devanagari': ('DEVANAGARI',), 'el': ('GREEK',),
+                 'ta': ('TAMIL',), 'te': ('TELUGU',)}
+
+
+def _choose_candidate(candidates):
+    """Conservative heuristics, not calibrated cross-model probabilities."""
+    baseline = candidates.get('builtin')
+    alternatives = []
+    for profile, candidate in candidates.items():
+        if profile == 'builtin' or candidate is None:
+            continue
+        text, score = candidate
+        letters = [char for char in text if unicodedata.category(char).startswith('L')]
+        matching = sum(any(script in unicodedata.name(char, '') for script in _SCRIPT_NAMES[profile])
+                       for char in letters)
+        # A specialist returning Latin gibberish must not replace multilingual text.
+        if not letters or matching / len(letters) < .6:
+            continue
+        if baseline is not None and score < .9:
+            continue
+        alternatives.append((score, text))
+    alternatives.sort(reverse=True)
+    if alternatives:
+        score, text = alternatives[0]
+        # Conflicting scripts with nearly equal evidence remain uncertain.
+        ambiguous = len(alternatives) > 1 and score - alternatives[1][0] < .03
+        if not ambiguous and (baseline is None or score + .04 > baseline[1] + .02):
+            return text
+    if baseline is not None:
+        return baseline[0]
+    raise OcrError('OCR result is empty, damaged, ambiguous or low confidence.')
+
+
+def recognize_selection(page, rects: list[list[float]], *, profile='builtin') -> str:
+    """Recognize each line, optionally comparing only already installed models."""
+    if not rects:
+        raise OcrError('No selected text bounds are available.')
+    lines = _line_regions(rects)
+    if len(lines) > 30:
+        raise OcrError('Please select at most 30 lines for OCR.')
+    deadline = time.monotonic() + 60
+    if profile != 'auto':
+        candidates = _recognize_candidates(page, lines, profile, deadline)
+        if any(candidate is None for candidate in candidates):
             raise OcrError('OCR result is empty, damaged or low confidence.')
-        output.append(_clean_line(text))
-    return '\n'.join(output)
+        return '\n'.join(candidate[0] for candidate in candidates)
+    results = {'builtin': _recognize_candidates(page, lines, 'builtin', deadline, tolerate_errors=True)}
+    # Model-major order loads each engine once per request, rather than once per line.
+    # Rendering one crop at a time also avoids retaining thirty large line images.
+    for installed in installed_profiles():
+        if time.monotonic() >= deadline:
+            raise OcrError('OCR time limit reached.')
+        try:
+            results[installed] = _recognize_candidates(page, lines, installed, deadline, tolerate_errors=True)
+        except OcrError:
+            # A model removed/damaged after discovery must not trigger a download.
+            if time.monotonic() >= deadline:
+                raise OcrError('OCR time limit reached.')
+            continue
+    if time.monotonic() >= deadline:
+        raise OcrError('OCR time limit reached.')
+    return '\n'.join(_choose_candidate({name: values[index] for name, values in results.items()})
+                     for index in range(len(lines)))
 
 
-def recognize_region(page, start, end) -> dict[str, object]:
+def recognize_region(page, start, end, *, profile='builtin') -> dict[str, object]:
     """OCR the displayed page rectangle, including image-only PDF content."""
-    import math
     if len(start) != 2 or len(end) != 2:
         raise OcrError('Invalid OCR region.')
     values = [float(value) for value in (*start, *end)]
@@ -158,7 +245,8 @@ def recognize_region(page, start, end) -> dict[str, object]:
     finally:
         bitmap.close()
     try:
-        result = _engine()(image, use_det=True, use_cls=False, use_rec=False)
+        engine = _engine() if profile in ('builtin', 'auto') else _engine(profile)
+        result = engine(image, use_det=True, use_cls=False, use_rec=False)
     except OcrError:
         raise
     except Exception as exc:
@@ -173,4 +261,4 @@ def recognize_region(page, start, end) -> dict[str, object]:
                       x0 + max(xs) / image.width * (x1 - x0),
                       y0 + max(ys) / image.height * (y1 - y0)])
     rects = _line_regions(rects)
-    return {'text': recognize_selection(page, rects), 'rects': rects, 'ocr_used': True}
+    return {'text': recognize_selection(page, rects, profile=profile), 'rects': rects, 'ocr_used': True}

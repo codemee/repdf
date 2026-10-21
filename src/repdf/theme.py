@@ -74,6 +74,8 @@ class ThemeController(QObject):
         slider_handle = "#ff9d45" if dark else "#0b57d0"
         hover = "#3b2a56" if dark else "#e7ebf0"
         pressed = "#4d376e" if dark else "#d8e3f3"
+        menu_background = hover if dark else card
+        menu_hover = pressed if dark else hover
         mark_suffix = "-dark" if dark else ""
         check = files("repdf").joinpath("assets", f"check{mark_suffix}.svg").as_posix()
         partial = files("repdf").joinpath("assets", f"partial{mark_suffix}.svg").as_posix()
@@ -85,6 +87,12 @@ class ThemeController(QObject):
             QToolBar {{ background: palette(window); border: none;
                         border-bottom: 1px solid {border}; padding: 4px; spacing: 4px; }}
             QToolBar::separator {{ background: {border}; width: 1px; margin: 5px 4px; }}
+            QMenu {{ background: {menu_background}; color: palette(window-text);
+                     border: 1px solid {border}; padding: 4px; }}
+            QMenu::item {{ padding: 5px 20px 5px 24px; }}
+            QMenu::item:selected {{ background: {menu_hover}; color: palette(window-text); }}
+            QMenu::item:disabled {{ color: {disabled}; }}
+            QMenu::separator {{ height: 1px; background: {border}; margin: 4px 6px; }}
             QTabWidget::pane {{ border: none; }}
             QTabBar::tab {{ background: transparent; color: palette(window-text);
                             border: none; border-bottom: 2px solid transparent;

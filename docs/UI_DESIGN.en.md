@@ -50,6 +50,7 @@ The main layout contains the toolbar, document tabs, scrollable reading area, an
 | Tool button radius | 4 for ordinary buttons; 8 for state buttons |
 | Normal tool button background | Transparent |
 | Tool button text | Hidden by default; name and shortcut appear in the tooltip |
+| OCR language arrow | **14 × 34**, grouped with the 34 × 34 OCR main button with spacing 2; independent hover, no border, and a 6 × 3 arrow |
 | Percentage text button | **64 × 34**, with extra width for text |
 | Separator | Width 1; margins top/bottom 5, left/right 4 |
 | Odd/even checkbox group margins | Left 8, top 0, right 4, bottom 0 |
@@ -247,3 +248,11 @@ A color swatch on the same row configures match highlighting, using a 34 × 34 b
 - Range and scaling hints appear below the options and update with them. The page range input appears only for custom ranges; a document/page summary remains below. Resolution and other implementation details belong in documentation.
 - Print preview uses a white sheet with the actual paper proportions and a gray dashed printable boundary; the outer canvas follows the interface theme. Navigation buttons use 34 × 34 / 20 × 20 dimensions, with preview zoom on a separate row.
 - [check.svg](../src/repdf/assets/check.svg) and [partial.svg](../src/repdf/assets/partial.svg): white checkbox symbols for light mode; [check-dark.svg](../src/repdf/assets/check-dark.svg) and [partial-dark.svg](../src/repdf/assets/partial-dark.svg) provide dark marks for the neon-green background in dark mode.
+
+## OCR model download dialog
+
+- Starts at 460 × 250 and follows the current theme, showing language, source, explanation, progress, and cancellation.
+- Download and use explicitly starts a download. The active language changes only after success; failures show a reason and allow retries.
+- Narrow windows expose OCR recognition language in toolbar overflow. An exclusive checked item identifies the active mode. Automatic and Automatic + downloaded models appear first. Two separators divide downloaded and not-downloaded models without headings; installed entries have a (downloaded) suffix.
+
+- Dark popup menus use the toolbar hover color `#3b2a56` as their background, `#4d376e` for hovered items, and `#625079` for borders/separators. Light menus retain a white background and light gray hover.

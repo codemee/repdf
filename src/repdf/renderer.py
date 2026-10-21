@@ -125,11 +125,13 @@ class RenderService(QObject):
 
     def request_text(self, source: Path, page: int, start: tuple[float, float],
                      end: tuple[float, float], generation: int, document_id: int,
-                     *, allow_ocr: bool = False, region_ocr: bool = False, password: str | None = None) -> None:
+                     *, allow_ocr: bool = False, region_ocr: bool = False, password: str | None = None,
+                     ocr_profile: str = 'builtin') -> None:
         payload: dict[str, object] = {
             "type": "ocr_region" if region_ocr else "copy_text", "source": str(source), "page": page,
             "start": start, "end": end, "generation": generation,
             "allow_ocr": allow_ocr,
+            "ocr_profile": ocr_profile,
         }
         if password is not None:
             payload['password'] = password

@@ -20,7 +20,12 @@ def toolbar_icon(kind: str) -> QIcon:
         painter.setPen(QPen(QApplication.palette().color(group, role),
                             1.0, Qt.PenStyle.SolidLine, Qt.PenCapStyle.RoundCap,
                             Qt.PenJoinStyle.RoundJoin))
-        if kind == "more":
+        if kind == 'chevron_down':
+            pen = painter.pen()
+            pen.setWidthF(2)
+            painter.setPen(pen)
+            painter.drawPolyline(QPolygonF([QPointF(6, 9), QPointF(12, 15), QPointF(18, 9)]))
+        elif kind == "more":
             painter.setBrush(painter.pen().color())
             for x in (5, 12, 19):
                 painter.drawEllipse(QRectF(x - 1, 11, 2, 2))

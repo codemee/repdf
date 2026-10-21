@@ -10,7 +10,7 @@ from typing import TextIO
 
 import pypdfium2 as pdfium
 
-from repdf.ocr import OcrError, recognize_region, recognize_selection, suspicious_text
+from repdf.ocr import OcrError, OcrModelMissing, recognize_region, recognize_selection, suspicious_text
 from repdf.images import extract_clicked_image
 from repdf.pdf_navigation import read_bookmarks, read_page_label, read_page_links, resolve_destination
 
@@ -98,7 +98,7 @@ def render_document(
 
 def extract_selection_result(source: Path, page_index: int, start: list[float],
                              end: list[float], *, allow_ocr: bool = False,
-                             on_ocr=None, password: str | None = None) -> dict[str, object]:
+                             on_ocr=None, password: str | None = None, ocr_profile='builtin') -> dict[str, object]:
     """Return copied text and the matching glyph bounds in rendered-page coordinates."""
     document = pdfium.PdfDocument(str(source), password=password)
     try:
@@ -169,10 +169,12 @@ def extract_selection_result(source: Path, page_index: int, start: list[float],
                     if on_ocr is not None:
                         on_ocr()
                     try:
-                        result['text'] = recognize_selection(page, rects)
+                        result['text'] = (recognize_selection(page, rects) if ocr_profile == 'builtin'
+                                          else recognize_selection(page, rects, profile=ocr_profile))
                         result['ocr_used'] = True
                     except OcrError as exc:
                         result['ocr_error'] = str(exc)
+                        result['ocr_model_missing'] = isinstance(exc, OcrModelMissing)
                 return result
             finally:
                 textpage.close()
@@ -228,7 +230,8 @@ def serve(
                             raise ValueError('Invalid OCR page index')
                         page = document[page_index]
                         try:
-                            extracted = recognize_region(page, request['start'], request['end'])
+                            extracted = recognize_region(page, request['start'], request['end'],
+                                                         profile=request.get('ocr_profile', 'builtin'))
                         finally:
                             page.close()
                     finally:
@@ -239,8 +242,11 @@ def serve(
                     extracted = extract_selection_result(Path(request["source"]), int(request["page"]),
                         request["start"], request["end"], allow_ocr=bool(request.get('allow_ocr', False)),
                         password=request.get('password'),
+                        ocr_profile=request.get('ocr_profile', 'builtin'),
                         on_ocr=lambda: print(json.dumps({'type': 'ocr', 'generation': int(request['generation'])}),
                                              file=output_stream, flush=True))
+                    if extracted.get('ocr_model_missing'):
+                        extracted['ocr_retry'] = {key: request[key] for key in ('type', 'page', 'start', 'end', 'ocr_profile')}
                     print(json.dumps({"type": "text", "generation": int(request["generation"]),
                                       **extracted}), file=output_stream, flush=True)
                 else:
@@ -263,6 +269,9 @@ def serve(
                     "message": str(exc),
                     "document_id": request.get('document_id') if isinstance(request, dict) else None,
                     "timeout": isinstance(exc, TimeoutError),
+                    "ocr_model_missing": isinstance(exc, OcrModelMissing),
+                    "ocr_retry": ({key: request[key] for key in ('type', 'page', 'start', 'end', 'ocr_profile')}
+                                  if isinstance(exc, OcrModelMissing) else None),
                 }), file=output_stream, flush=True)
             finally:
                 # Release credential references before waiting for the next request.

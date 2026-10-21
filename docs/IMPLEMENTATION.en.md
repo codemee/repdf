@@ -31,6 +31,8 @@ uv run --locked python -m pytest
 | cryptography | Native AES PDF encryption/decryption support, collected by uv and desktop packaging |
 | pypdfium2 | Render PDF pages in a separate process |
 | Pillow | Save PDFium bitmaps as PNGs |
+| RapidOCR (rtl extra) / ONNX Runtime | Local OCR with built-in and additional script models; the RTL extra supports Arabic processing |
+| Qt Network | Confirmed asynchronous model downloads, SHA256 verification, and atomic writes to user data |
 | pytest | Core and integration tests |
 | pytest-qt | Qt GUI and asynchronous behavior tests |
 
@@ -50,6 +52,9 @@ src/repdf/
 ├── theme.py           System/light/dark modes and control styling
 ├── workers.py         QRunnable PDF loading and export tasks
 ├── renderer.py        Communication with the persistent rendering backend
+├── ocr.py             OCR inference, language-specific engines, and offline verification
+├── ocr_models.py      Pinned official model URLs/SHA256 and user model directory
+├── ocr_languages.py   Language menu, asynchronous download dialog, and retries
 ├── render_worker.py   PDFium service in the child process
 └── assets/            PNG and Windows ICO application icons
 
@@ -405,3 +410,19 @@ Packaged smoke tests must stop render backends holding cached PDFs before removi
 - The entry point opens `PrintPreviewDialog` with horizontal panels in wide windows and stacked panels in narrow ones. Only confirmation transfers the final snapshot through `accepted_pages` and creates `PrintJob`. Without a printer, preview remains available while printing is disabled. `ordered_print_pages()` reads ranges/order without consuming or changing copies/reverse settings. Preview shows one copy, with the copy count in paper information.
 - Preview uses a separate backend with one-page `print_preview` requests at 150 DPI, capped at 4 million pixels and three cached pages. Rapid navigation coalesces pending requests; stale-generation results are deleted and ignored. Zoom/paper changes share `print_rect()` for drawing/clipping on white paper. Monochrome preview converts to grayscale according to settings. Driver duplex/binding is not simulated as paper flipping.
 - Preview supports navigation, page input, view zoom, print scaling, and reopening printer settings. Closing/canceling stops the backend before clearing images, temporary files, and password snapshots. Printing is disabled until a preview loads successfully. Packaged smoke tests also verify preview loading without creating print output files.
+
+## 20. OCR languages and model downloads
+
+- Region OCR keeps its 34 × 34 main button and 20 × 20 icon. A separate 14 × 34 arrow in the same group opens the language menu managed by `OcrLanguageController`; toolbar overflow preserves this menu.
+- `ocr/language` uses existing QSettings, defaulting to `builtin`. Additional choices are saved only after download and SHA256 verification succeed. Missing models never silently fall back to the built-in language.
+- `ocr_models.py` pins URLs and SHA256 values from RapidOCR 3.10.0's official `default_models.yaml`. Models live in user data, separate from source, installation paths, and `_MEIPASS`.
+- `OcrModelDialog` streams Qt Network data into QSaveFile while computing SHA256, then commits atomically. A 30-second transfer inactivity timeout and 180-second total budget bound downloads. Cancellation/errors discard temporary data without overwriting existing files. Failures can be retried; closing the dialog or application aborts downloads.
+- Every `request_text` carries `ocr_profile` to the existing rendering backend, shared by region recognition and damaged-text fallback. The engine cache is keyed by profile and holds at most one engine to limit memory after language switches.
+- Built-in recognition uses PP-OCRv6 small. Additional recognition explicitly selects PP-OCRv5 mobile using OCRVersion/ModelType enums and a language code; detection retains the bundled model. ONNX models embed their dictionaries. Explicit local paths bypass RapidOCR's automatic downloader.
+- `OcrModelMissing` reports missing/damaged models. After download, retry only if the document is open, mode/language still match, and no newer selection replaced the generation. Retry snapshots do not retain PDF passwords or reopen closed documents.
+- `rapidocr[rtl]` and the explicit PyInstaller `bidi.algorithm` hidden import support Arabic. Optional models are excluded from desktop bundles. Packaged self-tests check Qt HTTPS, RTL runtime, confirmation before downloading, and user data placement without downloading models.
+- `test_ocr_languages.py` uses a local HTTP server for downloads, checksums, cancellation, timeout, retry, and saved settings. Existing tests cover offline built-in inference. When model URLs/hashes change, also verify official downloads, ONNX loading, and matching scripts. Desktop packaging runs only in cloud workflows.
+
+- `auto` is a virtual choice with no model file. Region detection uses the built-in engine. Recognition processes all lines with the built-in model first, then one specialist at a time, loading each model once per request while retaining one engine and one crop image at a time.
+- Automatic mode enumerates only SHA256-verified downloaded models and never downloads in the backend. Selection uses a 0.8 basic confidence threshold, at least 60% matching-script letters, at least 0.9 confidence when replacing a valid built-in result, conservative margins, and ambiguity checks. These heuristics do not calibrate cross-model probabilities. The shared 60-second deadline cannot be swallowed by ignoring specialist failures.
+- Stable QActions are regrouped with two separators and no headings based on verified availability, with downloaded suffixes on installed models. `auto` can be selected without downloads. Successful downloads and externally removed/corrupt models update grouping when the menu is reopened. `test_ocr_auto.py` covers per-line selection, model-major loading, scripts, ambiguity, and deadlines.

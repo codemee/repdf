@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import os
+import sys
 import tempfile
 import traceback
 from contextlib import ExitStack
@@ -29,6 +30,10 @@ def main(report_path: str) -> int:
         from repdf.strings import tr
         from repdf.theme import ThemeController
         from repdf.ocr import _engine, recognize_region
+        from repdf.ocr_languages import OcrModelDialog
+        from repdf.ocr_models import PROFILES, model_path
+        from PySide6.QtNetwork import QSslSocket
+        from bidi.algorithm import get_display
         from repdf.search import compile_query
         import pypdfium2 as pdfium
         from PIL import Image, ImageDraw, ImageFont
@@ -44,6 +49,17 @@ def main(report_path: str) -> int:
         language.close()
         if load_app_icon().isNull():
             raise RuntimeError("Application icon is missing")
+        if not QSslSocket.supportsSsl():
+            raise RuntimeError('HTTPS support for optional OCR model downloads is missing')
+        if get_display('abc') != 'abc' or 'korean' not in PROFILES:
+            raise RuntimeError('Optional OCR language runtime is missing')
+        frozen_root = getattr(sys, '_MEIPASS', None)
+        if frozen_root and model_path('korean').is_relative_to(Path(frozen_root)):
+            raise RuntimeError('Optional OCR models must be stored outside the bundle')
+        download_dialog = OcrModelDialog('korean')
+        if download_dialog.reply is not None:
+            raise RuntimeError('OCR downloads must require explicit confirmation')
+        download_dialog.reject()
         if not compile_query(r'sm.ke', regular_expression=True).search('SMOKE', timeout=1):
             raise RuntimeError('Search regular expression runtime failed')
         ocr_image = Image.new('RGB', (500, 100), 'white')
@@ -61,12 +77,15 @@ def main(report_path: str) -> int:
                 ocr_page = ocr_document[0]
                 try:
                     region_result = recognize_region(ocr_page, [0, 0], [1, 1])
+                    auto_result = recognize_region(ocr_page, [0, 0], [1, 1], profile='auto')
                 finally:
                     ocr_page.close()
             finally:
                 ocr_document.close()
             if region_result['text'] != 'Copy this text':
                 raise RuntimeError(f"Packaged region OCR failed: {region_result['text']}")
+            if auto_result['text'] != 'Copy this text':
+                raise RuntimeError(f"Packaged automatic OCR failed: {auto_result['text']}")
             source = root / "source.pdf"
             writer = PdfWriter()
             for width in (200, 300):

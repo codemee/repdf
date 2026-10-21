@@ -1,6 +1,6 @@
 [project]
 name = "repdf"
-version = "0.1.0"
+version = "0.1.1"
 description = "RePDF (Read the PDF): a desktop PDF reader with printing, search, bookmarks, OCR and page rearrangement."
 readme = "README.md"
 requires-python = ">=3.11"
@@ -11,7 +11,7 @@ dependencies = [
     "pypdf[crypto]>=5.0,<7",
     "pypdfium2>=4.30,<6",
     "pyside6>=6.8,<7",
-    "rapidocr==3.10.0",
+    "rapidocr[rtl]==3.10.0",
     "regex>=2024.11.6",
 ]
 

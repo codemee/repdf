@@ -68,7 +68,8 @@ def test_encrypted_background_render_text_ocr_and_image(tmp_path, monkeypatch):
     bitmap, locked_bitmap = tmp_path / 'bitmap.pdf', tmp_path / 'locked-bitmap.pdf'
     image_pdf(bitmap, alpha=True)
     encrypt(bitmap, locked_bitmap)
-    def region(page, *_args):
+    def region(page, *_args, profile='builtin'):
+        assert profile == 'builtin'
         textpage = page.get_textpage()
         try:
             return {'text': textpage.get_text_range(), 'rects': []}

@@ -40,6 +40,8 @@ class OverflowToolBar(QToolBar):
         self.overflow_button.setAccessibleName(tr("更多工具"))
         self.overflow_menu = QMenu(self)
         self._overflow_controls = {}
+        self._action_groups = {}
+        self._group_buttons = {}
         self.overflow_button.setMenu(self.overflow_menu)
         self.overflow_button.setPopupMode(QToolButton.ToolButtonPopupMode.InstantPopup)
         self.overflow_menu.aboutToShow.connect(self._populate_overflow)
@@ -72,6 +74,37 @@ class OverflowToolBar(QToolBar):
         action = self.addWidget(widget)
         self._overflow_controls[action] = controls
         return action
+
+    def widgetForAction(self, action):
+        return self._group_buttons.get(action) or super().widgetForAction(action)
+
+    def add_action_menu_group(self, action, menu):
+        group = QWidget()
+        layout = QHBoxLayout(group)
+        layout.setContentsMargins(0, 0, 0, 0)
+        layout.setSpacing(2)
+        button = QToolButton(group)
+        button.setDefaultAction(action)
+        button.setFixedSize(34, 34)
+        button.setIconSize(QSize(20, 20))
+        button.setProperty('stateButton', action.isCheckable())
+        button.setAttribute(Qt.WidgetAttribute.WA_Hover, True)
+        arrow = QToolButton(group)
+        arrow.setObjectName('ocrLanguageMenu')
+        arrow.setFixedSize(14, 34)
+        arrow.setIconSize(QSize(12, 12))
+        arrow.setIcon(toolbar_icon('chevron_down'))
+        arrow.setFocusPolicy(Qt.FocusPolicy.NoFocus)
+        arrow.setMenu(menu)
+        arrow.setPopupMode(QToolButton.ToolButtonPopupMode.InstantPopup)
+        arrow.setStyleSheet('QToolButton { border: none; padding: 0; } '
+                            'QToolButton::menu-indicator { image: none; }')
+        layout.addWidget(button)
+        layout.addWidget(arrow)
+        group_action = self.addWidget(group)
+        self._action_groups[group_action] = (action, menu)
+        self._group_buttons[action] = button
+        return arrow
 
     def _control_row(self, controls):
         row = QWidget()
@@ -116,8 +149,14 @@ class OverflowToolBar(QToolBar):
                         self.overflow_menu.addSeparator()
                 elif action in self._overflow_controls:
                     self.overflow_menu.addAction(self._control_row(self._overflow_controls[action]))
+                elif action in self._action_groups:
+                    primary, menu = self._action_groups[action]
+                    self.overflow_menu.addAction(primary)
+                    self.overflow_menu.addMenu(menu)
                 elif not isinstance(action, QWidgetAction):
                     self.overflow_menu.addAction(action)
+                    if isinstance(widget, QToolButton) and widget.menu() is not None:
+                        self.overflow_menu.addMenu(widget.menu())
         actions = self.overflow_menu.actions()
         if actions and actions[-1].isSeparator():
             self.overflow_menu.removeAction(actions[-1])

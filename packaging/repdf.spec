@@ -10,7 +10,7 @@ data = [(str(root / "src/repdf/assets"), "repdf/assets")]
 data += [(str(Path(QLibraryInfo.path(QLibraryInfo.LibraryPath.TranslationsPath)) / "qtbase_zh_TW.qm"), "repdf/assets")]
 data += copy_metadata("repdf")
 binaries = []
-hiddenimports = []
+hiddenimports = ['bidi.algorithm']
 for package in ("pypdfium2", "pypdfium2_raw", "rapidocr", "onnxruntime"):
     package_data, package_binaries, package_imports = collect_all(package)
     # Region OCR also needs detection; direction classification is unused.

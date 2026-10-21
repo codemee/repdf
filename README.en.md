@@ -18,7 +18,7 @@ Download the file for your platform from [GitHub Releases](https://github.com/co
 - **Windows x86_64**: Download and run `repdf-<version>-windows-x86_64.exe`.
 - **macOS Apple Silicon (arm64)**: Download `repdf-<version>-macos-arm64.dmg`, open it, drag `RePDF.app` into Applications, and launch it from there.
 - Releases include SHA256 checksum files.
-- Desktop packages include the OCR runtime and models; no additional installation is needed.
+- Desktop packages include the OCR runtime and built-in multilingual model. Additional languages can be downloaded when first selected, then used offline.
 - The apps currently have no Windows code signature or macOS Developer ID signature/notarization, so your system may display a security prompt.
 
 ### 2. Install with uv tool
@@ -196,7 +196,10 @@ The toolbar controls are described below. Hover over a control to see its toolti
 - The full embedded image is exported, without page-level rotation or cropping, surrounding text, or vector graphics.
 - Clicking an empty area displays a message. If images overlap, the last-painted image is selected.
 - Scanned pages usually yield the whole scanned image; photos or charts within it cannot be directly separated.
-- OCR supports Traditional Chinese, Simplified Chinese, English, Japanese, and multiple Latin-script languages, but not Korean. Review recognized text for errors. See the [OCR guide](docs/OCR.en.md) for details and limitations.
+- OCR defaults to Traditional Chinese, Simplified Chinese, English, Japanese, and multiple Latin-script languages. Use the arrow beside Region OCR to select Korean, Thai, Russian/Ukrainian, Arabic, or Hindi/Nepali. Greek, Tamil, and Telugu are also available.
+- Automatic + downloaded models combines locally available models and chooses results per line. It never downloads other models automatically.
+- Separators divide automatic choices, downloaded models, and models not downloaded, without group headings. Downloaded models have a (downloaded) suffix. Groups and labels update after downloads or when files are missing or corrupt.
+- Additional models require download confirmation. The language changes only after a successful download; canceling or failure keeps the previous setting. Your language choice is saved and applies to both region OCR and damaged-text fallback. Review the output. See the [OCR guide](docs/OCR.en.md) for details and limitations.
 
 ## Language and theme
 

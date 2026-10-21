@@ -10,7 +10,7 @@ from importlib.resources import files
 from pathlib import Path
 from shiboken6 import isValid
 
-from PySide6.QtCore import QEvent, QSettings, QSize, Qt, QThreadPool, QTimer, Slot
+from PySide6.QtCore import QEvent, QPointF, QSettings, QSize, Qt, QThreadPool, QTimer, Slot
 from PySide6.QtGui import (
     QCloseEvent,
     QAction,
@@ -66,6 +66,7 @@ from repdf.search_panel import SearchController
 from repdf.page_view import PageViewport, PreviewCache
 from repdf.navigation import NavigationController
 from repdf.printing import PrintController
+from repdf.ocr_languages import OcrLanguageController
 
 
 class DocumentView(QWidget):
@@ -383,6 +384,7 @@ class MainWindow(QMainWindow):
         self._next_generation = 0
         self._render_documents = {}
         self._text_requests = {}
+        self._ocr_generations = {}
         self._image_requests = {}
         self._active_tasks = set()
         self._load_batches = {}
@@ -714,8 +716,11 @@ class MainWindow(QMainWindow):
         self.region_ocr_action.setCheckable(True)
         self.region_ocr_action.setToolTip(tr('區域 OCR：框選頁面或圖片中的區域，放開滑鼠後辨識並複製文字。'))
         self.region_ocr_action.toggled.connect(self._set_region_ocr_mode)
-        self.toolbar.addAction(self.region_ocr_action)
+        self.ocr_languages = OcrLanguageController(self)
+        self.ocr_language_button = self.toolbar.add_action_menu_group(self.region_ocr_action, self.ocr_languages.menu)
         self.toolbar.widgetForAction(self.region_ocr_action).setObjectName('regionOcrTool')
+        self.ocr_language_button.setToolTip(tr('OCR 辨識語言'))
+        self.ocr_language_button.setAccessibleName(tr('OCR 辨識語言'))
         self.extract_image_action = QAction(tr('擷取圖片'), self)
         self.extract_image_action.setCheckable(True)
         self.extract_image_action.setEnabled(False)
@@ -808,6 +813,8 @@ class MainWindow(QMainWindow):
                     button.setFixedSize(34, 34)
 
     def _refresh_toolbar_icons(self) -> None:
+        if hasattr(self, 'ocr_language_button'):
+            self.ocr_language_button.setIcon(toolbar_icon('chevron_down'))
         for action, kind in ((self.open_action, "open"), (self.export_action, "export"),
                              (self.split_action, "split"), (self.copy_text_action, "copy_text"),
                              (self.region_ocr_action, "ocr_region"),
@@ -868,6 +875,7 @@ class MainWindow(QMainWindow):
         self._update_preference_actions()
         self.search_controller.retranslate()
         self.navigation.retranslate()
+        self.ocr_languages.refresh()
 
     def changeEvent(self, event: QEvent) -> None:
         super().changeEvent(event)
@@ -930,6 +938,7 @@ class MainWindow(QMainWindow):
             for label in self._fullscreen_preview.labels.values():
                 label.set_text_mode(enabled, region=region, image=image)
         self._text_requests.clear()
+        self._ocr_generations.clear()
         self._image_requests.clear()
 
     def _copy_text_selection(self, doc, page_index, label, start, end, *, copy=True) -> None:
@@ -950,12 +959,14 @@ class MainWindow(QMainWindow):
             if document_id == doc.document_id:
                 self._text_requests.pop(previous)
         self._text_requests[generation] = (doc.document_id, label, copy)
+        self._ocr_generations[doc.document_id] = generation
         self.render_service.request_text(
             doc.source_path, page_index,
             (start.x() / label.width(), start.y() / label.height()),
             (end.x() / label.width(), end.y() / label.height()),
             generation, -1_000_000 - doc.document_id,
             allow_ocr=copy, region_ocr=region, password=doc.password,
+            ocr_profile=self.ocr_languages.profile,
         )
         if copy:
             self.statusBar().showMessage(tr('正在辨識選取區域…') if region else tr('正在擷取文字…'))
@@ -1305,6 +1316,7 @@ class MainWindow(QMainWindow):
             if document_id == doc.document_id:
                 self._render_documents.pop(generation)
         self.documents.pop(doc.document_id, None)
+        self._ocr_generations.pop(doc.document_id, None)
         self.search_controller.remove_document(doc.document_id)
         self.navigation.remove_document(doc)
         self.tabs.removeTab(index)
@@ -1340,6 +1352,19 @@ class MainWindow(QMainWindow):
         if generation in self._text_requests:
             document_id, label, copy = self._text_requests[generation]
             if document_id in self.documents and not self._closing:
+                retry = payload.get('ocr_retry')
+                if payload.get('ocr_model_missing') and copy and retry:
+                    def retry_selection(document_id=document_id, label=label, retry=retry, generation=generation):
+                        doc = self.documents.get(document_id)
+                        if (doc is None or not isValid(label) or self._closing or not label.text_mode
+                                or self._ocr_generations.get(document_id) != generation
+                                or self.ocr_languages.profile != retry['ocr_profile']
+                                or label.region_mode != (retry['type'] == 'ocr_region')):
+                            return
+                        self._copy_text_selection(doc, retry['page'], label,
+                            QPointF(retry['start'][0] * label.width(), retry['start'][1] * label.height()),
+                            QPointF(retry['end'][0] * label.width(), retry['end'][1] * label.height()))
+                    self.ocr_languages.ensure(retry['ocr_profile'], retry_selection)
                 if payload.get('type') == 'ocr' and copy:
                     self.statusBar().showMessage(tr('選取文字疑似損壞，正在進行 OCR…'))
                 elif payload.get('type') == 'text':
@@ -1478,6 +1503,7 @@ class MainWindow(QMainWindow):
 
     def closeEvent(self, event: QCloseEvent) -> None:
         self._closing = True
+        self.ocr_languages.close()
         self.print_controller.close()
         self.search_controller.stop()
         self._password_queue.clear()
