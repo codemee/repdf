@@ -44,9 +44,10 @@ src/repdf/
 ├── core.py            GUI-independent selection, validation, and PDF output logic
 ├── widgets.py         Individual PageCard previews
 ├── page_view.py       Visible-page scheduling, card virtualization, and shared image cache
-├── navigation.py      Bookmark sidebar and internal-link navigation
+├── navigation.py      Bookmark/annotation sidebar and internal-link navigation
 ├── printing.py        Print settings, range snapshots, and page-by-page printing
 ├── print_preview.py   On-demand print preview and paper layout canvas
+├── pdf_annotations.py PDFium annotation metadata and marked-text extraction
 ├── pdf_navigation.py  Backend bookmark/link/destination extraction
 ├── preview.py         Fullscreen single-page/spread/cover view, fitting, and selection
 ├── theme.py           System/light/dark modes and control styling
@@ -426,3 +427,15 @@ Packaged smoke tests must stop render backends holding cached PDFs before removi
 - `auto` is a virtual choice with no model file. Region detection uses the built-in engine. Recognition processes all lines with the built-in model first, then one specialist at a time, loading each model once per request while retaining one engine and one crop image at a time.
 - Automatic mode enumerates only SHA256-verified downloaded models and never downloads in the backend. Selection uses a 0.8 basic confidence threshold, at least 60% matching-script letters, at least 0.9 confidence when replacing a valid built-in result, conservative margins, and ambiguity checks. These heuristics do not calibrate cross-model probabilities. The shared 60-second deadline cannot be swallowed by ignoring specialist failures.
 - Stable QActions are regrouped with two separators and no headings based on verified availability, with downloaded suffixes on installed models. `auto` can be selected without downloads. Successful downloads and externally removed/corrupt models update grouping when the menu is reopened. `test_ocr_auto.py` covers per-line selection, model-major loading, scripts, ambiguity, and deadlines.
+
+## 21. Annotation list
+
+- `NavigationController` shares the left pane between `bookmarks` and `annotations`, retaining selection/expansion per document and mode. Search remains mutually exclusive. Narrow windows reuse the list/PDF single-pane layout.
+- `DocumentView.annotations` starts as `None`; opening files does not scan the full annotation list. The first annotation-pane request starts a dedicated `RenderService` through the existing frozen-compatible backend, keeping whole-document scanning out of the preview queue. Switching documents/modes or closing the pane/document/application stops this service and invalidates its generations.
+- `pdf_annotations.py` reads supported markup subtypes, UTF-16LE Contents/T/Subj/M strings, and rectangles through PDFium, one page at a time. Links, form widgets, and popup containers are excluded. Annotation/page/document handles are explicitly closed.
+- Highlights, underlines, squiggles, and strikeouts without Contents extract source text from attachment quads. Image-only markup shows an empty-text label without running OCR. Invalid rectangles still allow page-level navigation.
+- Collapsed-by-default page groups show original page numbers and annotation counts; child rows show types and one-line summaries. Expansion is remembered per document and survives interface translation. Full content and metadata appear in HTML-escaped tooltips. Activation reuses navigation generations and original page indices, converting XYZ positions for rotation/crop while preserving zoom and reordered pages.
+- Page groups share the destination and bounds of their first listed annotation. Individual annotations normalize all four rectangle corners for crop/rotation into `annotation_rect`; navigation targets the displayed top-left corner. `PageViewport` retains this independent overlay across card recreation and fullscreen views. Page groups update the marker; bookmarks and search results clear it without modifying the PDF.
+- Preview requests call `read_annotations(..., include_text=False)` only for requested pages, returning `annotation_hits` identified by original page and PDF annotation index without extracting text or scanning other pages. `DocumentView.page_annotations` restores hit targets in recreated cards and fullscreen labels. Reading mode prioritizes annotations over links; drag and selection/OCR/image modes retain their behavior. Page clicks open the list and synchronize selection after background loading without another page jump, preserving fullscreen and the narrow-window PDF view.
+- User selection records a one-shot copy request by document, original page, and annotation index. After successful list navigation or background text loading for a page click, nonempty Contents (including the marked-text fallback) is copied. Restoring UI state or translating does not copy. Closing the pane or switching sidebars clears markers across documents and fullscreen labels, pending copy requests, and the latest navigation generation so late results cannot restore markers or change the clipboard.
+- `test_annotations.py` covers Unicode, encrypted PDFs, marked text, rotation/crop, reordered navigation, mode/tab switching, empty lists, and stale-result protection. The source PDF remains read-only; annotation editing and attachment execution are not provided.

@@ -13,6 +13,7 @@ import pypdfium2 as pdfium
 from repdf.ocr import OcrError, OcrModelMissing, recognize_region, recognize_selection, suspicious_text
 from repdf.images import extract_clicked_image
 from repdf.pdf_navigation import read_bookmarks, read_page_label, read_page_links, resolve_destination
+from repdf.pdf_annotations import read_annotations
 
 
 class PdfDocumentCache:
@@ -69,6 +70,11 @@ def render_document(
             try:
                 width_points, height_points = page.get_size()
                 links = read_page_links(document, page)
+                annotation_hits = [
+                    {'rect': annotation['destination']['annotation_rect'],
+                     'destination': {**annotation['destination'], 'annotation_index': annotation['index']}}
+                    for annotation in read_annotations(document, [page_index], include_text=False)
+                    if 'annotation_rect' in annotation['destination']]
                 page_label = read_page_label(document, page_index)
                 render_scale = max(scale, 0.1)
                 if max_pixels is not None:
@@ -89,6 +95,7 @@ def render_document(
                 "page": page_index, "path": str(output),
                 "width_points": width_points, "height_points": height_points,
                 "links": links,
+                "annotation_hits": annotation_hits,
                 "page_label": page_label,
             }), file=output_stream, flush=True)
     finally:
@@ -206,10 +213,19 @@ def serve(
                 request = json.loads(line)
                 if request.get('type') == 'release_document':
                     documents.release(request['source'])
-                elif request.get('type') in ('bookmarks', 'navigate'):
-                    document = documents.get(request['source'], request.get('password'))
-                    result = ({'bookmarks': read_bookmarks(document)} if request['type'] == 'bookmarks'
-                              else resolve_destination(document, request['destination']))
+                elif request.get('type') in ('bookmarks', 'annotations', 'navigate'):
+                    owned = request['type'] == 'annotations'
+                    document = (pdfium.PdfDocument(request['source'], password=request.get('password')) if owned
+                                else documents.get(request['source'], request.get('password')))
+                    try:
+                        if request['type'] == 'navigate':
+                            result = resolve_destination(document, request['destination'])
+                        else:
+                            reader = read_bookmarks if request['type'] == 'bookmarks' else read_annotations
+                            result = {request['type']: reader(document)}
+                    finally:
+                        if owned:
+                            document.close()
                     print(json.dumps({'type': request['type'], 'generation': request['generation'], **result}),
                           file=output_stream, flush=True)
                 elif request.get('type') == 'search':

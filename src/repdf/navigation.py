@@ -1,12 +1,15 @@
-"""Bookmark sidebar, internal navigation and web links for the current document."""
+"""Bookmark/annotation sidebar, internal navigation and web links."""
+
+from html import escape
 
 from PySide6.QtCore import QEvent, QObject, QSize, Qt, QUrl
 from PySide6.QtGui import QDesktopServices
-from PySide6.QtWidgets import (QHBoxLayout, QLabel, QLayout, QSplitter, QToolButton,
+from PySide6.QtWidgets import (QApplication, QHBoxLayout, QLabel, QLayout, QSplitter, QToolButton,
                                QTreeWidget, QTreeWidgetItem, QVBoxLayout, QWidget)
 
 from repdf.icons import toolbar_icon
 from repdf.strings import tr
+from repdf.renderer import RenderService, start_render_backend
 
 
 class BookmarkPanel(QWidget):
@@ -18,7 +21,8 @@ class BookmarkPanel(QWidget):
         layout.setSpacing(6)
         layout.setSizeConstraint(QLayout.SizeConstraint.SetNoConstraint)
         row = QHBoxLayout()
-        row.addWidget(QLabel(tr('書籤')), 1)
+        self.title = QLabel(tr('書籤'))
+        row.addWidget(self.title, 1)
         self.close_button = QToolButton()
         self.close_button.setText(tr('關閉書籤窗格'))
         self.close_button.setAccessibleName(tr('關閉書籤窗格'))
@@ -63,23 +67,34 @@ class NavigationController(QObject):
         self.opened = False
         self.narrow_results = True
         self.displayed_id = None
+        self.kind = 'bookmarks'
+        self.displayed_kind = None
+        self.annotation_service = None
         self.items = []
+        self.annotation_groups = {}
         self.states = {}
         self.requests = {}
         self.latest_jump = None
+        self.annotation_selection = None
+        self.pending_annotation_copy = None
         self._layout_state = None
         self.panel.close_button.clicked.connect(self.close)
         self.panel.tree.itemClicked.connect(self._clicked)
         self.panel.tree.itemActivated.connect(self._clicked)
 
-    def toggle(self):
-        if self.panel.isVisible():
+    def toggle(self, kind='bookmarks'):
+        if self.panel.isVisible() and self.kind == kind:
             self.close()
         else:
-            self.open()
+            self.open(kind)
 
-    def open(self):
-        if self.owner._fullscreen_preview is not None:
+    def open(self, kind='bookmarks', *, keep_fullscreen=False):
+        if kind != self.kind:
+            if self.kind == 'annotations':
+                self._clear_annotation_selection()
+            self._cancel_annotations()
+        self.kind = kind
+        if self.owner._fullscreen_preview is not None and not keep_fullscreen:
             self.owner._fullscreen_preview.close()
         self.owner.search_controller.close()
         self.opened = True
@@ -89,46 +104,69 @@ class NavigationController(QObject):
         self.panel.tree.setFocus()
 
     def close(self):
+        if self.kind == 'annotations':
+            self._clear_annotation_selection()
+        self._cancel_annotations()
         self.opened = False
         self.layout()
 
+    def _clear_annotation_selection(self):
+        self.annotation_selection = None
+        self.pending_annotation_copy = None
+        self.latest_jump = None
+        for doc in self.owner.documents.values():
+            doc.pages.set_annotation_highlight(None, None)
+
     def layout(self):
         narrow = self.owner.width() < 640
-        state = narrow, self.opened, self.narrow_results
+        state = narrow, self.opened, self.narrow_results, self.kind
         if state == self._layout_state:
             return
         self._layout_state = state
         visible = self.opened and (not narrow or self.narrow_results)
         self.content.setVisible(not (narrow and visible))
         self.panel.setVisible(visible)
-        self.owner.bookmark_action.setChecked(visible)
+        self.owner.bookmark_action.setChecked(visible and self.kind == 'bookmarks')
+        self.owner.annotation_action.setChecked(visible and self.kind == 'annotations')
         if visible and not narrow:
             self.workspace.setSizes([260, max(1, self.owner.width() - 260)])
 
     def show_document(self):
         doc = self.owner.current_document()
         document_id = doc.document_id if doc is not None else None
-        if self.displayed_id != document_id:
-            selected = self.panel.tree.currentItem()
-            self.states[self.displayed_id] = ([i for i, item in enumerate(self.items) if item.isExpanded()],
-                                             self.items.index(selected) if selected in self.items else -1)
+        if self.pending_annotation_copy is not None and self.pending_annotation_copy[0] != document_id:
+            self.pending_annotation_copy = None
+        if (self.displayed_id, self.displayed_kind) != (document_id, self.kind):
+            self._cancel_annotations()
+            self._remember_state()
             self.latest_jump = None
             self.displayed_id = document_id
+            self.displayed_kind = self.kind
             self.panel.tree.clear()
             self.items = []
+            self.annotation_groups = {}
+        annotations = self.kind == 'annotations'
+        self.panel.title.setText(tr('註解' if annotations else '書籤'))
+        close_label = tr('關閉註解窗格' if annotations else '關閉書籤窗格')
+        self.panel.close_button.setText(close_label)
+        self.panel.close_button.setToolTip(close_label)
+        self.panel.close_button.setAccessibleName(close_label)
+        self.panel.tree.setAccessibleName(tr('PDF 註解' if annotations else 'PDF 書籤'))
+        self.panel.tree.setRootIsDecorated(True)
+        self.panel.tree.setIndentation(16)
         if not self.opened:
             return
         if doc is None or not doc.ready:
             self.panel.status.setText(tr('請先開啟 PDF 檔案'))
             self.panel.status.show()
             return
-        if doc.bookmarks is not None:
+        if getattr(doc, self.kind) is not None:
             self.populate(doc)
             return
-        self.panel.status.setText(tr('正在載入書籤…'))
+        self.panel.status.setText(tr('正在載入註解…' if annotations else '正在載入書籤…'))
         self.panel.status.show()
-        if not any(value == (doc.document_id, 'bookmarks', False) for value in self.requests.values()):
-            self._request(doc, 'bookmarks')
+        if not any(value == (doc.document_id, self.kind, False) for value in self.requests.values()):
+            self._request(doc, self.kind)
 
     def _request(self, doc, kind, destination=None, fullscreen=False):
         self.owner._next_generation += 1
@@ -138,7 +176,17 @@ class NavigationController(QObject):
         self.requests[generation] = doc.document_id, kind, fullscreen
         if kind == 'navigate':
             self.latest_jump = generation
-        self.owner.render_service.request_navigation(doc.source_path, doc.document_id, generation, kind,
+        service = self.owner.render_service
+        if kind == 'annotations':
+            try:
+                if self.annotation_service is None:
+                    self.annotation_service = RenderService(start_render_backend(), self)
+                    self.annotation_service.message.connect(self.receive, Qt.ConnectionType.QueuedConnection)
+                service = self.annotation_service
+            except (OSError, RuntimeError) as exc:
+                self.receive({'type': 'error', 'generation': generation, 'message': str(exc)})
+                return generation
+        service.request_navigation(doc.source_path, doc.document_id, generation, kind,
                                                      destination=destination, password=doc.password)
         return generation
 
@@ -146,8 +194,11 @@ class NavigationController(QObject):
         if self.items:
             return
         self.panel.tree.clear()
+        if self.kind == 'annotations':
+            self.populate_annotations(doc)
+            return
         parents = []
-        remembered = self.states.get(doc.document_id)
+        remembered = self.states.get((doc.document_id, self.kind))
         for index, bookmark in enumerate(doc.bookmarks):
             level = min(bookmark['level'], len(parents))
             parents = parents[:level]
@@ -165,14 +216,75 @@ class NavigationController(QObject):
         self.panel.status.setText(tr('此 PDF 沒有內建書籤'))
         self.panel.status.setVisible(not bool(doc.bookmarks))
 
+    def populate_annotations(self, doc):
+        counts = {}
+        first_destinations = {}
+        for annotation in doc.annotations:
+            page = annotation['page']
+            counts[page] = counts.get(page, 0) + 1
+            first_destinations.setdefault(page, annotation['destination'])
+        for page, count in counts.items():
+            title = tr('第 {page} 頁（{count} 則註解）', page=page + 1, count=count)
+            group = QTreeWidgetItem(self.panel.tree, [title])
+            group.setToolTip(0, title)
+            group.setData(0, Qt.ItemDataRole.UserRole, first_destinations[page])
+            self.annotation_groups[page] = group
+        for annotation in doc.annotations:
+            summary = ' '.join((annotation['contents'] or annotation['subject'] or tr('沒有文字內容')).split())
+            title = tr(annotation['kind']) + ' · ' + summary
+            item = QTreeWidgetItem(self.annotation_groups[annotation['page']], [title])
+            item.setData(0, Qt.ItemDataRole.UserRole, annotation['destination'])
+            details = [tr(annotation['kind']), annotation['contents'] or tr('沒有文字內容')]
+            for key, label in [('author', '作者：{value}'), ('subject', '主旨：{value}'), ('modified', '修改時間：{value}')]:
+                if annotation.get(key):
+                    details.append(tr(label, value=annotation[key]))
+            item.setToolTip(0, '<qt>' + '<br>'.join(escape(line).replace('\n', '<br>') for line in details) + '</qt>')
+            self.items.append(item)
+        remembered = self.states.get((doc.document_id, self.kind))
+        if remembered and 0 <= remembered[1] < len(self.items):
+            self.panel.tree.setCurrentItem(self.items[remembered[1]])
+        for page, group in self.annotation_groups.items():
+            group.setExpanded(remembered is not None and page in remembered[0])
+        self._select_annotation_item(doc)
+        self.panel.status.setText(tr('共 {count} 則註解', count=len(doc.annotations)) if doc.annotations else tr('此 PDF 沒有註解'))
+        self.panel.status.show()
+
+    def _remember_state(self):
+        selected = self.panel.tree.currentItem()
+        expanded = ([page for page, group in self.annotation_groups.items() if group.isExpanded()]
+                    if self.displayed_kind == 'annotations'
+                    else [i for i, item in enumerate(self.items) if item.isExpanded()])
+        self.states[self.displayed_id, self.displayed_kind] = (
+            expanded, self.items.index(selected) if selected in self.items else -1)
+
     def _clicked(self, item, _column=0):
+        self.annotation_selection = None
         destination = item.data(0, Qt.ItemDataRole.UserRole)
         doc = self.owner.current_document()
         if destination is not None and doc is not None:
             self.activate(doc, destination)
+            if self.kind == 'annotations':
+                target = item if item in self.items else item.child(0)
+                if target in self.items:
+                    annotation = doc.annotations[self.items.index(target)]
+                    self.pending_annotation_copy = doc.document_id, annotation['page'], annotation['index']
 
     def activate(self, doc, destination, fullscreen=False):
         if doc.ready and doc is self.owner.current_document():
+            self.pending_annotation_copy = None
+            if 'annotation_index' in destination:
+                self.latest_jump = None
+                doc._search_navigation = None
+                self.annotation_selection = doc.document_id, destination['page'], destination['annotation_index']
+                self.pending_annotation_copy = self.annotation_selection
+                self.open('annotations', keep_fullscreen=fullscreen)
+                self.narrow_results = False
+                self.layout()
+                self._select_annotation_item(doc)
+                self.owner.search_controller.clear_highlights()
+                doc.pages.set_annotation_highlight(destination['page'], destination.get('annotation_rect'))
+                doc._focus_page(destination['page'])
+                return
             if 'url' in destination:
                 url = QUrl(destination['url'], QUrl.ParsingMode.StrictMode)
                 if (url.isValid() and url.scheme().lower() in ('http', 'https') and url.host()
@@ -181,6 +293,30 @@ class NavigationController(QObject):
                         self.owner.statusBar().showMessage(tr('無法開啟連結：{p0}', p0=destination['url']))
                 return
             self._request(doc, 'navigate', destination, fullscreen)
+
+    def _select_annotation_item(self, doc):
+        if (self.annotation_selection is None or self.kind != 'annotations'
+                or self.displayed_id != doc.document_id or doc.annotations is None):
+            return
+        for annotation, item in zip(doc.annotations, self.items):
+            if self.annotation_selection == (doc.document_id, annotation['page'], annotation['index']):
+                item.parent().setExpanded(True)
+                self.panel.tree.setCurrentItem(item)
+                self.panel.tree.scrollToItem(item)
+                self._copy_pending_annotation(doc)
+                break
+
+    def _copy_pending_annotation(self, doc):
+        if doc.annotations is None or doc is not self.owner.current_document():
+            return
+        for annotation in doc.annotations:
+            if self.pending_annotation_copy == (doc.document_id, annotation['page'], annotation['index']):
+                self.pending_annotation_copy = None
+                text = annotation['contents']
+                if text.strip():
+                    QApplication.clipboard().setText(text)
+                    self.owner.statusBar().showMessage(tr('已複製 {p0} 個字元到剪貼簿', p0=len(text)))
+                break
 
     def receive(self, payload):
         generation = payload.get('generation')
@@ -194,9 +330,9 @@ class NavigationController(QObject):
             self.requests.pop(generation, None)
         if doc is None or self.owner._closing:
             return True
-        if message_type == 'bookmarks':
-            doc.bookmarks = payload['bookmarks']
-            if doc.document_id == self.displayed_id:
+        if message_type in ('bookmarks', 'annotations'):
+            setattr(doc, message_type, payload[message_type])
+            if doc.document_id == self.displayed_id and self.kind == message_type:
                 self.populate(doc)
         elif message_type == 'navigate' and generation == self.latest_jump and doc is self.owner.current_document():
             page = payload['page']
@@ -204,6 +340,8 @@ class NavigationController(QObject):
             doc.page_sizes[page] = payload['width_points'], payload['height_points']
             doc._reflow_grid()
             self.owner.search_controller.clear_highlights()
+            doc.pages.set_annotation_highlight(page, payload.get('annotation_rect'))
+            self._copy_pending_annotation(doc)
             viewer = self.owner._fullscreen_preview
             if fullscreen and viewer is not None and viewer.document is doc:
                 viewer.show_page(page)
@@ -212,24 +350,48 @@ class NavigationController(QObject):
                 self.layout()
                 doc.jump_to_page(page, payload['point'])
         elif message_type == 'error':
-            message = tr('無法載入 PDF 導航：{p0}', p0=payload.get('message', ''))
-            if doc.document_id == self.displayed_id and kind == 'bookmarks':
+            message = tr('無法載入註解：{p0}' if kind == 'annotations' else '無法載入 PDF 導航：{p0}',
+                         p0=payload.get('message', ''))
+            if doc.document_id == self.displayed_id and kind == self.kind:
                 self.panel.status.setText(message)
                 self.panel.status.show()
             self.owner.statusBar().showMessage(message)
         return True
 
     def remove_document(self, doc):
-        self.states.pop(doc.document_id, None)
+        if self.annotation_selection is not None and self.annotation_selection[0] == doc.document_id:
+            self.annotation_selection = None
+        if self.pending_annotation_copy is not None and self.pending_annotation_copy[0] == doc.document_id:
+            self.pending_annotation_copy = None
+        if self.displayed_id == doc.document_id or any(
+                value[:2] == (doc.document_id, 'annotations') for value in self.requests.values()):
+            self._cancel_annotations()
+        for kind in ('bookmarks', 'annotations'):
+            self.states.pop((doc.document_id, kind), None)
         self.requests = {key: value for key, value in self.requests.items() if value[0] != doc.document_id}
         if self.displayed_id == doc.document_id:
             self.displayed_id = None
             self.items = []
+            self.annotation_groups = {}
             self.panel.tree.clear()
         for prefix in (-3_000_000, -4_000_000):
             self.owner.render_service.cancel_pending(prefix - doc.document_id)
 
     def retranslate(self):
-        self.panel.tree.setAccessibleName(tr('PDF 書籤'))
+        if self.kind == 'annotations':
+            self._remember_state()
+            self.panel.tree.clear()
+            self.items = []
+            self.annotation_groups = {}
         if self.opened:
             self.show_document()
+
+    def _cancel_annotations(self):
+        self.requests = {key: value for key, value in self.requests.items() if value[1] != 'annotations'}
+        service, self.annotation_service = self.annotation_service, None
+        if service is not None:
+            service.close(terminate_tree=True)
+            service.deleteLater()
+
+    def shutdown(self):
+        self._cancel_annotations()

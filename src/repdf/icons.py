@@ -20,7 +20,13 @@ def toolbar_icon(kind: str) -> QIcon:
         painter.setPen(QPen(QApplication.palette().color(group, role),
                             1.0, Qt.PenStyle.SolidLine, Qt.PenCapStyle.RoundCap,
                             Qt.PenJoinStyle.RoundJoin))
-        if kind == 'chevron_down':
+        if kind == 'annotations':
+            painter.drawPolyline(QPolygonF([QPointF(4, 3), QPointF(21, 3), QPointF(21, 17),
+                                            QPointF(11, 17), QPointF(6, 21), QPointF(6, 17),
+                                            QPointF(4, 17), QPointF(4, 3)]))
+            painter.drawLine(8, 8, 17, 8)
+            painter.drawLine(8, 12, 15, 12)
+        elif kind == 'chevron_down':
             pen = painter.pen()
             pen.setWidthF(2)
             painter.setPen(pen)

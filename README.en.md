@@ -2,7 +2,7 @@
 
 [繁體中文](README.md) | [English](README.en.md)
 
-RePDF stands for **Read the PDF**. Its command and Python package name are `repdf`. This desktop PDF reader supports multiple tabs, printing, bookmarks and table-of-contents links, text search, text copying, OCR, and image extraction. You can also select pages and rearrange or split them into new PDFs in tab and page order, preserving the original page quality.
+RePDF stands for **Read the PDF**. Its command and Python package name are `repdf`. This desktop PDF reader supports multiple tabs, printing, bookmarks and table-of-contents links, annotation lists, text search, text copying, OCR, and image extraction. You can also select pages and rearrange or split them into new PDFs in tab and page order, preserving the original page quality.
 
 ## Highlights
 
@@ -50,6 +50,7 @@ The toolbar controls are described below. Hover over a control to see its toolti
 | <picture><source media="(prefers-color-scheme: dark)" srcset="docs/images/toolbar-ocr-region-dark.png"><img src="docs/images/toolbar-ocr-region.png" width="24" alt="Region OCR"></picture> | Region OCR | Draw a rectangle over a page or image, then release to recognize and copy the text. | — |
 | <picture><source media="(prefers-color-scheme: dark)" srcset="docs/images/toolbar-extract-image-dark.png"><img src="docs/images/toolbar-extract-image.png" width="24" alt="Extract image"></picture> | Extract image | Enable this mode, click an embedded raster image, and choose where to save it as a PNG. | — |
 | <picture><source media="(prefers-color-scheme: dark)" srcset="docs/images/toolbar-bookmarks-dark.png"><img src="docs/images/toolbar-bookmarks.png" width="24" alt="Bookmarks"></picture> | Bookmarks | Expand or collapse the chapter tree on the left. Click a chapter to jump to it. | — |
+| <picture><source media="(prefers-color-scheme: dark)" srcset="docs/images/toolbar-annotations-dark.png"><img src="docs/images/toolbar-annotations.png" width="24" alt="Annotations"></picture> | Annotations | List comments in the left pane. Click one to jump to its page. | — |
 | <picture><source media="(prefers-color-scheme: dark)" srcset="docs/images/toolbar-search-dark.png"><img src="docs/images/toolbar-search.png" width="24" alt="Search text"></picture> | Search text | Search in the right pane. Select a file above and a matching paragraph below to navigate and highlight matches. | Windows/Linux: <kbd>Ctrl</kbd>+<kbd>F</kbd>; macOS: <kbd>⌘</kbd>+<kbd>F</kbd> |
 | <picture><source media="(prefers-color-scheme: dark)" srcset="docs/images/toolbar-zoom-dark.png"><img src="docs/images/toolbar-zoom.png" width="160" alt="Zoom percentage and slider"></picture> | Zoom | Adjust from 25% to 200% with the slider. Click the percentage to reset to 100%. Keyboard shortcuts change zoom by 25 percentage points. | In: <kbd>Ctrl</kbd>+<kbd>+</kbd> / <kbd>Ctrl</kbd>+<kbd>=</kbd>; out: <kbd>Ctrl</kbd>+<kbd>-</kbd>; 100%: <kbd>Ctrl</kbd>+<kbd>0</kbd> |
 | <picture><source media="(prefers-color-scheme: dark)" srcset="docs/images/toolbar-fit-dark.png"><img src="docs/images/toolbar-fit.png" width="24" alt="Fit"></picture> | Fit | Fit the current page proportionally into the reading area and adapt when the window is resized. The slider or zoom shortcuts return to manual zoom. | — |
@@ -135,10 +136,24 @@ The toolbar controls are described below. Hover over a control to see its toolti
 - Bookmarks follow the active tab. A message appears if the file has no embedded bookmarks.
 - Click links in a PDF's table of contents in normal or fullscreen view. Hover over an internal link to see a hand cursor and destination page number.
 - Navigation preserves zoom/Fit mode. Reordered pages are still located by their original destination page.
-- In narrow windows, bookmarks and the PDF share a single pane. Selecting a chapter returns to the PDF; click Bookmarks again to return to the tree. Use the respective toolbar buttons to switch between search and bookmarks.
+- In narrow windows, bookmarks and the PDF share a single pane. Selecting a chapter returns to the PDF; click Bookmarks again to return to the tree. Use the respective toolbar buttons to switch among search, bookmarks, and annotations.
 - Page links are temporarily disabled while copy text, region OCR, or image extraction mode is active. Disable the mode to follow links again. Pages can still be dragged to reorder them.
 - Embedded HTTP/HTTPS links open in your default browser in normal and fullscreen view. Hover to see the URL.
 - This uses existing PDF bookmarks and links. Plain text or scanned tables of contents and URLs are not automatically converted into links. Email links, external documents, and other actions are not supported.
+
+### Annotation list
+
+- Click the Annotations speech-bubble icon to open the active tab's comments in the left pane.
+- Annotations are grouped by original PDF page, with a count per page. Groups start collapsed; expand a page to view individual types and summaries. Expansion is preserved across tab, sidebar-mode, and interface-language changes. Hover for full text, author, subject, and modification time when provided.
+- Click a page group to jump to and mark its first listed annotation. Click an individual annotation to jump to its position and mark its bounds with a translucent fill and outline. Zoom/Fit mode is preserved, including after page reordering.
+- Selecting an annotation with text automatically copies its text to the clipboard; a page group copies its first annotation. Empty annotations leave the clipboard unchanged.
+- Closing the annotation pane or switching to another sidebar clears the marker. Reopening the list does not automatically copy text or restore the marker.
+- The marker follows zoom and fullscreen display. Selecting another annotation or page group updates it; selecting a bookmark or search result clears it. Annotations without valid bounds still support page navigation.
+- Notes, text boxes, highlights, underlines, strikeouts, ink, and shapes are supported. Text markup without a comment attempts to show the marked source text.
+- In normal reading mode, click an annotation on the page to mark its bounds and select its entry in the left list, expanding the matching page group. Fullscreen supports this too. Text selection, region OCR, and image extraction retain their own mouse actions. Narrow windows keep the PDF visible; reopen Annotations to see the selected entry.
+- The list follows the active tab and shows a message for files without annotations. Use the respective buttons to switch among bookmarks, annotations, and search.
+- In narrow windows, selecting a comment returns to the PDF. Click Annotations again to return to the list.
+- The full annotation list is read in the background only when the pane is opened. Page hit targets are read only for pages requested for display, without scanning the entire file on opening. This is a read-only list; it does not edit annotations or execute attachments.
 
 ### Search text
 

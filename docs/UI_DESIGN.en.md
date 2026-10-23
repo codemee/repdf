@@ -69,7 +69,7 @@ File, selection, and text tools are on the left. Stretchable space separates the
 | Disabled | Transparent background, disabled icon/text colors |
 | State button active | Hover background with accent-colored icon and no outline; pressed background when hovered |
 
-Copy text, region OCR, image extraction, bookmarks, Fit, and search options share the borderless `stateButton` styling with background radius 8. Copy text, region OCR, and image extraction remain mutually exclusive.
+Copy text, region OCR, image extraction, bookmarks, annotations, Fit, and search options share the borderless `stateButton` styling with background radius 8. Copy text, region OCR, and image extraction remain mutually exclusive.
 
 ## 4. Icon drawing specifications
 
@@ -256,3 +256,12 @@ A color swatch on the same row configures match highlighting, using a 34 × 34 b
 - Narrow windows expose OCR recognition language in toolbar overflow. An exclusive checked item identifies the active mode. Automatic and Automatic + downloaded models appear first. Two separators divide downloaded and not-downloaded models without headings; installed entries have a (downloaded) suffix.
 
 - Dark popup menus use the toolbar hover color `#3b2a56` as their background, `#4d376e` for hovered items, and `#625079` for borders/separators. Light menus retain a white background and light gray hover.
+
+## Annotations pane
+
+- A 34 × 34 toolbar state button opens the pane. Its 20 × 20 speech-bubble icon uses a 1 px stroke and the standard checked/hover backgrounds and accent color.
+- It shares the bookmark pane on the left: initial width 260, margins 8, spacing 6, and a 34 × 34 close button with a 20 × 20 icon. The pane status shows the count, loading state, or empty-list message.
+- Selecting an annotation with text copies it and reports the character count in the status bar; empty annotations preserve the clipboard. Closing the annotation pane or switching sidebars clears markers. Reopening does not restore markers or copy text.
+- In reading mode, annotation bounds use a pointing-hand cursor. Clicking marks the annotation and synchronizes the list selection and expanded group. Fullscreen stays open; narrow windows keep the PDF visible.
+- Clicking a page group jumps to and marks its first listed annotation. Individual annotations use a 2 px accent outline with translucent fill, scaled with the page in both normal and fullscreen views.
+- A single-column tree groups annotations by page. Page rows show the number and count and start collapsed; children elide long one-line summaries. Tooltips retain full text and metadata. In narrow windows, selecting an item returns to the PDF; the toolbar button reopens the list.

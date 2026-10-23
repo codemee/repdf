@@ -2,7 +2,7 @@
 
 [繁體中文](README.md) | [English](README.en.md)
 
-RePDF 代表 **Read the PDF**，命令與 Python 套件名稱為 `repdf`。這是一套桌面 PDF 閱讀器，支援多標籤閱讀、列印、書籤與目錄跳頁、文字搜尋、選字複製、OCR 及圖片擷取，也可勾選頁面，依標籤與頁面排列順序重組或拆分輸出。重組與拆分保留原始頁面品質。
+RePDF 代表 **Read the PDF**，命令與 Python 套件名稱為 `repdf`。這是一套桌面 PDF 閱讀器，支援多標籤閱讀、列印、書籤與目錄跳頁、註解清單、文字搜尋、選字複製、OCR 及圖片擷取，也可勾選頁面，依標籤與頁面排列順序重組或拆分輸出。重組與拆分保留原始頁面品質。
 
 ## 重點特色
 
@@ -51,6 +51,7 @@ repdf
 | <picture><source media="(prefers-color-scheme: dark)" srcset="docs/images/toolbar-ocr-region-dark.png"><img src="docs/images/toolbar-ocr-region.png" width="24" alt="區域 OCR 圖示"></picture> | 區域 OCR | 拖曳矩形框選頁面或圖片，放開滑鼠後辨識並複製文字。 | — |
 | <picture><source media="(prefers-color-scheme: dark)" srcset="docs/images/toolbar-extract-image-dark.png"><img src="docs/images/toolbar-extract-image.png" width="24" alt="擷取圖片圖示"></picture> | 擷取圖片 | 啟用後點選內嵌點陣圖片，再選擇位置另存為 PNG。 | — |
 | <picture><source media="(prefers-color-scheme: dark)" srcset="docs/images/toolbar-bookmarks-dark.png"><img src="docs/images/toolbar-bookmarks.png" width="24" alt="書籤圖示"></picture> | 書籤 | 在左側章節樹展開或收合書籤，點選章節即可跳頁。 | — |
+| <picture><source media="(prefers-color-scheme: dark)" srcset="docs/images/toolbar-annotations-dark.png"><img src="docs/images/toolbar-annotations.png" width="24" alt="註解圖示"></picture> | 註解 | 在左側列出註解，點選即可跳至對應頁面。 | — |
 | <picture><source media="(prefers-color-scheme: dark)" srcset="docs/images/toolbar-search-dark.png"><img src="docs/images/toolbar-search.png" width="24" alt="搜尋文字圖示"></picture> | 搜尋文字 | 在右側窗格搜尋文字，上方選檔案、下方選命中段落，單擊即可跳頁並高亮。 | Windows／Linux：<kbd>Ctrl</kbd>+<kbd>F</kbd>；macOS：<kbd>⌘</kbd>+<kbd>F</kbd> |
 | <picture><source media="(prefers-color-scheme: dark)" srcset="docs/images/toolbar-zoom-dark.png"><img src="docs/images/toolbar-zoom.png" width="160" alt="顯示比例與縮放滑桿"></picture> | 顯示比例 | 滑桿調整 25%–200%；點擊比例回到 100%。鍵盤縮放每次調整 25 個百分點。 | 放大：<kbd>Ctrl</kbd>+<kbd>+</kbd>／<kbd>Ctrl</kbd>+<kbd>=</kbd>；縮小：<kbd>Ctrl</kbd>+<kbd>-</kbd>；100%：<kbd>Ctrl</kbd>+<kbd>0</kbd> |
 | <picture><source media="(prefers-color-scheme: dark)" srcset="docs/images/toolbar-fit-dark.png"><img src="docs/images/toolbar-fit.png" width="24" alt="Fit 圖示"></picture> | Fit | 將目前單頁等比例縮放至預覽區；調整視窗大小時自動適應。拖動滑桿或使用縮放快捷鍵會回到手動比例。 | — |
@@ -136,10 +137,24 @@ repdf
 - 書籤跟隨目前標籤頁切換；沒有內建書籤的文件會顯示提示。
 - 一般預覽與全螢幕都可直接點選 PDF 頁內的目錄連結；滑鼠移到可跳頁區域時會顯示手指游標與目的頁碼。
 - 跳頁保留目前縮放／Fit 模式。頁面已重新排序時，仍會找到目的章節所屬的原始頁面。
-- 視窗縮窄時，書籤與 PDF 以單一窗格切換；點選章節後返回 PDF，再點「書籤」可返回目錄。搜尋與書籤窗格可透過各自的工具按鈕切換。
+- 視窗縮窄時，書籤與 PDF 以單一窗格切換；點選章節後返回 PDF，再點「書籤」可返回目錄。書籤、註解與搜尋窗格可透過各自的工具按鈕切換。
 - 啟用複製文字、區域 OCR 或圖片擷取模式時，頁內連結暫停點選；停用後即可跳頁，拖曳頁面仍可排序。
 - 一般預覽與全螢幕可點選 PDF 內建的 HTTP／HTTPS 超連結，以系統預設瀏覽器開啟；滑鼠停留可查看網址。
 - 此功能使用 PDF 已有的書籤與連結；純文字或掃描圖片形式的目錄、網址不會自動變成連結。電子郵件、外部文件與其他動作不在支援範圍。
+
+### 註解清單
+
+- 點工具列的「註解」對話框圖示，開啟目前標籤頁的左側註解清單。
+- 清單依 PDF 原始頁序分組，每頁顯示註解數量，預設收合；展開後查看個別註解的類型與摘要。切換標籤、書籤或介面語言後會保留展開狀態。滑鼠停留可查看完整內容、作者、主旨及修改時間（若文件有提供）。
+- 點選頁碼群組即可跳到該頁清單中的第一個註解，並標示其範圍；點選個別註解會跳到對應位置，並以半透明底色與外框標示註解範圍。保留目前縮放／Fit 模式，頁面重新排列後仍會找到原始目標頁。
+- 選取含文字的註解時，會自動將註解文字複製到剪貼簿；頁碼群組會複製第一個註解的文字。無文字的註解不會覆蓋剪貼簿內容。
+- 關閉註解窗格或切換至其他側欄時，會取消框選；重新開啟清單不會自動複製文字或恢復框選。
+- 框選會跟隨縮放與全螢幕顯示；點選另一註解或頁碼群組會更新標示，點選書籤或搜尋結果則清除標示。文件未提供有效註解範圍時，仍可跳頁。
+- 支援備註、文字方塊、螢光標示、底線、刪除線、手繪及形狀等註解。文字標示若沒有附註內容，會嘗試顯示標示的原文。
+- 在一般閱讀模式可直接點選頁面上的註解，框選其範圍並同步選取左側清單、展開對應頁面群組；全螢幕也可使用。選字、區域 OCR 與圖片擷取模式保留各自操作。窄視窗點選後維持 PDF 顯示，再按「註解」即可查看清單中的選取項目。
+- 註解跟隨標籤頁切換；沒有註解時顯示提示。書籤、註解與搜尋窗格透過各自的按鈕切換。
+- 視窗較窄時，點選後返回 PDF；再點「註解」可返回清單。
+- 完整註解清單只在開啟窗格時於背景讀取；頁面點選範圍則隨目前需要顯示的頁面讀取，不會在開檔時掃描整份文件；此功能提供檢視與跳頁，不編輯註解或執行附件內容。
 
 ### 搜尋文字
 

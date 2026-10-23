@@ -133,8 +133,15 @@ def resolve_destination(document, destination):
         if not isfinite(left) or not isfinite(top):
             raise ValueError('Invalid navigation position')
         width, height = page.get_size()
-        return {'page': index, 'point': normalized_point(page, left, top),
+        result = {'page': index, 'point': normalized_point(page, left, top),
                 'width_points': width, 'height_points': height,
                 'page_label': read_page_label(document, index)}
+        rect = destination.get('annotation_rect')
+        if (isinstance(rect, (list, tuple)) and len(rect) == 4
+                and all(isinstance(v, (int, float)) and isfinite(v) and 0 <= v <= 1 for v in rect)
+                and rect[2] > rect[0] and rect[3] > rect[1]):
+            result['annotation_rect'] = list(rect)
+            result['point'] = list(rect[:2])
+        return result
     finally:
         page.close()

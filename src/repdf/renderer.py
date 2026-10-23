@@ -167,7 +167,7 @@ class RenderService(QObject):
             payload['destination'] = destination
         if password is not None:
             payload['password'] = password
-        key = (-3_000_000 if kind == 'bookmarks' else -4_000_000) - document_id
+        key = {'bookmarks': -3_000_000, 'navigate': -4_000_000, 'annotations': -5_000_000}[kind] - document_id
         with self._lock:
             self._pending[key] = payload
             self._pending.move_to_end(key, last=False)

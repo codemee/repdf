@@ -90,8 +90,10 @@ class DocumentView(QWidget):
         self.focused_page = None
         self.page_sizes = {}
         self.page_links = {}
+        self.page_annotations = {}
         self.page_labels = {}
         self.bookmarks = None
+        self.annotations = None
         self.ready = False
         self._search_navigation = None
         self.password: str | None = None
@@ -178,6 +180,7 @@ class DocumentView(QWidget):
                                       self.owner._copy_text_selection(self, index, preview, start, end, copy=False))
         self.pages.prepare_card(card)
         card.preview.set_links(self.page_links.get(page_index, []))
+        card.preview.set_annotations(self.page_annotations.get(page_index, []))
         card.preview.link_activated.connect(lambda destination: self.owner.navigation.activate(self, destination))
         self.pages.chrome = max(1, card.sizeHint().height() - card.preview.height())
         return card
@@ -734,6 +737,12 @@ class MainWindow(QMainWindow):
         self.bookmark_action.triggered.connect(lambda: self.navigation.toggle())
         self.toolbar.addAction(self.bookmark_action)
         self.toolbar.widgetForAction(self.bookmark_action).setObjectName('bookmarksTool')
+        self.annotation_action = QAction(tr('註解'), self)
+        self.annotation_action.setCheckable(True)
+        self.annotation_action.setToolTip(tr('註解：開啟註解清單，點選即可跳至對應頁面'))
+        self.annotation_action.triggered.connect(lambda: self.navigation.toggle('annotations'))
+        self.toolbar.addAction(self.annotation_action)
+        self.toolbar.widgetForAction(self.annotation_action).setObjectName('annotationsTool')
         self.search_action = QAction(tr('搜尋文字'), self)
         self.search_action.setShortcuts(QKeySequence.keyBindings(QKeySequence.StandardKey.Find))
         self.search_action.setToolTip(tr('搜尋文字（{p0}）：在右側窗格搜尋目前、勾選或所有標籤頁',
@@ -822,6 +831,7 @@ class MainWindow(QMainWindow):
                              (self.search_action, "search"),
                              (self.print_action, "print"),
                              (self.bookmark_action, "bookmarks"),
+                             (self.annotation_action, "annotations"),
                              (self.fit_action, "fit"),
                              (self.fullscreen_action, "fullscreen"),
                              (self.spread_action, "fullscreen_spread"),
@@ -1503,6 +1513,7 @@ class MainWindow(QMainWindow):
 
     def closeEvent(self, event: QCloseEvent) -> None:
         self._closing = True
+        self.navigation.shutdown()
         self.ocr_languages.close()
         self.print_controller.close()
         self.search_controller.stop()

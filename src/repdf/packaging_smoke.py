@@ -90,6 +90,8 @@ def main(report_path: str) -> int:
             writer = PdfWriter()
             for width in (200, 300):
                 writer.add_blank_page(width=width, height=400)
+            from pypdf.annotations import Text
+            writer.add_annotation(1, Text(rect=(30, 200, 100, 250), text='Smoke annotation 註解'))
             with source.open("wb") as stream:
                 writer.write(stream)
             process = start_render_backend()
@@ -107,11 +109,29 @@ def main(report_path: str) -> int:
                 if message["type"] == "page":
                     if QImage(message["path"]).isNull():
                         raise RuntimeError("Invalid rendered page")
+                    hits = message.get('annotation_hits', [])
+                    if message['page'] == 1 and (len(hits) != 1 or
+                            hits[0]['destination'].get('annotation_index') != 0):
+                        raise RuntimeError(f'Invalid annotation hit targets: {hits}')
                     pages.append(message["page"])
                 if message["type"] == "done":
                     break
             if pages != [0, 1]:
                 raise RuntimeError(f"Unexpected rendered pages: {pages}")
+            process.stdin.write(json.dumps({'type': 'annotations', 'source': str(source), 'generation': 2}) + '\n')
+            process.stdin.flush()
+            annotations = None
+            for line in process.stdout:
+                message = json.loads(line)
+                if message['type'] == 'error':
+                    raise RuntimeError(message['message'])
+                if message['type'] == 'annotations':
+                    annotations = message['annotations']
+                if message['type'] == 'done':
+                    break
+            if (not annotations or len(annotations) != 1 or annotations[0]['page'] != 1
+                    or annotations[0]['contents'] != 'Smoke annotation 註解'):
+                raise RuntimeError(f'Packaged annotation extraction failed: {annotations}')
             from PySide6.QtCore import QEventLoop, QTimer
             from PySide6.QtPrintSupport import QPrinter
             from repdf.printing import PrintJob, PrintPage

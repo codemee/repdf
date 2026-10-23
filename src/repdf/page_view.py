@@ -74,6 +74,7 @@ class PageViewport:
         self.batch_scale = None
         self.failed = set()
         self.highlights = {}
+        self.annotation_highlights = {}
         self.chrome = 48
         self._in_layout = False
         self.scroll_timer = QTimer(document)
@@ -156,6 +157,7 @@ class PageViewport:
             card.render_scale = self.scale()
         if card.page_index in self.highlights:
             card.preview.set_search_highlights(*self.highlights[card.page_index])
+        card.preview.set_annotation_highlight(self.annotation_highlights.get(card.page_index))
 
     def reflow(self):
         d = self.doc
@@ -312,6 +314,7 @@ class PageViewport:
         navigation_visible = (navigation is not None
                               and self.rect(navigation[0]).intersects(self.visible_rect()))
         d.page_links[page] = payload.get('links', [])
+        d.page_annotations[page] = payload.get('annotation_hits', [])
         d.page_labels[page] = payload.get('page_label')
         d.page_sizes[page] = (float(payload.get('width_points', image.width() / scale)),
                               float(payload.get('height_points', image.height() / scale)))
@@ -320,6 +323,7 @@ class PageViewport:
         if card is not None:
             card.set_image(image)
             card.preview.set_links(d.page_links[page])
+            card.preview.set_annotations(d.page_annotations[page])
             card.render_scale = scale
         if page not in d._render_received:
             d._render_received.add(page)
@@ -362,6 +366,7 @@ class PageViewport:
                 card.render_scale = None
 
     def set_highlights(self, page, all_rects, active_rects):
+        self.set_annotation_highlight(None, None)
         self.highlights[page] = (all_rects, active_rects)
         self.ensure_page(page).preview.set_search_highlights(all_rects, active_rects)
 
@@ -369,3 +374,12 @@ class PageViewport:
         self.highlights.clear()
         for card in self.doc.page_cards:
             card.preview.set_search_highlights([], [])
+
+    def set_annotation_highlight(self, page, rect):
+        self.annotation_highlights = {page: rect} if rect is not None else {}
+        for card in self.doc.page_cards:
+            card.preview.set_annotation_highlight(self.annotation_highlights.get(card.page_index))
+        viewer = self.doc.owner._fullscreen_preview
+        if viewer is not None and viewer.document is self.doc:
+            for index, label in viewer.labels.items():
+                label.set_annotation_highlight(self.annotation_highlights.get(index))

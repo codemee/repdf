@@ -243,12 +243,14 @@ class PagePreviewLabel(DragLabel):
         super().__init__(text)
         self.draggable = draggable
         self.links = []
+        self.annotations = []
         self._link_press = None
         self.setMouseTracking(True)
         self.text_mode = False
         self.region_mode = False
         self.image_mode = False
         self._search_rects = []
+        self._annotation_rect = None
         self._active_search_rects = []
         self._search_color = QColor('#ffe13c')
         self._selection_start = None
@@ -282,11 +284,14 @@ class PagePreviewLabel(DragLabel):
     def set_links(self, links):
         self.links = links
 
+    def set_annotations(self, annotations):
+        self.annotations = annotations
+
     def _link_at(self, position):
         if self.text_mode or self.width() <= 0 or self.height() <= 0:
             return None
         x, y = position.x() / self.width(), position.y() / self.height()
-        for link in reversed(self.links):
+        for link in (*reversed(self.annotations), *reversed(self.links)):
             left, top, right, bottom = link['rect']
             if left <= x <= right and top <= y <= bottom:
                 return link
@@ -302,6 +307,10 @@ class PagePreviewLabel(DragLabel):
     def set_search_highlights(self, rects, active):
         self._search_rects = rects
         self._active_search_rects = active
+        self.update()
+
+    def set_annotation_highlight(self, rect):
+        self._annotation_rect = rect
         self.update()
 
     def set_search_highlight_color(self, color):
@@ -333,7 +342,8 @@ class PagePreviewLabel(DragLabel):
         if not self.text_mode:
             link = self._link_at(event.position())
             self.setCursor(Qt.CursorShape.PointingHandCursor if link else Qt.CursorShape.OpenHandCursor if self.draggable else Qt.CursorShape.ArrowCursor)
-            self.setToolTip(('<qt>' + escape(link['destination']['url']) + '</qt>' if 'url' in link['destination'] else
+            self.setToolTip((tr('註解') if 'annotation_index' in link['destination'] else
+                            '<qt>' + escape(link['destination']['url']) + '</qt>' if 'url' in link['destination'] else
                             tr('跳至第 {p0} 頁', p0=link['destination']['page'] + 1)) if link else
                             tr('拖曳到另一頁可調整順序') if self.draggable else '')
             if self._link_press and (event.position().toPoint() - self._link_press[1]).manhattanLength() >= QApplication.startDragDistance():
@@ -374,6 +384,20 @@ class PagePreviewLabel(DragLabel):
 
     def paintEvent(self, event) -> None:
         super().paintEvent(event)
+        if self._annotation_rect is not None:
+            left, top, right, bottom = self._annotation_rect
+            painter = QPainter(self)
+            color = self.palette().highlight().color()
+            pen = painter.pen()
+            pen.setColor(color)
+            pen.setWidthF(2)
+            painter.setPen(pen)
+            color.setAlpha(45)
+            painter.setBrush(color)
+            bounds = QRectF(left * self.width(), top * self.height(),
+                            (right - left) * self.width(), (bottom - top) * self.height())
+            painter.drawRect(bounds.adjusted(-2, -2, 2, 2).intersected(QRectF(self.rect()).adjusted(1, 1, -1, -1)))
+            painter.end()
         if self._search_rects:
             painter = QPainter(self)
             normal = QColor(self._search_color)
