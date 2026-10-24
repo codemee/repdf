@@ -33,7 +33,7 @@ def test_language_cycle_retranslates_existing_pages_without_changing_state(qtbot
     assert doc.page_cards[0].drag_handle.text() == "☰ Reorder"
     assert "Include this file" in doc.include_checkbox.toolTip()
     assert doc.page_order == [2, 0, 1] and doc.selected_pages == {2} and doc.zoom == 75
-    assert window.tabs.tabText(0) == "單數頁"
+    assert window.tabs.tabText(0) == "單數頁 *"
     assert window.windowTitle() == f"RePDF {__version__}"
     assert window.tabs.tabToolTip(0) == str(doc.source_path)
     with pytest.raises(ValueError, match="Select at least one page"):

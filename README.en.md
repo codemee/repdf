@@ -2,7 +2,7 @@
 
 [繁體中文](README.md) | [English](README.en.md)
 
-RePDF stands for **Read the PDF**. Its command and Python package name are `repdf`. This desktop PDF reader supports multiple tabs, printing, bookmarks and table-of-contents links, annotation lists, text search, text copying, OCR, and image extraction. You can also select pages and rearrange or split them into new PDFs in tab and page order, preserving the original page quality.
+RePDF stands for **Read the PDF**. Its command and Python package name are `repdf`. This desktop PDF reader supports multiple tabs, printing, bookmarks and table-of-contents links, annotation viewing and editing, text search, text copying, OCR, and image extraction. You can also select pages and rearrange or split them into new PDFs in tab and page order, preserving the original page quality.
 
 ## Highlights
 
@@ -36,27 +36,39 @@ repdf
 
 ## Using RePDF
 
-The toolbar controls are described below. Hover over a control to see its tooltip.
+The main toolbar keeps file, search, navigation-pane and view controls.
+
+- Copy text, OCR and image extraction appear directly on the main toolbar. **Annotation tools** shows a draggable horizontal floating toolbar for markup, text annotations and drawings; its visibility is remembered.
+- **Save** and **Save As** have separate buttons. Zoom, Fit, the fullscreen mode dropdown, language and theme stay on the right.
+- Odd/even selection, export and split appear directly as one group on the main toolbar, separated from the view controls. When space is insufficient, each complete group moves into the overflow menu, where separators retain the grouping.
+- Fullscreen provides a collapsible horizontal floating annotation toolbar near the bottom. Drag its left grip to move it. It overlays the page without reducing the fit area, and exiting preserves the reading window’s floating-toolbar visibility. Use the mode dropdown at the right of the floating toolbar to switch fullscreen modes.
+
+The controls are described below. Hover over a control to see its tooltip, including any keyboard shortcuts.
 
 | Toolbar icon/control | Function | Usage | Shortcut |
 | --- | --- | --- | --- |
 | <picture><source media="(prefers-color-scheme: dark)" srcset="docs/images/toolbar-open-dark.png"><img src="docs/images/toolbar-open.png" width="24" alt="Open PDF"></picture> | Open PDF | Select multiple PDFs at once, or drag files in from your file manager. | <kbd>Ctrl</kbd>+<kbd>O</kbd> |
+| <picture><source media="(prefers-color-scheme: dark)" srcset="docs/images/toolbar-save-dark.png"><img src="docs/images/toolbar-save.png" width="24" alt="Save"></picture> | Save | Save the current document with its complete page order to the original PDF. | <kbd>Ctrl</kbd>+<kbd>S</kbd> |
+| <picture><source media="(prefers-color-scheme: dark)" srcset="docs/images/toolbar-save-as-dark.png"><img src="docs/images/toolbar-save-as.png" width="24" alt="Save As"></picture> | Save As | Save the current document with its complete page order as another PDF. | <kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>S</kbd> |
 | <picture><source media="(prefers-color-scheme: dark)" srcset="docs/images/toolbar-print-dark.png"><img src="docs/images/toolbar-print.png" width="24" alt="Print"></picture> | Print | Choose pages, scaling, and a printer, then review the preview before printing. | Windows/Linux: <kbd>Ctrl</kbd>+<kbd>P</kbd>; macOS: <kbd>⌘</kbd>+<kbd>P</kbd> |
-| <picture><source media="(prefers-color-scheme: dark)" srcset="docs/images/toolbar-export-dark.png"><img src="docs/images/toolbar-export.png" width="24" alt="Export"></picture> | Export | Combine selected pages in their current order into a new PDF, choosing its name and location. | <kbd>Ctrl</kbd>+<kbd>S</kbd> / <kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>S</kbd> |
-| <picture><source media="(prefers-color-scheme: dark)" srcset="docs/images/toolbar-split-dark.png"><img src="docs/images/toolbar-split.png" width="24" alt="Split"></picture> | Split | Save each selected page as a separate PDF in the current order, choosing a base filename and location. | — |
-| <picture><source media="(prefers-color-scheme: dark)" srcset="docs/images/toolbar-odd-dark.png"><img src="docs/images/toolbar-odd.png" height="22" alt="Odd pages checkbox"></picture> | Odd pages | Select or clear original odd-numbered pages in the current tab. A partial selection uses an intermediate checkbox state. | — |
-| <picture><source media="(prefers-color-scheme: dark)" srcset="docs/images/toolbar-even-dark.png"><img src="docs/images/toolbar-even.png" height="22" alt="Even pages checkbox"></picture> | Even pages | Select or clear original even-numbered pages in the current tab. A partial selection uses an intermediate checkbox state. | — |
+| <picture><source media="(prefers-color-scheme: dark)" srcset="docs/images/toolbar-annotation-tools-dark.png"><img src="docs/images/toolbar-annotation-tools.png" width="24" alt="Annotation tools"></picture> | Annotation tools | Show/hide the draggable horizontal floating annotation toolbar. Hiding finishes text input. | — |
+| <picture><source media="(prefers-color-scheme: dark)" srcset="docs/images/toolbar-more-dark.png"><img src="docs/images/toolbar-more.png" width="24" alt="More"></picture> | More | Open controls that do not fit in a narrow window. | — |
 | <picture><source media="(prefers-color-scheme: dark)" srcset="docs/images/toolbar-copy-text-dark.png"><img src="docs/images/toolbar-copy-text.png" width="24" alt="Copy text"></picture> | Copy text | Drag to select text, then release to copy it to the clipboard. Selected text is highlighted. | — |
 | <picture><source media="(prefers-color-scheme: dark)" srcset="docs/images/toolbar-ocr-region-dark.png"><img src="docs/images/toolbar-ocr-region.png" width="24" alt="Region OCR"></picture> | Region OCR | Draw a rectangle over a page or image, then release to recognize and copy the text. | — |
 | <picture><source media="(prefers-color-scheme: dark)" srcset="docs/images/toolbar-extract-image-dark.png"><img src="docs/images/toolbar-extract-image.png" width="24" alt="Extract image"></picture> | Extract image | Enable this mode, click an embedded raster image, and choose where to save it as a PNG. | — |
 | <picture><source media="(prefers-color-scheme: dark)" srcset="docs/images/toolbar-bookmarks-dark.png"><img src="docs/images/toolbar-bookmarks.png" width="24" alt="Bookmarks"></picture> | Bookmarks | Expand or collapse the chapter tree on the left. Click a chapter to jump to it. | — |
 | <picture><source media="(prefers-color-scheme: dark)" srcset="docs/images/toolbar-annotations-dark.png"><img src="docs/images/toolbar-annotations.png" width="24" alt="Annotations"></picture> | Annotations | List comments in the left pane. Click one to jump to its page. | — |
 | <picture><source media="(prefers-color-scheme: dark)" srcset="docs/images/toolbar-search-dark.png"><img src="docs/images/toolbar-search.png" width="24" alt="Search text"></picture> | Search text | Search in the right pane. Select a file above and a matching paragraph below to navigate and highlight matches. | Windows/Linux: <kbd>Ctrl</kbd>+<kbd>F</kbd>; macOS: <kbd>⌘</kbd>+<kbd>F</kbd> |
+| <picture><source media="(prefers-color-scheme: dark)" srcset="docs/images/toolbar-text-markup-dark.png"><img src="docs/images/toolbar-text-markup.png" width="24" alt="Text markup"></picture> | Text markup | Drag over text to add markup. The arrow opens highlight, underline, strikethrough, squiggly, colour and width options. | — |
+| <picture><source media="(prefers-color-scheme: dark)" srcset="docs/images/toolbar-callout-dark.png"><img src="docs/images/toolbar-callout.png" width="24" alt="Callout annotation"></picture> | Text annotations | Choose a callout or sticky note in the dropdown, click the page to add it, and double-click to edit text. | — |
+| <picture><source media="(prefers-color-scheme: dark)" srcset="docs/images/toolbar-drawing-dark.png"><img src="docs/images/toolbar-drawing.png" width="24" alt="Drawing annotations"></picture> | Drawing annotations | Choose a line, arrow, rectangle, ellipse or freehand stroke; set stroke/fill styles and drag to create it. | — |
+| <picture><source media="(prefers-color-scheme: dark)" srcset="docs/images/toolbar-odd-dark.png"><img src="docs/images/toolbar-odd.png" height="22" alt="Odd pages checkbox"></picture> | Odd pages | Select or clear original odd-numbered pages in the current tab. A partial selection uses an intermediate checkbox state. | — |
+| <picture><source media="(prefers-color-scheme: dark)" srcset="docs/images/toolbar-even-dark.png"><img src="docs/images/toolbar-even.png" height="22" alt="Even pages checkbox"></picture> | Even pages | Select or clear original even-numbered pages in the current tab. A partial selection uses an intermediate checkbox state. | — |
+| <picture><source media="(prefers-color-scheme: dark)" srcset="docs/images/toolbar-export-dark.png"><img src="docs/images/toolbar-export.png" width="24" alt="Export"></picture> | Export | Combine selected pages in their current order into a new PDF, choosing its name and location. | — |
+| <picture><source media="(prefers-color-scheme: dark)" srcset="docs/images/toolbar-split-dark.png"><img src="docs/images/toolbar-split.png" width="24" alt="Split"></picture> | Split | Save each selected page as a separate PDF in the current order, choosing a base filename and location. | — |
 | <picture><source media="(prefers-color-scheme: dark)" srcset="docs/images/toolbar-zoom-dark.png"><img src="docs/images/toolbar-zoom.png" width="160" alt="Zoom percentage and slider"></picture> | Zoom | Adjust from 25% to 200% with the slider. Click the percentage to reset to 100%. Keyboard shortcuts change zoom by 25 percentage points. | In: <kbd>Ctrl</kbd>+<kbd>+</kbd> / <kbd>Ctrl</kbd>+<kbd>=</kbd>; out: <kbd>Ctrl</kbd>+<kbd>-</kbd>; 100%: <kbd>Ctrl</kbd>+<kbd>0</kbd> |
 | <picture><source media="(prefers-color-scheme: dark)" srcset="docs/images/toolbar-fit-dark.png"><img src="docs/images/toolbar-fit.png" width="24" alt="Fit"></picture> | Fit | Fit the current page proportionally into the reading area and adapt when the window is resized. The slider or zoom shortcuts return to manual zoom. | — |
-| <picture><source media="(prefers-color-scheme: dark)" srcset="docs/images/toolbar-fullscreen-dark.png"><img src="docs/images/toolbar-fullscreen.png" width="24" alt="Fullscreen single page"></picture> | Fullscreen single page | Display one page at a time, scaled to fit the screen. Use the checkbox above the page to select it. | <kbd>F11</kbd> to enter/return; <kbd>Esc</kbd> to return |
-| <picture><source media="(prefers-color-scheme: dark)" srcset="docs/images/toolbar-fullscreen-spread-dark.png"><img src="docs/images/toolbar-fullscreen-spread.png" width="24" alt="Fullscreen spread"></picture> | Fullscreen spread | Display pages side by side in their current order: pages 1–2, then 3–4, and so on. Select each page independently. | <kbd>Esc</kbd> / <kbd>F11</kbd> to return |
-| <picture><source media="(prefers-color-scheme: dark)" srcset="docs/images/toolbar-fullscreen-cover-dark.png"><img src="docs/images/toolbar-fullscreen-cover.png" width="24" alt="Fullscreen cover and spreads"></picture> | Fullscreen cover + spreads | Display the first page alone as a cover, followed by pages 2–3, 4–5, and so on in their current order. Select each page independently. | <kbd>Esc</kbd> / <kbd>F11</kbd> to return |
+| <picture><source media="(prefers-color-scheme: dark)" srcset="docs/images/toolbar-fullscreen-dark.png"><img src="docs/images/toolbar-fullscreen.png" width="24" alt="Fullscreen"></picture> | Fullscreen | Use the main button for the last selected mode, or its right-hand dropdown for single page, spread or cover plus spread. | <kbd>F11</kbd> to enter/return; <kbd>Esc</kbd> to return |
 | <picture><source media="(prefers-color-scheme: dark)" srcset="docs/images/toolbar-language-system-dark.png"><img src="docs/images/toolbar-language-system.png" width="24" alt="System language"></picture> <picture><source media="(prefers-color-scheme: dark)" srcset="docs/images/toolbar-language-zh-dark.png"><img src="docs/images/toolbar-language-zh.png" width="24" alt="Traditional Chinese"></picture> <picture><source media="(prefers-color-scheme: dark)" srcset="docs/images/toolbar-language-en-dark.png"><img src="docs/images/toolbar-language-en.png" width="24" alt="English"></picture> | Language | Cycle through System → Traditional Chinese → English. Your choice is remembered. | — |
 | <picture><source media="(prefers-color-scheme: dark)" srcset="docs/images/toolbar-theme-system-dark.png"><img src="docs/images/toolbar-theme-system.png" width="24" alt="System theme: half-white, half-black circle"></picture> <picture><source media="(prefers-color-scheme: dark)" srcset="docs/images/toolbar-theme-light-dark.png"><img src="docs/images/toolbar-theme-light.png" width="24" alt="Light theme: sun"></picture> <picture><source media="(prefers-color-scheme: dark)" srcset="docs/images/toolbar-theme-dark-dark.png"><img src="docs/images/toolbar-theme-dark.png" width="24" alt="Dark theme: moon"></picture> | Theme | Cycle through System → Light → Dark. Your choice is remembered. | — |
 
@@ -86,6 +98,8 @@ The toolbar controls are described below. Hover over a control to see its toolti
 
 ### Reading and zoom
 
+- Fullscreen uses a main button with a right-hand mode dropdown for single page, spread or cover plus spread. <kbd>F11</kbd> reuses the last mode selected in this session. Single page shows one page; spread pairs pages from the first; cover plus spread shows the first page alone and pairs the remaining pages.
+
 - Pages are centered horizontally. Fit mode uses a single column.
 - Large files prioritize the pages you are reading. Jumping to a page does not require waiting for the entire document to load.
 - 100% corresponds to the Windows 96 DPI display scale.
@@ -113,6 +127,15 @@ The toolbar controls are described below. Hover over a control to see its toolti
 - Click the page number field, enter a number, and press <kbd>Enter</kbd> to jump. Press <kbd>Esc</kbd> or leave the field to cancel unsubmitted input.
 - Numbers match the original page numbers on page cards. After reordering, entering the same number still finds the original page.
 - Navigation preserves zoom/Fit mode. Invalid or out-of-range input displays a message and leaves the current page unchanged.
+
+### Save and Save As
+
+- Newly opened PDFs use Fit mode and adapt to the reading area. Changing zoom switches to manual scaling.
+- Reordering pages adds `*` to the tab name. Click Save or press <kbd>Ctrl</kbd>+<kbd>S</kbd> to save the original PDF.
+- Click Save As or press <kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>S</kbd> to choose another filename. The tab switches to the saved file. On macOS use <kbd>⌘</kbd> instead of <kbd>Ctrl</kbd>.
+- Saving includes every page in the active tab, independently of page and tab checkboxes. Export and Split continue to use checked selections.
+- Bookmarks, internal links, annotations, metadata, and page labels are preserved. Password PDFs are re-encrypted with AES-256 using the password used to open the file.
+- Save failures preserve the original file and current page order for retry. Choose another filename if the destination is open in another tab.
 
 ### Printing
 
@@ -153,7 +176,25 @@ The toolbar controls are described below. Hover over a control to see its toolti
 - In normal reading mode, click an annotation on the page to mark its bounds and select its entry in the left list, expanding the matching page group. Fullscreen supports this too. Text selection, region OCR, and image extraction retain their own mouse actions. Narrow windows keep the PDF visible; reopen Annotations to see the selected entry.
 - The list follows the active tab and shows a message for files without annotations. Use the respective buttons to switch among bookmarks, annotations, and search.
 - In narrow windows, selecting a comment returns to the PDF. Click Annotations again to return to the list.
-- The full annotation list is read in the background only when the pane is opened. Page hit targets are read only for pages requested for display, without scanning the entire file on opening. This is a read-only list; it does not edit annotations or execute attachments.
+- The full annotation list is read in the background only when the pane is opened. Page hit targets are read only for pages requested for display, without scanning the entire file on opening. Use the annotation tools below to edit supported items. Other types remain view-only; attachments are not executed.
+
+### Add and edit annotations
+
+- Enable **Add a text annotation with markup** in the text markup panel and choose Callout or Sticky note. Enter the comment after selecting text. Callouts point to the selection’s upper midpoint; notes sit above it, constrained to the page. The pair can be undone together; cancelling text entry keeps only the markup.
+- **Text annotation tool**: choose Callout or Sticky note in its dropdown. Choosing a type activates the tool and updates its main icon.
+- **Sticky note**: click the page to place its icon, then enter and save text in the dialog. Double-click the icon to edit it, drag to move it, and use the list or copy shortcut to copy its contents.
+- **Drawing annotations**: choose Line, Arrow, Rectangle, Ellipse or Freehand, then drag on the page. Set the colour and 0.5–6 pt width; rectangles and ellipses also support a fill colour or transparent background.
+- Selected drawings can be moved. Drag line/arrow endpoints or use corner handles to resize rectangles, ellipses and ink. <kbd>Esc</kbd> cancels the current drawing.
+
+- **Text markup**: activate the tool and drag across text, including multiple lines. Its arrow opens highlight, underline, strikethrough, squiggly, colour and 0.5–6 pt width settings. Selection follows the text flow and previews the selected glyphs. Defaults are red underline, 1 pt; highlights use translucent yellow and do not use line width. Image-only areas do not trigger OCR.
+- Annotation list items use type icons, with full type and content in their tooltips. Each item with text has a copy button on the right that copies its complete content without navigating to its page. Select an annotation in the list or on the page and press <kbd>Ctrl</kbd>+<kbd>C</kbd> (<kbd>⌘</kbd>+<kbd>C</kbd> on macOS) to copy its text. Selecting an item with text shows a selectable text area below; drag to select part, use the select-all/copy buttons, or press <kbd>Ctrl</kbd>+<kbd>A</kbd> / <kbd>Ctrl</kbd>+<kbd>C</kbd>.
+- **Callout**: click the target to automatically place a text box nearby and enter text. The box retains its initial minimum width and expands with a single line of text, wrapping at the page edge and growing vertically within the page. Click outside to finish editing; a subsequent click creates another annotation. Defaults are blue text, red border/arrow, transparent background and 12 pt. New callouts default to 6 pt rounded corners. The panel controls text colour, line colour/width, font size, background and corner radius; 0 restores square corners.
+- Double-click a box directly to edit, even with the annotations pane closed. A single click selects it and opens the list. <kbd>Enter</kbd> adds a line, <kbd>Ctrl</kbd>+<kbd>Enter</kbd> finishes, and <kbd>Esc</kbd> cancels that edit. Blank text does not create an annotation.
+- Drag a selected box, its corner handles, or its arrow endpoint. Selected text markup supports style changes. <kbd>Delete</kbd> deletes; <kbd>Ctrl</kbd>+<kbd>Z</kbd> undoes; <kbd>Ctrl</kbd>+<kbd>Y</kbd> / <kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>Z</kbd> redo. macOS uses its standard equivalent shortcuts.
+- RePDF annotations and reliably parsed standard highlight, underline, strikeout, squiggly and callout annotations are editable. Notes and drawings created in RePDF remain editable after saving and reopening. Notes and drawings from other programs, locked annotations, custom appearances, unavailable fonts and rich text remain view-only, with a reason shown when selected.
+- Annotation tools are mutually exclusive with text copying, OCR and image extraction, and also work fullscreen. Styles are remembered. Colour and style changes apply to a selected editable annotation; choosing another text/drawing tool type prepares a new annotation.
+- Changes add an unsaved asterisk. Saved annotations remain editable after reopening. Printing, exporting and splitting include unsaved annotation changes. Closing offers Save, Don’t Save and Cancel.
+- Saved files contain standard PDF annotations and complete appearances with embedded text fonts for viewing in other PDF readers. Editing capabilities in those readers depend on their features.
 
 ### Search text
 

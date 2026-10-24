@@ -297,8 +297,13 @@ def test_missing_model_download_retries_only_live_selection(qtbot, monkeypatch, 
 
 def test_overflow_keeps_language_menu_available(qtbot, monkeypatch):
     window = window_for_test(qtbot, monkeypatch)
-    window.resize(320, 240)
+    window.annotation_tools_action.setChecked(True)
+    window.setMinimumWidth(100)
+    window.resize(200, 240)
     window.show()
     qtbot.waitUntil(window.toolbar.overflow_button.isVisible)
     window.toolbar._populate_overflow()
-    assert window.ocr_languages.menu.menuAction() in window.toolbar.overflow_menu.actions()
+    if window.ocr_language_button.isVisible():
+        assert window.ocr_language_button.menu() is window.ocr_languages.menu
+    else:
+        assert window.ocr_languages.menu.menuAction() in window.toolbar.overflow_menu.actions()

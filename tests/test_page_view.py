@@ -91,6 +91,9 @@ def test_search_jump_to_unrendered_page_scrolls_then_loads(qtbot, tmp_path, page
     qtbot.waitUntil(lambda: window.current_document().ready, timeout=10000)
     doc = window.current_document()
     qtbot.waitUntil(lambda: settled(doc), timeout=15000)
+    if not fit:
+        window._set_manual_zoom(100)
+        qtbot.waitUntil(lambda: settled(doc), timeout=15000)
     if fit:
         doc.fit_page()
         qtbot.waitUntil(lambda: settled(doc), timeout=15000)

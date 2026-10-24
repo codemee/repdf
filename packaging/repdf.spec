@@ -44,4 +44,4 @@ if sys.platform == "darwin":
 else:
     exe = EXE(pyz, a.scripts, a.binaries, a.datas, name="repdf",
               console=False, upx=False,
-              icon=str(root / "src/repdf/assets/repdf.ico"))
+              icon=str(root / "output/desktop/repdf.ico"))

@@ -3,12 +3,15 @@
 from html import escape
 
 from PySide6.QtCore import QEvent, QObject, QSize, Qt, QUrl
-from PySide6.QtGui import QDesktopServices
-from PySide6.QtWidgets import (QApplication, QHBoxLayout, QLabel, QLayout, QSplitter, QToolButton,
-                               QTreeWidget, QTreeWidgetItem, QVBoxLayout, QWidget)
+from repdf.shortcut_hints import shortcut_tooltip
 
-from repdf.icons import toolbar_icon
-from repdf.strings import tr
+from PySide6.QtGui import QKeySequence, QDesktopServices
+from PySide6.QtWidgets import (QApplication, QHBoxLayout, QLabel, QLayout, QSplitter, QToolButton,
+                               QTreeWidgetItem, QVBoxLayout, QWidget, QPlainTextEdit)
+
+from repdf.icons import toolbar_icon, annotation_icon
+from repdf.annotation_tree import AnnotationTree, copy_tooltip
+from repdf.strings import tr, localize_text
 from repdf.renderer import RenderService, start_render_backend
 
 
@@ -37,19 +40,79 @@ class BookmarkPanel(QWidget):
         self.status.setWordWrap(True)
         self.status.setTextFormat(Qt.TextFormat.PlainText)
         layout.addWidget(self.status)
-        self.tree = QTreeWidget()
+        self.tree = AnnotationTree()
         self.tree.setHeaderHidden(True)
         self.tree.setAccessibleName(tr('PDF 書籤'))
         self.tree.setMinimumSize(0, 0)
         self.tree.setIndentation(16)
+        self.tree.setIconSize(QSize(20, 20))
         self.tree.setTextElideMode(Qt.TextElideMode.ElideRight)
         self.tree.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
         layout.addWidget(self.tree, 1)
+        self.text_panel = QWidget()
+        text_layout = QVBoxLayout(self.text_panel)
+        text_layout.setContentsMargins(0, 0, 0, 0)
+        text_layout.setSpacing(4)
+        header = QHBoxLayout()
+        self.annotation_text_title = QLabel(tr('註解文字'))
+        header.addWidget(self.annotation_text_title, 1)
+        self.select_text_button = QToolButton()
+        self.copy_text_button = QToolButton()
+        for button, label, icon in [(self.select_text_button, '全選註解文字', 'select_all_text'),
+                                     (self.copy_text_button, '複製註解文字', 'copy')]:
+            button.setFixedSize(34, 34)
+            button.setIconSize(QSize(20, 20))
+            button.setIcon(toolbar_icon(icon))
+            button.setToolTip(copy_tooltip() if icon == 'copy' else shortcut_tooltip(tr(label), QKeySequence.keyBindings(QKeySequence.StandardKey.SelectAll)))
+            button.setAccessibleName(tr(label))
+            header.addWidget(button)
+        text_layout.addLayout(header)
+        self.annotation_text = QPlainTextEdit()
+        self.annotation_text.setObjectName('annotationText')
+        self.annotation_text.setAccessibleName(tr('註解文字'))
+        self.annotation_text.setReadOnly(True)
+        self.annotation_text.setMinimumHeight(0)
+        self.annotation_text.setMaximumHeight(140)
+        text_layout.addWidget(self.annotation_text)
+        layout.addWidget(self.text_panel)
+        self.text_panel.hide()
+        self.select_text_button.clicked.connect(self.select_annotation_text)
+        self.copy_text_button.clicked.connect(self.copy_annotation_text)
+        self.tree.currentItemChanged.connect(self.show_annotation_text)
+
+    def show_annotation_text(self, item, _previous=None):
+        if item is not None and item.childCount():
+            item = item.child(0)
+        text = item.data(0, Qt.ItemDataRole.UserRole + 2) if item is not None else ''
+        text = text or ''
+        if self.annotation_text.toPlainText() != text:
+            self.annotation_text.setPlainText(text)
+        self.text_panel.setVisible(bool(text.strip()))
+
+    def select_annotation_text(self):
+        self.annotation_text.setFocus()
+        self.annotation_text.selectAll()
+
+    def copy_annotation_text(self):
+        cursor = self.annotation_text.textCursor()
+        text = cursor.selectedText().replace('\u2029', '\n') if cursor.hasSelection() else self.annotation_text.toPlainText()
+        if text:
+            QApplication.clipboard().setText(text)
 
     def changeEvent(self, event):
         super().changeEvent(event)
         if event.type() == QEvent.Type.PaletteChange and hasattr(self, 'close_button'):
             self.close_button.setIcon(toolbar_icon('close'))
+            if hasattr(self, 'copy_text_button'):
+                self.copy_text_button.setIcon(toolbar_icon('copy'))
+                self.select_text_button.setIcon(toolbar_icon('select_all_text'))
+                for index in range(self.tree.topLevelItemCount()):
+                    group = self.tree.topLevelItem(index)
+                    for child_index in range(group.childCount()):
+                        item = group.child(child_index)
+                        kind = item.data(0, Qt.ItemDataRole.UserRole + 1)
+                        if kind:
+                            item.setIcon(0, annotation_icon(kind))
 
 
 class NavigationController(QObject):
@@ -79,6 +142,7 @@ class NavigationController(QObject):
         self.pending_annotation_copy = None
         self._layout_state = None
         self.panel.close_button.clicked.connect(self.close)
+        self.panel.tree.textCopied.connect(lambda text: self.owner.statusBar().showMessage(tr('已複製 {p0} 個字元到剪貼簿', p0=len(text))))
         self.panel.tree.itemClicked.connect(self._clicked)
         self.panel.tree.itemActivated.connect(self._clicked)
 
@@ -111,6 +175,8 @@ class NavigationController(QObject):
         self.layout()
 
     def _clear_annotation_selection(self):
+        self.owner.annotation_editor.finish_text(True)
+        self.owner.annotation_editor.clear()
         self.annotation_selection = None
         self.pending_annotation_copy = None
         self.latest_jump = None
@@ -147,6 +213,11 @@ class NavigationController(QObject):
             self.annotation_groups = {}
         annotations = self.kind == 'annotations'
         self.panel.title.setText(tr('註解' if annotations else '書籤'))
+        self.panel.annotation_text_title.setText(tr('註解文字'))
+        self.panel.annotation_text.setAccessibleName(tr('註解文字'))
+        for button, label in [(self.panel.select_text_button, '全選註解文字'), (self.panel.copy_text_button, '複製註解文字')]:
+            button.setToolTip(copy_tooltip() if button is self.panel.copy_text_button else shortcut_tooltip(tr(label), QKeySequence.keyBindings(QKeySequence.StandardKey.SelectAll)))
+            button.setAccessibleName(tr(label))
         close_label = tr('關閉註解窗格' if annotations else '關閉書籤窗格')
         self.panel.close_button.setText(close_label)
         self.panel.close_button.setToolTip(close_label)
@@ -231,14 +302,13 @@ class NavigationController(QObject):
             self.annotation_groups[page] = group
         for annotation in doc.annotations:
             summary = ' '.join((annotation['contents'] or annotation['subject'] or tr('沒有文字內容')).split())
-            title = tr(annotation['kind']) + ' · ' + summary
-            item = QTreeWidgetItem(self.annotation_groups[annotation['page']], [title])
+            item = QTreeWidgetItem(self.annotation_groups[annotation['page']], [summary])
+            item.setIcon(0, annotation_icon(annotation['kind']))
+            item.setData(0, Qt.ItemDataRole.UserRole + 1, annotation['kind'])
+            item.setData(0, Qt.ItemDataRole.UserRole + 2, annotation['contents'])
+            item.setData(0, Qt.ItemDataRole.AccessibleTextRole, tr(annotation['kind']) + ' · ' + summary)
             item.setData(0, Qt.ItemDataRole.UserRole, annotation['destination'])
-            details = [tr(annotation['kind']), annotation['contents'] or tr('沒有文字內容')]
-            for key, label in [('author', '作者：{value}'), ('subject', '主旨：{value}'), ('modified', '修改時間：{value}')]:
-                if annotation.get(key):
-                    details.append(tr(label, value=annotation[key]))
-            item.setToolTip(0, '<qt>' + '<br>'.join(escape(line).replace('\n', '<br>') for line in details) + '</qt>')
+            item.setToolTip(0,self.annotation_tooltip(doc,annotation))
             self.items.append(item)
         remembered = self.states.get((doc.document_id, self.kind))
         if remembered and 0 <= remembered[1] < len(self.items):
@@ -249,6 +319,21 @@ class NavigationController(QObject):
         self.panel.status.setText(tr('共 {count} 則註解', count=len(doc.annotations)) if doc.annotations else tr('此 PDF 沒有註解'))
         self.panel.status.show()
 
+    def annotation_tooltip(self, doc, annotation):
+        details=[tr(annotation['kind']),annotation['contents'] or tr('沒有文字內容')]
+        reasons=doc.annotation_store.reasons.get(annotation['page'],{})
+        reason=reasons.get(annotation['index']) or reasons.get(str(annotation['index'])) or reasons.get(-1) or reasons.get('-1')
+        if reason:
+            details.append(tr('此註解僅供檢視：{reason}',reason=localize_text(reason)))
+        for key,label in [('author','作者：{value}'),('subject','主旨：{value}'),('modified','修改時間：{value}')]:
+            if annotation.get(key): details.append(tr(label,value=annotation[key]))
+        return '<qt>'+'<br>'.join(escape(line).replace('\n','<br>') for line in details)+'</qt>'
+
+    def refresh_annotation_tooltips(self,doc):
+        if self.kind=='annotations' and self.displayed_id==doc.document_id:
+            for item,annotation in zip(self.items,doc.annotations or []):
+                item.setToolTip(0,self.annotation_tooltip(doc,annotation))
+
     def _remember_state(self):
         selected = self.panel.tree.currentItem()
         expanded = ([page for page, group in self.annotation_groups.items() if group.isExpanded()]
@@ -258,6 +343,8 @@ class NavigationController(QObject):
             expanded, self.items.index(selected) if selected in self.items else -1)
 
     def _clicked(self, item, _column=0):
+        if self.kind=="bookmarks":
+            self.owner.annotation_editor.clear()
         self.annotation_selection = None
         destination = item.data(0, Qt.ItemDataRole.UserRole)
         doc = self.owner.current_document()
@@ -268,6 +355,10 @@ class NavigationController(QObject):
                 if target in self.items:
                     annotation = doc.annotations[self.items.index(target)]
                     self.pending_annotation_copy = doc.document_id, annotation['page'], annotation['index']
+                    if annotation.get('annotation_id'):
+                        self.owner.annotation_editor.select(doc,annotation['annotation_id'])
+                    else:
+                        self.owner.annotation_editor.select_target(doc,annotation['page'],annotation['index'])
 
     def activate(self, doc, destination, fullscreen=False):
         if doc.ready and doc is self.owner.current_document():
@@ -283,6 +374,7 @@ class NavigationController(QObject):
                 self._select_annotation_item(doc)
                 self.owner.search_controller.clear_highlights()
                 doc.pages.set_annotation_highlight(destination['page'], destination.get('annotation_rect'))
+                self.owner.annotation_editor.select_target(doc,destination['page'],destination['annotation_index'])
                 doc._focus_page(destination['page'])
                 return
             if 'url' in destination:
@@ -332,6 +424,9 @@ class NavigationController(QObject):
             return True
         if message_type in ('bookmarks', 'annotations'):
             setattr(doc, message_type, payload[message_type])
+            if message_type == "annotations":
+                doc._annotation_base = payload[message_type]
+                self.owner.annotation_editor.merge_list(doc)
             if doc.document_id == self.displayed_id and self.kind == message_type:
                 self.populate(doc)
         elif message_type == 'navigate' and generation == self.latest_jump and doc is self.owner.current_document():
@@ -341,6 +436,9 @@ class NavigationController(QObject):
             doc._reflow_grid()
             self.owner.search_controller.clear_highlights()
             doc.pages.set_annotation_highlight(page, payload.get('annotation_rect'))
+            editable=self.owner.annotation_editor.current()
+            if editable is not None and editable['page']==page:
+                doc.pages.set_annotation_highlight(None,None)
             self._copy_pending_annotation(doc)
             viewer = self.owner._fullscreen_preview
             if fullscreen and viewer is not None and viewer.document is doc:

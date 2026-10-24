@@ -20,6 +20,7 @@ class PrintPage:
     source: Path
     page: int
     password: str | None = field(default=None, repr=False)
+    annotation_changes: tuple = field(default=(), repr=False)
 
 
 def parse_page_range(text, count):
@@ -36,7 +37,7 @@ def parse_page_range(text, count):
 
 
 def selected_print_pages(documents):
-    return tuple(PrintPage(item.source, page, item.password)
+    return tuple(PrintPage(item.source, page, item.password, item.annotation_changes)
                  for item in documents for page in item.pages)
 
 
@@ -46,7 +47,8 @@ class PrintOptions(QWidget):
     def __init__(self, owner, doc, current_page):
         super().__init__(owner)
         self.setMinimumWidth(0)
-        self.all_pages = tuple(PrintPage(doc.source_path, page, doc.password) for page in doc.page_order)
+        annotation_snapshot = tuple(doc.annotation_store.changes())
+        self.all_pages = tuple(PrintPage(doc.source_path, page, doc.password, annotation_snapshot) for page in doc.page_order)
         self.current_page = current_page
         self.selected_pages = selected_print_pages(owner.output_selection())
         self.pages = ()
@@ -205,7 +207,7 @@ class PrintJob(QObject):
         page = self.pages[self.index]
         self.rendered = False
         self.service.request_print(page.source, page.page, Path(self.temp.name), self.index + 1,
-                                   password=page.password)
+                                   password=page.password, annotation_changes=page.annotation_changes)
 
     def receive(self, payload):
         if self.ended or payload.get('generation') != self.index + 1:
@@ -280,6 +282,8 @@ class PrintController(QObject):
         return self.opening or self.job is not None
 
     def open(self):
+        if hasattr(self.owner,"annotation_editor"):
+            self.owner.annotation_editor.finish_text(True)
         doc = self.owner.current_document()
         if self.busy or doc is None or not doc.ready:
             return

@@ -81,6 +81,8 @@ class ThemeController(QObject):
         partial = files("repdf").joinpath("assets", f"partial{mark_suffix}.svg").as_posix()
         self.app.setStyleSheet(
             f"""
+            QFrame#fullscreenAnnotationTools {{ background: palette(window); border: 1px solid {border}; border-radius: 8px; }}
+            QToolBar#floatingAnnotationBar {{ background: transparent; border: none; padding: 4px; }}
             QFrame#pageCard {{ background: {card}; border: 1px solid {border};
                                border-radius: 8px; }}
             QFrame#pageCard QLabel, QFrame#pageCard QCheckBox {{ border: none; }}
@@ -109,6 +111,11 @@ class ThemeController(QObject):
             QToolButton[stateButton="true"]:checked:hover {{ background: {pressed}; }}
             QToolButton[stateButton="true"]:disabled {{ background: transparent; }}
             QToolButton:disabled {{ color: {disabled}; background: transparent; }}
+            QMessageBox {{ background: palette(window); }}
+            QMessageBox QLabel {{ color: palette(window-text); padding: 6px 2px; }}
+            QMessageBox QPushButton {{ min-width: 48px; min-height: 26px; padding: 2px 10px; }}
+            QMessageBox QPushButton:default {{ background: {slider_fill};
+                color: palette(highlighted-text); border-color: {slider_fill}; }}
             QPushButton {{ background: {card}; color: palette(button-text);
                            border: 1px solid {border}; border-radius: 5px;
                            min-height: 30px; padding: 2px 12px; }}
@@ -128,6 +135,11 @@ class ThemeController(QObject):
                                                   image: url("{partial}"); }}
             QCheckBox::indicator:disabled {{ background: {hover}; border-color: {border}; }}
             QScrollArea {{ border: 1px solid {border}; border-radius: 6px; }}
+            QSpinBox[annotationSpin="true"], QDoubleSpinBox[annotationSpin="true"] {{
+                background: palette(base); color: palette(text); border: 1px solid {border}; border-radius: 4px; }}
+            QSpinBox[annotationSpin="true"]:focus, QDoubleSpinBox[annotationSpin="true"]:focus {{ border-color: {slider_fill}; }}
+            QPlainTextEdit#annotationText {{ background: palette(base); color: palette(text);
+                border: 1px solid {border}; border-radius: 6px; padding: 4px; }}
             QStatusBar {{ background: palette(window); border: none; }}
             QStatusBar::item {{ border: none; }}
             QScrollBar:vertical {{ background: transparent; width: 10px; margin: 2px; }}

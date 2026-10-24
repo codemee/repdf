@@ -138,6 +138,8 @@ def test_fullscreen_aspect_navigation_escape_and_zoom_preserved(qtbot, tmp_path)
     window.load_pdf(source)
     doc = window.current_document()
     wait_for_preview(qtbot, doc)
+    window._set_manual_zoom(100)
+    wait_for_preview(qtbot, doc)
     doc.page_order = [1, 0]
     doc._reflow_grid()
     doc.focused_page = 1
@@ -186,8 +188,11 @@ def test_navigation_keys_control_preview_when_slider_has_focus(qtbot, tmp_path):
     window.load_pdf(source)
     doc = window.current_document()
     wait_for_preview(qtbot, doc)
+    window._set_manual_zoom(100)
+    wait_for_preview(qtbot, doc)
     window.zoom_slider.setFocus()
     vertical = doc.scroll_area.verticalScrollBar()
+    vertical.setValue(0)
     qtbot.keyClick(window.zoom_slider, Qt.Key.Key_Down)
     assert vertical.value() > 0
     qtbot.keyClick(window.zoom_slider, Qt.Key.Key_Up)
@@ -220,6 +225,8 @@ def test_home_end_follow_reordered_pages_with_slider_focus(qtbot, tmp_path, fit)
     window.show()
     window.load_pdf(source)
     doc = window.current_document()
+    wait_for_preview(qtbot, doc)
+    window._set_manual_zoom(100)
     wait_for_preview(qtbot, doc)
     doc.page_order = [3, 1, 4, 0, 2]
     doc._reflow_grid()
@@ -266,7 +273,8 @@ def test_fit_navigation_uses_visible_last_page_and_clamps_boundaries(qtbot, tmp_
     window.load_pdf(source)
     doc = window.current_document()
     wait_for_preview(qtbot, doc)
-    window.fit_action.trigger()
+    assert doc.fit_mode
+    qtbot.wait(20)
     wait_for_preview(qtbot, doc)
     assert doc.fit_page_index == 0
     vertical = doc.scroll_area.verticalScrollBar()
@@ -336,6 +344,8 @@ def test_fullscreen_modes_follow_order_and_sync_selection(qtbot, tmp_path, monke
     window.load_pdf(source)
     doc = window.current_document()
     wait_for_preview(qtbot, doc)
+    window._set_manual_zoom(100)
+    wait_for_preview(qtbot, doc)
     doc.page_order = [3, 1, 4, 0, 2]
     doc.page_cards[1].checkbox.click()
     monkeypatch.setattr(doc, "preview_page_index", lambda: 3)
@@ -384,3 +394,105 @@ def test_fullscreen_modes_follow_order_and_sync_selection(qtbot, tmp_path, monke
     assert doc.zoom == 100
     assert window.output_selection()[0].pages == tuple(page for page in doc.page_order if page in doc.selected_pages)
 
+
+
+def test_fullscreen_dropdown_switches_modes_in_place(qtbot, tmp_path):
+    from test_navigation import load_window
+    source = tmp_path / 'fullscreen-menu.pdf'
+    make_pdf(source, [(300, 400)] * 5)
+    window, doc = load_window(qtbot, source)
+    window.resize(1600, 850)
+    assert window.fullscreen_menu.actions() == [window.single_action, window.spread_action, window.cover_action]
+    assert window.single_action not in window.toolbar.tool_actions()
+    assert window.cover_action not in window.toolbar.tool_actions()
+    window.cover_action.trigger()
+    viewer = window._fullscreen_preview
+    assert viewer.mode == 'cover' and window.fullscreen_mode == 'cover'
+    assert window.fullscreen_menu.parentWidget() is viewer
+    assert not window.annotation_floating.isVisible()
+    viewer.show_page(3)
+    for action, mode in ((window.spread_action, 'spread'), (window.single_action, 'single'), (window.cover_action, 'cover')):
+        page = viewer.page_index
+        action.trigger()
+        assert window._fullscreen_preview is viewer
+        assert viewer.mode == mode and window.fullscreen_mode == mode
+        assert page in viewer.visible_pages
+        assert action.isChecked()
+        assert viewer.render_generation == -1
+        assert viewer.floating_tools.isVisible()
+    viewer.close()
+    assert window.fullscreen_menu.parentWidget() is window
+    window.fullscreen_action.trigger()
+    assert window._fullscreen_preview.mode == 'cover'
+    window._fullscreen_preview.close()
+    window.resize(320, 240)
+    qtbot.waitUntil(window.toolbar.overflow_button.isVisible)
+    window.toolbar._populate_overflow()
+    assert window.fullscreen_action in window.toolbar.overflow_menu.actions()
+    assert window.fullscreen_menu.menuAction() in window.toolbar.overflow_menu.actions()
+
+
+@pytest.mark.parametrize('main_expanded',[False,True])
+def test_fullscreen_floating_annotation_tools_drag_menus_and_restore(qtbot,tmp_path,main_expanded):
+    from PySide6.QtCore import QPoint,QTimer
+    source = tmp_path / 'floating.pdf'
+    make_pdf(source,[(300,400),(300,400)])
+    window = MainWindow();qtbot.addWidget(window);window.show()
+    window.annotation_tools_action.setChecked(main_expanded)
+    window.load_pdf(source);doc=window.current_document();wait_for_preview(qtbot,doc)
+    editor=window.annotation_editor
+    menus=[editor.mark_menu,editor.callout_menu,editor.draw_menu,window.ocr_languages.menu,window.fullscreen_menu]
+    parents=[menu.parentWidget() for menu in menus]
+    window._show_fullscreen_preview();viewer=window._fullscreen_preview
+    floating=viewer.floating_tools
+    qtbot.waitUntil(floating.isVisible)
+    assert all(menu.parentWidget() is viewer for menu in menus)
+    if not floating.toggle.isChecked(): qtbot.mouseClick(floating.toggle,Qt.MouseButton.LeftButton)
+    assert floating.toolbar.isVisible()
+    qtbot.mouseClick(floating.buttons[editor.mark_action],Qt.MouseButton.LeftButton)
+    assert editor.mark_action.isChecked()
+    assert window.annotation_toolbar.widgetForAction(editor.mark_action).isChecked()
+    observed=[]
+    def use_menu():
+        observed.append(editor.mark_menu.isVisible())
+        editor.mark_menu.width.setValue(2)
+        editor.mark_menu.hide()
+    QTimer.singleShot(80,use_menu)
+    qtbot.mouseClick(floating.arrows[0],Qt.MouseButton.LeftButton)
+    assert observed == [True] and editor.mark_style['width'] == 2
+    original=floating.pos()
+    qtbot.mousePress(floating.grip,Qt.MouseButton.LeftButton,pos=QPoint(8,16))
+    qtbot.mouseMove(floating.grip,QPoint(58,-34))
+    qtbot.mouseRelease(floating.grip,Qt.MouseButton.LeftButton,pos=QPoint(8,16))
+    assert floating.manual_position and floating.pos() != original
+    moved=floating.pos();viewer.show_page(1)
+    assert floating.pos() == moved and floating.isVisible()
+    floating.move(9999,9999);floating.reposition()
+    assert viewer.rect().contains(floating.geometry())
+    qtbot.mouseClick(floating.toggle,Qt.MouseButton.LeftButton)
+    assert not floating.toolbar.isVisible() and not editor.mark_action.isChecked()
+    assert floating.mode_toolbar.isVisible()
+    modes = []
+    def choose_mode():
+        modes.append(window.fullscreen_menu.isVisible())
+        window.spread_action.trigger()
+        window.fullscreen_menu.hide()
+    QTimer.singleShot(80, choose_mode)
+    qtbot.mouseClick(floating.arrows[-1], Qt.MouseButton.LeftButton)
+    assert modes == [True] and viewer.mode == 'spread'
+    assert window._fullscreen_preview is viewer
+    assert not floating.toolbar.isVisible() and floating.mode_toolbar.isVisible()
+    floating.toggle.setChecked(True)
+    viewer.resize(320, 240)
+    qtbot.wait(20)
+    floating.toolbar._populate_overflow()
+    for action in (editor.mark_action, editor.callout_action, editor.draw_action,
+                   window.copy_text_action, window.region_ocr_action, window.extract_image_action):
+        assert not floating.buttons[action].isVisible()
+        assert action in floating.toolbar.overflow_menu.actions()
+    assert viewer.rect().contains(floating.geometry())
+    viewer.close()
+    assert window._fullscreen_preview is None
+    assert [menu.parentWidget() for menu in menus] == parents
+    assert window.annotation_tools_action.isChecked() == main_expanded
+    assert window.annotation_floating.isVisible() == main_expanded

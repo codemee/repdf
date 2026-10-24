@@ -384,6 +384,8 @@ class PagePreviewLabel(DragLabel):
 
     def paintEvent(self, event) -> None:
         super().paintEvent(event)
+        if hasattr(self, "annotation_editor"):
+            self.annotation_editor.paint(self)
         if self._annotation_rect is not None:
             left, top, right, bottom = self._annotation_rect
             painter = QPainter(self)

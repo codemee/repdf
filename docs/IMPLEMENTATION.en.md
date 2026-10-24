@@ -260,7 +260,7 @@ File dialogs use `DontUseNativeDialog`, Qt's `qtbase_zh_TW.qm`, and standard-but
 
 `configure_application()` tries Microsoft JhengHei UI, Microsoft JhengHei, Noto Sans TC, then Arial.
 
-Application assets are `src/repdf/assets/repdf.png` and `repdf.ico`. Runtime QIcon uses PNG. Windows EXE packaging uses ICO with 16, 24, 32, 48, 64, 128, and 256px sizes.
+Application assets are `src/repdf/assets/repdf.png` and `repdf.ico`. Runtime and cloud builds share `icon_layout.fitted_icon()`: measure visible alpha ≥ 32, remove excess padding and fit proportionally into 92% of a square canvas. Build-time Windows ICO includes 16, 20, 24, 32, 40, 48, 64, 128 and 256px; macOS ICNS uses the same optical size.
 
 ## 12. Test coverage
 
@@ -438,4 +438,50 @@ Packaged smoke tests must stop render backends holding cached PDFs before removi
 - Page groups share the destination and bounds of their first listed annotation. Individual annotations normalize all four rectangle corners for crop/rotation into `annotation_rect`; navigation targets the displayed top-left corner. `PageViewport` retains this independent overlay across card recreation and fullscreen views. Page groups update the marker; bookmarks and search results clear it without modifying the PDF.
 - Preview requests call `read_annotations(..., include_text=False)` only for requested pages, returning `annotation_hits` identified by original page and PDF annotation index without extracting text or scanning other pages. `DocumentView.page_annotations` restores hit targets in recreated cards and fullscreen labels. Reading mode prioritizes annotations over links; drag and selection/OCR/image modes retain their behavior. Page clicks open the list and synchronize selection after background loading without another page jump, preserving fullscreen and the narrow-window PDF view.
 - User selection records a one-shot copy request by document, original page, and annotation index. After successful list navigation or background text loading for a page click, nonempty Contents (including the marked-text fallback) is copied. Restoring UI state or translating does not copy. Closing the pane or switching sidebars clears markers across documents and fullscreen labels, pending copy requests, and the latest navigation generation so late results cannot restore markers or change the clipboard.
-- `test_annotations.py` covers Unicode, encrypted PDFs, marked text, rotation/crop, reordered navigation, mode/tab switching, empty lists, and stale-result protection. The source PDF remains read-only; annotation editing and attachment execution are not provided.
+- `test_annotations.py` covers Unicode, encrypted PDFs, marked text, rotation/crop, reordered navigation, mode/tab switching, empty lists, and stale-result protection. The list shares data with annotation editing; unsupported types remain view-only and attachments are not executed.
+
+## 22. Whole-document saving
+
+- `DocumentView` starts in Fit mode and computes actual sizing after loading; manual zoom exits Fit.
+- `modified` compares `page_order` to source order, adding a tab asterisk and enabling Save. Standard Save/SaveAs shortcuts belong to document saving; selected-page export no longer uses them.
+- `SaveController` and `SavePdfTask` save every page of the active document. `core.save_document()` clones the document and reorders the page tree, retaining indirect page references and bookmark/link destinations. Numeric local destinations become original page references; page labels are preserved as per-page fixed labels.
+- Encrypted PDFs use AES-256 with the opening password and original permission flags. An unknown original owner password cannot be preserved. A same-directory temporary file is flushed/fsynced before atomic replacement; failure removes the temporary file and preserves the original.
+- Before writing on Windows, preview/search/annotation readers stop to release PDFium file handles. Preview services restart on success or failure. Successful saving rebuilds the tab and remaps the current page, selection, and Fit/zoom state so old source indices cannot refer to the reordered file.
+
+- The main fullscreen QAction opens or closes fullscreen; its right-hand dropdown provides three exclusive mode actions. <kbd>F11</kbd> uses the session’s `fullscreen_mode`. An existing fullscreen window switches through `set_mode()`, regrouping pages and invalidating old renders while retaining the current page.
+
+## 23. Annotation creation and compatible editing
+
+- `annotation_data.py` imports representable standard Underline/StrikeOut/Squiggly/FreeTextCallout annotations and versioned RePDF data. Locked annotations, rich text, unavailable fonts, transparency and unsupported appearances remain native/view-only with a reason. Invisible annotations do not become interactive overlays.
+- `annotation_store.py` retains baseline models and a delta, with `QUndoStack` for creation, style/text changes, movement, resizing and deletion. Dirty state compares both page order and annotation changes. Geometry uses source PDF coordinates and identities remain separate from page order.
+- `annotation_editor.py` shares mouse editing, style menus and inline text editing across normal/fullscreen views. Text input takes priority for arrows, undo and Esc. Commit text before saving, printing or exporting. Drags update a transient preview and produce one undo command on release.
+- `annotation_graphics.py` shares vector painting and Qt PDF font embedding. Persistence imports the appearance as an `/AP /N` Form XObject with cloned resources, and writes standard QuadPoints, CL, LE, DA, DR, RD and BS fields. `/RepdfData` retains versioned editing styles; annotations are not flattened.
+- Screen rendering parses only requested pages, temporarily hides editable native appearances, restores flags afterwards, and uses Qt overlays to avoid double drawing. Metadata readers use seekable file streams, with three cached documents and explicit closure on eviction/release, rather than copying entire source files into memory first.
+- `DocumentSelection`, `SavePdfTask` and `PrintPage` accept annotation snapshots defaulting to empty. Saving, selected-page export and printing apply the same delta before reordering. Print backends cache by source and snapshot fingerprint instead of rebuilding every page; deletions are deferred to preserve source indices.
+- Successful saves reuse tab rebuilding/page remapping and reload annotation identities. Closing dirty tabs/windows offers Save/Discard/Cancel; save failure retains the original file and edit state.
+- `test_annotation_editing.py` covers native appearances/Unicode, reopened editing, conservative imports, movement, undo, close decisions, crop/rotation transforms and icon sizing. PDFium and Poppler provide independent display checks.
+
+- Editing metadata stores a fingerprint of standard fields and the appearance stream. Reopening checks consistency. If another application changes the appearance/text without updating that metadata, native display remains authoritative and the annotation becomes view-only, preventing stale-model writeback.
+
+- A 90 ms single-shot timer requests text-layer selection previews for markup. Previews neither create annotations nor touch the clipboard; release creates one undoable annotation from the final result. Highlights use standard `/Highlight` and `/QuadPoints`, with transparent appearance in `/AP`.
+- Callout fitting measures QTextDocument content using the same font and margins as PDF appearances. Sizes are adjusted in upright page coordinates, then mapped back to rotated/cropped coordinates. The arrow target stays fixed; cancelling restores the original box.
+
+- Callout corner radii are retained in editable `radius` data and drawn as vector paths in the standard `/AP` appearance. Annotations retain `/FreeText`, `/CL` and `/Contents` and remain unflattened. Missing radius data in older annotations means 0.
+
+- `annotation_geometry.py` supplies drawing coordinates, translation and resizing. Notes, lines/arrows, rectangles, ellipses and strokes use `Text` / `Line` / `Square` / `Circle` / `Ink`, with standard `/L`, `/LE`, `/RD`, `/IC`, `/InkList`, `/Contents` and `/AP`. Editable data is retained without flattening.
+- New-type signatures include their geometry fields while existing callout/markup signatures stay unchanged for backward compatibility. Notes/drawings from other applications retain native appearances and remain read-only.
+- Drawing updates only the transient preview; release validates geometry and creates one undo command. Cancelled/empty note edits create no annotation. Saving, printing and exporting reuse the same change snapshots.
+
+- `annotation_spin.py` combines Qt spin boxes without native buttons with shared chevron tool buttons, synchronizing range states even when value updates block signals.
+- Markup requests snapshot companion settings; previews create nothing. Final glyph results determine the anchor and start an undo macro, completed on text acceptance/cancellation. Only confirmed text enters the PDF; cancellation retains the markup.
+
+- `OverflowToolBar` displays page-selection controls and output actions directly. Checkboxes in narrow-window overflow mirror source controls; Save shortcuts belong directly to the main window.
+- `floating_tools.py` hosts annotations in the reading window and shares annotation/extraction actions in fullscreen, with an always-visible mode dropdown. Menus are temporarily reparented during fullscreen and restored before exit to avoid modal blocking or deletion. Bars support dragging, bounds clamping and overflow, retaining position across page and mode changes.
+
+- `shortcut_hints.py` derives tooltips from QAction bindings, watches action changes and refreshes hints on language changes. It uses NativeText and deduplicates Tab/Backtab display aliases.
+
+- Checkbox and split-button groups use fixed content sizes. `OverflowToolBar` watches child LayoutRequest events and refreshes QWidgetAction geometry and overflow boundaries, preventing stale widths from clipping labels after language changes.
+
+- `OverflowToolBar.group_sections()` packs separator-delimited runs into indivisible QWidgetAction containers, keeping expanding spacers separate. Overflow lists each complete group and its settings menus in order. `tool_actions()` exposes logical ordering and `widgetForAction()` retains individual-button lookup. Window registration keeps shortcuts active while sections are hidden.
+
+- `message_dialogs.py` creates the Qt unsaved-changes prompt with a separate heading, filename and discard explanation. Save is the default and Cancel handles Escape; all three choices retain the existing save/close flow.

@@ -36,9 +36,10 @@ def test_all_state_buttons_use_borderless_hover_colors(qtbot, monkeypatch):
     qtbot.waitExposed(window)
     window.activateWindow()
     qtbot.waitUntil(window.isActiveWindow)
+    window.annotation_tools_action.setChecked(True)
     buttons = [window.toolbar.widgetForAction(action) for action in (
-        window.copy_text_action, window.region_ocr_action, window.extract_image_action,
-        window.bookmark_action, window.fit_action)]
+        window.copy_text_action, window.region_ocr_action, window.extract_image_action)]
+    buttons += [window.toolbar.widgetForAction(action) for action in (window.bookmark_action,window.fit_action)]
     window.search_controller.open()
     panel = window.search_controller.panel
     buttons += [panel.regular_expression, panel.case_sensitive, panel.whole_word]
@@ -76,7 +77,7 @@ def test_toolbar_overflow_popup_and_resize(qtbot, monkeypatch):
     window = MainWindow()
     qtbot.addWidget(window)
     ready_document(window, Path("sample.pdf"), 2)
-    window.resize(720, 600)
+    window.resize(520, 600)
     window.show()
     toolbar = window.toolbar
     qtbot.waitUntil(toolbar.overflow_button.isVisible)
@@ -103,15 +104,18 @@ def test_toolbar_overflow_popup_and_resize(qtbot, monkeypatch):
     qtbot.waitUntil(lambda: toolbar.overflow_button.geometry().right() < toolbar.width())
     window.resize(1500, 600)
     qtbot.waitUntil(lambda: not toolbar.overflow_button.isVisible())
-    assert toolbar.widgetForAction(window.theme_action).isVisible()
-    window.resize(720, 600)
+    assert window.toolbar.widgetForAction(window.export_action).isVisible()
+    assert window.toolbar.widgetForAction(window.split_action).isVisible()
+    assert window.odd_checkbox.isVisible() and window.even_checkbox.isVisible()
+    assert window.theme_action in window.toolbar.tool_actions()
+    window.resize(520, 600)
     qtbot.waitUntil(toolbar.overflow_button.isVisible)
     toolbar._populate_overflow()
     assert toolbar.overflow_menu.actions().count(window.theme_action) == 1
 
 
 def test_overflow_controls_share_toolbar_state(qtbot, monkeypatch):
-    from PySide6.QtWidgets import QCheckBox, QSlider
+    from PySide6.QtWidgets import QCheckBox, QLabel, QSlider
 
     monkeypatch.setattr(DocumentView, "_queue_all_renders", lambda self: None)
     window = MainWindow()
@@ -125,9 +129,12 @@ def test_overflow_controls_share_toolbar_state(qtbot, monkeypatch):
     toolbar._populate_overflow()
     slider = toolbar.overflow_menu.findChild(QSlider)
     assert slider is not None
+    assert not slider.parentWidget().findChildren(QLabel)
     slider.setValue(125)
     assert window.zoom_slider.value() == 125
     assert doc.zoom == 125
+    assert window.zoom_reset_action.text() == '125%'
+    assert window.zoom_reset_action in toolbar.overflow_menu.actions()
     window.zoom_slider.setValue(75)
     assert slider.value() == 75
     checkboxes = toolbar.overflow_menu.findChildren(QCheckBox)
@@ -259,19 +266,24 @@ def test_toolbar_shortcuts_and_zoom_limits(qtbot, monkeypatch) -> None:
     window.show()
     window.activateWindow()
     qtbot.wait(50)
-    for action in (window.open_action, window.export_action):
-        assert action in window.toolbar.actions()
+    assert window.open_action in window.toolbar.tool_actions()
+    assert window.export_action in window.toolbar.tool_actions()
+    for action in (window.open_action,window.export_action):
         assert not action.icon().isNull()
     assert window.zoom_reset_action.icon().isNull()
-    assert window.zoom_in_action not in window.toolbar.actions()
-    assert window.zoom_out_action not in window.toolbar.actions()
+    assert window.zoom_in_action not in window.toolbar.tool_actions()
+    assert window.zoom_out_action not in window.toolbar.tool_actions()
     display_width = window.zoom_display.width()
     qtbot.keyClick(window, Qt.Key.Key_O, Qt.KeyboardModifier.ControlModifier)
     qtbot.keyClick(window, Qt.Key.Key_S, Qt.KeyboardModifier.ControlModifier)
     assert calls == ["open"]
-    window.export_action.setEnabled(True)
+    monkeypatch.setattr(window.saving, "choose", lambda save_as=False: calls.append("save_as" if save_as else "save"))
+    window.save_action.setEnabled(True)
     qtbot.keyClick(window, Qt.Key.Key_S, Qt.KeyboardModifier.ControlModifier)
-    assert calls == ["open", "export"]
+    assert calls == ["open", "save"]
+    window.save_as_action.setEnabled(True)
+    qtbot.keyClick(window, Qt.Key.Key_S, Qt.KeyboardModifier.ControlModifier | Qt.KeyboardModifier.ShiftModifier)
+    assert calls == ["open", "save", "save_as"]
     qtbot.keyClick(window, Qt.Key.Key_Equal, Qt.KeyboardModifier.ControlModifier)
     assert window.zoom_slider.value() == 125
     qtbot.keyClick(window, Qt.Key.Key_Minus, Qt.KeyboardModifier.ControlModifier)
@@ -285,6 +297,10 @@ def test_toolbar_shortcuts_and_zoom_limits(qtbot, monkeypatch) -> None:
     assert not window.zoom_out_action.isEnabled()
     assert window.zoom_reset_action.text() == "25%"
     assert window.zoom_display.width() == display_width
+    window.resize(320, 600)
+    qtbot.waitUntil(lambda: not window.toolbar.widgetForAction(window.search_action).isVisible())
+    qtbot.keyClick(window, Qt.Key.Key_F, Qt.KeyboardModifier.ControlModifier)
+    assert window.search_controller.opened
 
 
 def test_failed_load_resets_title_and_open_action(qtbot, monkeypatch, tmp_path) -> None:
@@ -431,7 +447,7 @@ def test_tabs_keep_independent_state_and_output_scope(qtbot, monkeypatch, tmp_pa
     window.odd_checkbox.click()
     assert a.selected_pages == {0}
     assert b.selected_pages == {0, 2}
-    assert window.tabs.tabText(0) == "a"
+    assert window.tabs.tabText(0) == "a *"
     assert window.tabs.tabText(1) == "b"
     assert window.windowTitle() == f"RePDF {__version__}"
     assert window.tabs.tabToolTip(1) == str(b.source_path)
@@ -710,3 +726,124 @@ def test_real_multi_file_previews_survive_rapid_switch_and_zoom(qtbot, tmp_path)
     qtbot.waitUntil(lambda: a.page_cards[0].preview.pixmap().width() == 120, timeout=10_000)
     assert a.zoom == 50 and b.zoom == 100
     assert a.render_generation != b.render_generation
+
+
+def test_zoom_percentage_is_rounded_without_changing_actual_zoom(qtbot, monkeypatch):
+    monkeypatch.setattr(DocumentView, '_queue_all_renders', lambda self: None)
+    window = MainWindow()
+    qtbot.addWidget(window)
+    doc = ready_document(window, Path('sample.pdf'), 1)
+    for zoom, expected in [(74.73, '75%'), (104.5, '105%'), (87.44, '87%')]:
+        doc.zoom = zoom
+        window._sync_controls()
+        assert window.zoom_reset_action.text() == expected
+        assert doc.zoom == zoom
+
+
+
+def test_reading_toolbar_layout_and_floating_annotations_persistence(qtbot,monkeypatch):
+    monkeypatch.setattr(DocumentView,'_queue_all_renders',lambda self:None)
+    window = MainWindow();qtbot.addWidget(window);window.resize(1600,700);window.show()
+    assert window.toolbar.height() == 42 and not window.annotation_floating.isVisible()
+    assert window.copy_text_action in window.toolbar.tool_actions()
+    assert window.export_action in window.toolbar.tool_actions()
+    assert window.language_action in window.toolbar.tool_actions()
+    assert window.theme_action in window.toolbar.tool_actions()
+    assert window.save_as_action in window.toolbar.tool_actions()
+    assert window.toolbar.widgetForAction(window.export_action).isVisible()
+    ready_document(window,Path('one.pdf'),1)
+    original_sizes = window.centralWidget().sizes()
+    window.annotation_tools_action.setChecked(True)
+    assert window.annotation_floating.isVisible()
+    assert window.annotation_toolbar.orientation() == Qt.Orientation.Horizontal
+    assert window.annotation_floating.width() > window.annotation_floating.height()
+    assert window.annotation_floating.parentWidget() is window
+    assert window.centralWidget().sizes() == original_sizes
+    assert window.centralWidget().geometry().contains(window.annotation_floating.geometry())
+    window.copy_text_action.setChecked(True)
+    ready_document(window,Path('two.pdf'),1)
+    assert window.annotation_floating.isVisible()
+    window.annotation_tools_action.setChecked(False)
+    assert not window.annotation_floating.isVisible() and window.copy_text_action.isChecked()
+    second = MainWindow();qtbot.addWidget(second);second.show()
+    assert not second.annotation_tools_action.isChecked()
+    window.annotation_tools_action.setChecked(True)
+    third = MainWindow();qtbot.addWidget(third);third.show()
+    assert third.annotation_tools_action.isChecked() and third.annotation_floating.isVisible()
+
+
+def test_page_output_group_does_not_clip_labels_when_resized(qtbot, monkeypatch):
+    from PySide6.QtWidgets import QCheckBox
+
+    monkeypatch.setattr(DocumentView, '_queue_all_renders', lambda self: None)
+    window = MainWindow()
+    qtbot.addWidget(window)
+    window.show()
+    controls = window.odd_checkbox.parentWidget()
+    groups = [
+        [window.toolbar.widgetForAction(action) for action in actions]
+        for actions in (
+            (window.open_action, window.save_action, window.save_as_action, window.print_action),
+            (window.search_action, window.bookmark_action, window.annotation_action, window.annotation_tools_action),
+            (window.copy_text_action, window.region_ocr_action, window.extract_image_action),
+            (window.export_action, window.split_action),
+            (window.zoom_reset_action, window.fit_action, window.fullscreen_action),
+            (window.language_action, window.theme_action),
+        )
+    ]
+    groups[3].append(controls)
+    groups[4].append(window.zoom_slider)
+    actions = window.toolbar.tool_actions()
+    group_action = next(action for action in actions if window.toolbar.widgetForAction(action) is controls)
+    index = actions.index(group_action)
+    assert actions[index - 1].isSeparator()
+    assert actions[index + 1:index + 3] == [window.export_action, window.split_action]
+    assert actions[index + 3].isSeparator()
+    for language in ('zh', 'en'):
+        window.language_controller.set_mode(language)
+        for width in (320, 520, 600, 710, 760, 850, 1150, 1600):
+            window.resize(width, 600)
+            qtbot.wait(5)
+            for widgets in groups:
+                assert len({widget.isVisible() for widget in widgets}) == 1, (language, width)
+            if controls.isVisible():
+                assert controls.width() >= controls.sizeHint().width()
+                for checkbox in (window.odd_checkbox, window.even_checkbox):
+                    assert checkbox.width() >= checkbox.sizeHint().width()
+                    assert controls.rect().contains(checkbox.geometry())
+                assert window.toolbar.rect().contains(controls.geometry())
+            else:
+                window.toolbar._populate_overflow()
+                checkboxes = window.toolbar.overflow_menu.findChildren(QCheckBox)
+                assert [checkbox.text() for checkbox in checkboxes] == [window.odd_checkbox.text(), window.even_checkbox.text()]
+
+
+def test_shortcut_tooltips_follow_bindings_and_language(qtbot, monkeypatch):
+    from repdf.shortcut_hints import native_shortcuts
+
+    monkeypatch.setattr(DocumentView, '_queue_all_renders', lambda self: None)
+    window = MainWindow()
+    qtbot.addWidget(window)
+    window.resize(1600, 700)
+    window.show()
+    for mode in ('zh', 'en', 'zh', 'en'):
+        window.language_controller.set_mode(mode)
+        for action in (window.open_action, window.save_action, window.save_as_action,
+                       window.print_action, window.search_action, window.zoom_reset_action):
+            keys = native_shortcuts(action.shortcuts())
+            assert keys and keys in action.toolTip()
+            marker = '快捷鍵：' if mode == 'zh' else 'Shortcuts: '
+            assert action.toolTip().count(marker) == 1
+            button = window.toolbar.widgetForAction(action)
+            assert keys in button.toolTip()
+            assert button.toolTip().count(marker) == 1
+        assert native_shortcuts(window.zoom_in_action.shortcuts()) in window.zoom_reset_action.toolTip()
+        assert native_shortcuts(window.zoom_out_action.shortcuts()) in window.zoom_reset_action.toolTip()
+        assert 'F11' in window.single_action.toolTip()
+        assert ('上次選擇' if mode == 'zh' else 'last selected') in window.single_action.toolTip()
+    actions = window.toolbar.tool_actions()
+    order = (window.zoom_reset_action, window.fit_action, window.language_action, window.theme_action)
+    assert [actions.index(action) for action in order] == sorted(actions.index(action) for action in order)
+    window.print_action.setShortcuts([QKeySequence('Ctrl+Alt+P')])
+    assert 'Ctrl+Alt+P' in window.toolbar.widgetForAction(window.print_action).toolTip()
+    assert 'Ctrl+P' not in window.print_action.toolTip()

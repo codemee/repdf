@@ -94,6 +94,33 @@ def main(report_path: str) -> int:
             writer.add_annotation(1, Text(rect=(30, 200, 100, 250), text='Smoke annotation 註解'))
             with source.open("wb") as stream:
                 writer.write(stream)
+            from repdf.annotation_graphics import appearance
+            from repdf.annotation_data import read_models
+            from repdf.core import save_document
+            markup = {'id':'repdf-smoke-underline','page':0,'kind':'underline',
+                'color':'#ff0000','width':1.0,'text':'Smoke markup',
+                'quads':[[20,300,120,300,20,280,120,280]],
+                'geometry':{'box':[0,0,200,400],'rotation':0}}
+            markup['appearance_pdf'] = appearance(markup)
+            edited = root / 'annotation-edited.pdf'
+            save_document(source,edited,[0,1],annotation_changes=[markup])
+            imported, reasons, _ = read_models(PdfReader(edited),0)
+            if len(imported)!=1 or reasons or imported[0]['kind']!='underline':
+                raise RuntimeError('Packaged editable annotation round trip failed')
+            from repdf.annotation_geometry import new_drawing
+            geometry = markup['geometry']
+            shapes = [new_drawing({'kind':kind,'color':'#e04444','width':2,'background':None},0,geometry,(30,150),(100,200))
+                      for kind in ('line','arrow','rectangle','ellipse','ink')]
+            shapes.append({'id':'repdf-smoke-note','page':0,'kind':'note','color':'#c69214',
+                'width':1,'text':'Sticky note 註解','rect':[140,220,164,244],'geometry':geometry})
+            for model in shapes:
+                model['appearance_pdf'] = appearance(model)
+            drawing_output = root / 'drawing-edited.pdf'
+            save_document(source,drawing_output,[0,1],annotation_changes=shapes)
+            imported,reasons,_ = read_models(PdfReader(drawing_output),0)
+            if reasons or len(imported) != 6 or imported[-1]['text'] != 'Sticky note 註解':
+                raise RuntimeError('Packaged sticky note/drawing round trip failed')
+
             process = start_render_backend()
             resources.callback(_stop_backend, process)
             process.stdin.write(json.dumps({

@@ -2,10 +2,11 @@ from pathlib import Path
 
 from PySide6.QtCore import QEvent, Qt, QTimer
 from PySide6.QtGui import QImage, QKeySequence, QPixmap
-from PySide6.QtWidgets import QApplication, QCheckBox, QLabel, QWidget
+from PySide6.QtWidgets import QApplication, QCheckBox, QWidget
 
 from repdf.strings import tr
 from repdf.widgets import PagePreviewLabel
+from repdf.floating_tools import FloatingAnnotationTools
 
 
 class FullscreenPreview(QWidget):
@@ -19,28 +20,49 @@ class FullscreenPreview(QWidget):
         self.owner = owner
         self.document = document
         self.mode = mode
-        order = document.page_order
-        if mode == "single":
-            self.groups = [[page] for page in order]
-        elif mode == "spread":
-            self.groups = [order[i:i + 2] for i in range(0, len(order), 2)]
-        elif mode == "cover":
-            self.groups = [order[:1]] + [order[i:i + 2] for i in range(1, len(order), 2)]
-        else:
-            raise ValueError(f"Unknown preview mode: {mode}")
+        self.groups = self.page_groups(mode)
         self.render_generation = -1
         self.images = {}
         self.labels = {}
         self.checkboxes = {}
         self.closed = False
         self.setWindowModality(Qt.WindowModality.ApplicationModal)
-        self.setStyleSheet("background: palette(window);")
+        self.setObjectName('fullscreenPreview')
+        self.setStyleSheet("QWidget#fullscreenPreview { background: palette(window); }")
         self.timer = QTimer(self)
         self.timer.setSingleShot(True)
         self.timer.setInterval(120)
         self.timer.timeout.connect(self.request_render)
         QApplication.instance().installEventFilter(self)
         self.show_page(page_index)
+        self.floating_tools = FloatingAnnotationTools(self)
+
+    def page_groups(self, mode):
+        order = self.document.page_order
+        if mode == 'single':
+            return [[page] for page in order]
+        if mode == 'spread':
+            return [order[i:i + 2] for i in range(0, len(order), 2)]
+        if mode == 'cover':
+            return [order[:1]] + [order[i:i + 2] for i in range(1, len(order), 2)]
+        raise ValueError(f'Unknown preview mode: {mode}')
+
+    def set_mode(self, mode):
+        groups = self.page_groups(mode)
+        if mode == self.mode:
+            return
+        self.owner.annotation_editor.finish_text(True)
+        self.owner.annotation_editor.clear()
+        page = self.page_index
+        self.mode = mode
+        self.groups = groups
+        self.owner.fullscreen_mode = mode
+        action = {'single': self.owner.single_action, 'spread': self.owner.spread_action,
+                  'cover': self.owner.cover_action}[mode]
+        action.setChecked(True)
+        self.owner.fullscreen_action.setToolTip(tr('全螢幕模式：{mode}', mode=action.text()))
+        self.owner._refresh_toolbar_icons()
+        self.show_page(page)
 
     @property
     def image(self):
@@ -67,6 +89,7 @@ class FullscreenPreview(QWidget):
             label = PagePreviewLabel('', draggable=False)
             label.set_search_highlight_color(self.owner.search_controller.highlight_color)
             label.setParent(self)
+            self.owner.annotation_editor.attach(label,self.document,index)
             source_label = self.document.page_cards[index].preview
             label.set_links(self.document.page_links.get(index, []))
             label.set_annotations(self.document.page_annotations.get(index, []))
@@ -140,6 +163,7 @@ class FullscreenPreview(QWidget):
             path.unlink(missing_ok=True)
             if index not in self.visible_pages:
                 return
+            self.owner.annotation_editor.loaded(self.document,index,payload)
             self.images[index] = image
             self.document.page_links[index] = payload.get('links', [])
             self.document.page_annotations[index] = payload.get('annotation_hits', [])
@@ -179,6 +203,8 @@ class FullscreenPreview(QWidget):
                 pixmap.setDevicePixelRatio(ratio)
                 label.setPixmap(pixmap)
             x += width * scale + self.PAGE_GAP
+        if hasattr(self,'floating_tools'):
+            self.floating_tools.reposition()
 
     def resizeEvent(self, event):
         super().resizeEvent(event)
@@ -187,6 +213,17 @@ class FullscreenPreview(QWidget):
             self.timer.start()
 
     def eventFilter(self, watched, event):
+        editor=self.owner.annotation_editor
+        if editor.text_edit is not None and isinstance(watched,QWidget) and (watched is editor.text_edit or editor.text_edit.isAncestorOf(watched)):
+            return False
+        if event.type()==QEvent.Type.KeyPress and event.key()==Qt.Key.Key_Escape and (editor.anchor is not None or editor.drag is not None):
+            return False
+        if (not self.closed and isinstance(watched,QWidget) and watched.window() is self
+                and event.type() in (QEvent.Type.ShortcutOverride,QEvent.Type.KeyPress)
+                and (event.matches(QKeySequence.StandardKey.Save) or event.matches(QKeySequence.StandardKey.SaveAs))):
+            if event.type() == QEvent.Type.ShortcutOverride: event.accept()
+            else: self.owner.saving.choose(save_as=event.matches(QKeySequence.StandardKey.SaveAs))
+            return True
         if (not self.closed and isinstance(watched, QWidget) and watched.window() is self
                 and event.type() in (QEvent.Type.ShortcutOverride, QEvent.Type.KeyPress)
                 and event.matches(QKeySequence.StandardKey.Print)):
@@ -227,11 +264,15 @@ class FullscreenPreview(QWidget):
         return False
 
     def closeEvent(self, event):
+        self.owner.annotation_editor.finish_text(True)
         self.closed = True
+        self.floating_tools.restore_menus()
         self.timer.stop()
         QApplication.instance().removeEventFilter(self)
         self.owner.render_service.cancel_pending(-self.document.document_id)
         self.owner._fullscreen_preview = None
+        self.owner.annotation_floating.setVisible(self.owner.annotation_tools_action.isChecked())
+        self.owner.annotation_floating.reposition()
         self.owner.activateWindow()
         self.deleteLater()
         event.accept()

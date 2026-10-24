@@ -5,6 +5,8 @@ from pathlib import Path
 import tempfile
 
 from PySide6.QtCore import QEvent, QRectF, QSize, Qt, QTimer
+from repdf.shortcut_hints import shortcut_tooltip
+
 from PySide6.QtGui import QImage, QKeySequence, QPageLayout, QPageSize, QPainter, QPalette, QPen, QShortcut
 from PySide6.QtPrintSupport import QPrintDialog, QPrinter, QPrinterInfo
 from PySide6.QtWidgets import (QCheckBox, QComboBox, QDialog, QDialogButtonBox, QFormLayout, QHBoxLayout,
@@ -227,7 +229,8 @@ class PrintPreviewDialog(QDialog):
         self.color.currentIndexChanged.connect(self.change_color)
         if self.options is not None:
             self.options.selection_changed.connect(self.change_selection)
-        for key, step in ((Qt.Key.Key_PageUp, -1), (Qt.Key.Key_PageDown, 1)):
+        for key, step, button, label in ((Qt.Key.Key_PageUp, -1, self.previous, '上一頁'), (Qt.Key.Key_PageDown, 1, self.next, '下一頁')):
+            button.setToolTip(shortcut_tooltip(tr(label), [QKeySequence(key)]))
             shortcut = QShortcut(QKeySequence(key), self)
             shortcut.activated.connect(lambda delta=step: self.show_page(self.index + delta))
         self.sync_printer_controls()
@@ -428,7 +431,7 @@ class PrintPreviewDialog(QDialog):
                 self.service = RenderService(start_render_backend(), self)
                 self.service.message.connect(self.receive)
             self.service.request_print(page.source, page.page, Path(self.temp.name), self.generation,
-                                       password=page.password, preview=True)
+                                       password=page.password, preview=True, annotation_changes=page.annotation_changes)
         except Exception as exc:
             self.fail(str(exc))
 

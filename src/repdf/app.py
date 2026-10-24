@@ -14,9 +14,7 @@ from PySide6.QtCore import QEvent, QPointF, QSettings, QSize, Qt, QThreadPool, Q
 from PySide6.QtGui import (
     QCloseEvent,
     QAction,
-    QDragEnterEvent,
-    QDragMoveEvent,
-    QDropEvent,
+    QActionGroup,
     QFont,
     QFontDatabase,
     QIcon,
@@ -31,9 +29,11 @@ from PySide6.QtWidgets import (
     QAbstractSlider,
     QFileDialog,
     QHBoxLayout,
+    QLayout,
     QLabel,
     QLineEdit,
     QMainWindow,
+    QMenu,
     QMessageBox,
     QScrollArea,
     QSizePolicy,
@@ -60,13 +60,19 @@ from repdf.preferences import LanguageController, migrate_preferences
 from repdf.renderer import RenderService, start_render_backend
 from repdf.widgets import PageCard, PageGrid, PageGridLayout, PdfPasswordDialog
 from repdf.toolbar import OverflowToolBar
+from repdf.shortcut_hints import ShortcutHints
+from repdf.message_dialogs import unsaved_changes_message
 from repdf.preview import FullscreenPreview
+from repdf.floating_tools import FloatingAnnotationTools
 from repdf.workers import ExportPdfTask, LoadPdfTask
 from repdf.search_panel import SearchController
 from repdf.page_view import PageViewport, PreviewCache
 from repdf.navigation import NavigationController
 from repdf.printing import PrintController
 from repdf.ocr_languages import OcrLanguageController
+from repdf.saving import SaveController
+from repdf.annotation_store import AnnotationStore
+from repdf.annotation_editor import AnnotationEditor
 
 
 class DocumentView(QWidget):
@@ -94,6 +100,8 @@ class DocumentView(QWidget):
         self.page_labels = {}
         self.bookmarks = None
         self.annotations = None
+        self.annotation_store = AnnotationStore(self)
+        self.annotation_store.changed.connect(lambda: self.owner.annotation_editor.changed(self))
         self.ready = False
         self._search_navigation = None
         self.password: str | None = None
@@ -150,6 +158,12 @@ class DocumentView(QWidget):
         for card in self.page_cards:
             card.checkbox.setEnabled(not self.owner._export_running)
         self.include_checkbox.setEnabled(not self.owner._export_running)
+        if self.fit_mode:
+            self.fit_timer.start()
+
+    @property
+    def modified(self):
+        return self.ready and (self.page_order != list(range(self.page_count)) or self.annotation_store.modified)
 
     def eventFilter(self, watched, event) -> bool:
         if watched is self.scroll_area.viewport() and event.type() == QEvent.Type.Resize:
@@ -179,6 +193,7 @@ class DocumentView(QWidget):
         card.selection_preview.connect(lambda index, start, end, preview=card.preview:
                                       self.owner._copy_text_selection(self, index, preview, start, end, copy=False))
         self.pages.prepare_card(card)
+        self.owner.annotation_editor.attach(card.preview,self,page_index)
         card.preview.set_links(self.page_links.get(page_index, []))
         card.preview.set_annotations(self.page_annotations.get(page_index, []))
         card.preview.link_activated.connect(lambda destination: self.owner.navigation.activate(self, destination))
@@ -204,6 +219,7 @@ class DocumentView(QWidget):
         self.page_order.remove(source_index)
         self.page_order.insert(insertion, source_index)
         self._reflow_grid()
+        self.owner._sync_controls()
         self.show_status(
             tr('已調整第 {p0} 頁的預覽與輸出順序', p0=source_index + 1)
         )
@@ -222,6 +238,7 @@ class DocumentView(QWidget):
             insertion += 1
         self.page_order.insert(insertion, source_index)
         self._reflow_grid()
+        self.owner._sync_controls()
         self.show_status(
             tr('已調整第 {p0} 頁的預覽與輸出順序', p0=source_index + 1)
         )
@@ -282,7 +299,7 @@ class DocumentView(QWidget):
         self._apply_fit()
 
     def _apply_fit(self) -> None:
-        if not self.fit_mode or self.owner._closing:
+        if not self.fit_mode or not self.ready or self.owner._closing:
             return
         card = self.page_cards[self.fit_page_index]
         points = self.pages.page_size(self.fit_page_index)
@@ -400,6 +417,7 @@ class MainWindow(QMainWindow):
         self._export_id = 0
         self._syncing_bulk = False
         self._closing = False
+        self._discard_on_close = set()
         self._fullscreen_preview = None
         self._build_toolbar()
         central = QWidget()
@@ -422,14 +440,17 @@ class MainWindow(QMainWindow):
         self.navigation = NavigationController(self, central)
         self.search_controller = SearchController(self, self.navigation.workspace)
         self.setCentralWidget(self.search_controller.workspace)
+        self.annotation_floating = FloatingAnnotationTools(self, owner=self)
         self.statusBar().setSizeGripEnabled(False)
         self.statusBar().showMessage(tr('就緒'))
         self._build_page_navigation()
         self.print_controller = PrintController(self)
+        self.saving = SaveController(self)
         self.language_controller.changed.connect(self._retranslate)
         self._update_preference_actions()
 
         QApplication.instance().installEventFilter(self)
+        self._sync_controls()
 
     def _build_page_navigation(self):
         self._page_edit_dirty = False
@@ -535,6 +556,10 @@ class MainWindow(QMainWindow):
         self._update_page_indicator()
 
     def eventFilter(self, watched, event) -> bool:
+        editor=getattr(self,'annotation_editor',None)
+        text_editor=editor.text_edit if editor is not None else None
+        if text_editor is not None and isinstance(watched,QWidget) and (watched is text_editor or text_editor.isAncestorOf(watched)):
+            return False
         if watched is getattr(self, 'page_number_input', None):
             if event.type() == QEvent.Type.FocusIn:
                 QTimer.singleShot(0, self.page_number_input.selectAll)
@@ -596,6 +621,8 @@ class MainWindow(QMainWindow):
             self._update_page_indicator()
 
     def _navigate_preview(self, key) -> None:
+        if self._export_running:
+            return
         doc = self.current_document()
         if doc is None or not doc.ready or not doc.page_order:
             return
@@ -657,7 +684,7 @@ class MainWindow(QMainWindow):
         self.close_shortcut_text = " / ".join(names)
         self.close_tab_action = QAction(tr('關閉目前標籤頁'), self)
         self.close_tab_action.setShortcuts(close_keys)
-        self.close_tab_action.setToolTip(tr('關閉目前標籤頁（{p0}）', p0=self.close_shortcut_text))
+        self.close_tab_action.setToolTip(tr('關閉目前標籤頁'))
         self.close_tab_action.triggered.connect(lambda: self.close_tab(self.tabs.currentIndex()))
         self.addAction(self.close_tab_action)
         self.toolbar = OverflowToolBar(tr('檔案與顯示'), self)
@@ -668,12 +695,37 @@ class MainWindow(QMainWindow):
         self.toolbar.setIconSize(QSize(20, 20))
         self.toolbar.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonIconOnly)
         self.addToolBar(self.toolbar)
+        self.annotation_tools_action = QAction(tr('註解工具'), self)
+        self.annotation_tools_action.setCheckable(True)
+        self.annotation_tools_action.setToolTip(tr('註解工具：顯示或隱藏懸浮工具列'))
+        self.annotation_toolbar = OverflowToolBar(tr('註解與擷取'), self)
+        self.annotation_toolbar.setObjectName('annotationToolbar')
+        self.annotation_toolbar.setMovable(False)
+        self.annotation_toolbar.setFloatable(False)
+        self.annotation_toolbar.setContextMenuPolicy(Qt.ContextMenuPolicy.PreventContextMenu)
+        self.annotation_toolbar.setFixedHeight(42)
+        self.annotation_toolbar.setIconSize(QSize(20,20))
+        self.annotation_toolbar.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonIconOnly)
+        self.annotation_toolbar.hide()
+        self.annotation_tools_action.toggled.connect(self._toggle_annotation_toolbar)
 
         self.open_action = QAction(tr('開啟 PDF'), self)
         self.open_action.setShortcut(QKeySequence.StandardKey.Open)
-        self.open_action.setToolTip(tr('開啟 PDF（Ctrl+O）'))
+        self.open_action.setToolTip(tr('開啟 PDF'))
         self.open_action.triggered.connect(self.choose_pdf)
         self.toolbar.addAction(self.open_action)
+        self.save_action = QAction(tr('存檔'), self)
+        self.save_action.setShortcuts(QKeySequence.keyBindings(QKeySequence.StandardKey.Save))
+        self.save_action.setToolTip(tr('存檔：將目前檔案的完整頁面順序儲存至原 PDF'))
+        self.save_action.triggered.connect(lambda: self.saving.choose())
+        self.addAction(self.save_action)
+        self.save_as_action = QAction(tr('另存新檔'), self)
+        self.save_as_action.setShortcuts(QKeySequence.keyBindings(QKeySequence.StandardKey.SaveAs))
+        self.save_as_action.setToolTip(tr('另存新檔：將目前檔案的完整頁面順序儲存為另一份 PDF'))
+        self.save_as_action.triggered.connect(lambda: self.saving.choose(save_as=True))
+        self.addAction(self.save_as_action)
+        self.toolbar.addAction(self.save_action)
+        self.toolbar.addAction(self.save_as_action)
         self.print_action = QAction(tr('列印'), self)
         self.print_action.setShortcuts(QKeySequence.keyBindings(QKeySequence.StandardKey.Print))
         self.print_action.setToolTip(tr('列印：設定範圍、印表機並即時預覽'))
@@ -681,56 +733,29 @@ class MainWindow(QMainWindow):
         self.print_action.triggered.connect(lambda: self.print_controller.open())
         self.toolbar.addAction(self.print_action)
         self.export_action = QAction(tr('輸出選取頁面'), self)
-        self.export_action.setShortcuts([QKeySequence("Ctrl+S"), QKeySequence("Ctrl+Shift+S")])
-        self.export_action.setToolTip(tr('輸出選取頁面為新 PDF（Ctrl+S / Ctrl+Shift+S）'))
+        self.export_action.setToolTip(tr('輸出選取頁面為新 PDF'))
         self.export_action.setEnabled(False)
         self.export_action.triggered.connect(self.choose_output)
-        self.toolbar.addAction(self.export_action)
         self.split_action = QAction(tr('拆分選取頁面'), self)
         self.split_action.setToolTip(tr('拆分選取頁面：依目前順序存成單頁 PDF，檔名附加補零序號'))
         self.split_action.setEnabled(False)
         self.split_action.triggered.connect(self.choose_split_output)
-        self.toolbar.addAction(self.split_action)
         self.toolbar.addSeparator()
 
-        selection_controls = QWidget()
-        bulk = QHBoxLayout(selection_controls)
-        bulk.setContentsMargins(8, 0, 4, 0)
-        bulk.setSpacing(8)
-        self.odd_checkbox = QCheckBox(tr('單數頁'))
-        self.even_checkbox = QCheckBox(tr('雙數頁'))
-        for checkbox in (self.odd_checkbox, self.even_checkbox):
-            checkbox.setTristate(True)
-            checkbox.setEnabled(False)
-            bulk.addWidget(checkbox)
-        self.odd_checkbox.setToolTip(tr('選取或取消原始頁碼的單數頁'))
-        self.even_checkbox.setToolTip(tr('選取或取消原始頁碼的雙數頁'))
-        self.odd_checkbox.clicked.connect(lambda checked: self._toggle_parity(True, checked))
-        self.even_checkbox.clicked.connect(lambda checked: self._toggle_parity(False, checked))
-        self.toolbar.add_overflow_controls(selection_controls, (self.odd_checkbox, self.even_checkbox))
-        self.toolbar.addSeparator()
         self.copy_text_action = QAction(tr('複製文字'), self)
         self.copy_text_action.setCheckable(True)
         self.copy_text_action.setToolTip(tr('複製文字：點擊切換；啟用後在頁面拖曳選取文字並複製到剪貼簿，停用後恢復拖放排序。掃描影像中的文字需先經過 OCR。'))
         self.copy_text_action.toggled.connect(self._set_copy_text_mode)
-        self.toolbar.addAction(self.copy_text_action)
-        self.toolbar.widgetForAction(self.copy_text_action).setObjectName('copyTextTool')
         self.region_ocr_action = QAction(tr('區域 OCR'), self)
         self.region_ocr_action.setCheckable(True)
         self.region_ocr_action.setToolTip(tr('區域 OCR：框選頁面或圖片中的區域，放開滑鼠後辨識並複製文字。'))
         self.region_ocr_action.toggled.connect(self._set_region_ocr_mode)
         self.ocr_languages = OcrLanguageController(self)
-        self.ocr_language_button = self.toolbar.add_action_menu_group(self.region_ocr_action, self.ocr_languages.menu)
-        self.toolbar.widgetForAction(self.region_ocr_action).setObjectName('regionOcrTool')
-        self.ocr_language_button.setToolTip(tr('OCR 辨識語言'))
-        self.ocr_language_button.setAccessibleName(tr('OCR 辨識語言'))
         self.extract_image_action = QAction(tr('擷取圖片'), self)
         self.extract_image_action.setCheckable(True)
         self.extract_image_action.setEnabled(False)
         self.extract_image_action.setToolTip(tr('擷取圖片：點選頁面中的內嵌點陣圖片，另存為 PNG。'))
         self.extract_image_action.toggled.connect(self._set_image_mode)
-        self.toolbar.addAction(self.extract_image_action)
-        self.toolbar.widgetForAction(self.extract_image_action).setObjectName('extractImageTool')
         self.bookmark_action = QAction(tr('書籤'), self)
         self.bookmark_action.setCheckable(True)
         self.bookmark_action.setToolTip(tr('書籤：開啟章節目錄，點選即可跳頁'))
@@ -745,18 +770,48 @@ class MainWindow(QMainWindow):
         self.toolbar.widgetForAction(self.annotation_action).setObjectName('annotationsTool')
         self.search_action = QAction(tr('搜尋文字'), self)
         self.search_action.setShortcuts(QKeySequence.keyBindings(QKeySequence.StandardKey.Find))
-        self.search_action.setToolTip(tr('搜尋文字（{p0}）：在右側窗格搜尋目前、勾選或所有標籤頁',
-            p0=self.search_action.shortcut().toString(QKeySequence.SequenceFormat.NativeText)))
+        self.search_action.setToolTip(tr('搜尋文字：在右側窗格搜尋目前、勾選或所有標籤頁'))
         self.search_action.triggered.connect(lambda: self.search_controller.open())
-        self.toolbar.addAction(self.search_action)
+        self.toolbar.insertAction(self.bookmark_action,self.search_action)
+        self.toolbar.addAction(self.annotation_tools_action)
+        self.toolbar.addSeparator()
+        self.annotation_editor = AnnotationEditor(self)
+        self.toolbar.addAction(self.copy_text_action)
+        self.toolbar.widgetForAction(self.copy_text_action).setObjectName('copyTextTool')
+        self.ocr_language_button = self.toolbar.add_action_menu_group(self.region_ocr_action,self.ocr_languages.menu)
+        self.toolbar.widgetForAction(self.region_ocr_action).setObjectName('regionOcrTool')
+        self.ocr_language_button.setToolTip(tr('OCR 辨識語言'))
+        self.ocr_language_button.setAccessibleName(tr('OCR 辨識語言'))
+        self.toolbar.addAction(self.extract_image_action)
+        self.toolbar.widgetForAction(self.extract_image_action).setObjectName('extractImageTool')
+
+        self.toolbar.addSeparator()
+        selection_controls = QWidget(self)
+        bulk = QHBoxLayout(selection_controls)
+        bulk.setContentsMargins(8, 0, 4, 0)
+        bulk.setSpacing(8)
+        bulk.setSizeConstraint(QLayout.SizeConstraint.SetFixedSize)
+        self.odd_checkbox = QCheckBox(tr('單數頁'))
+        self.even_checkbox = QCheckBox(tr('雙數頁'))
+        for checkbox in (self.odd_checkbox, self.even_checkbox):
+            checkbox.setTristate(True)
+            checkbox.setEnabled(False)
+            bulk.addWidget(checkbox)
+        self.odd_checkbox.setToolTip(tr('選取或取消原始頁碼的單數頁'))
+        self.even_checkbox.setToolTip(tr('選取或取消原始頁碼的雙數頁'))
+        self.odd_checkbox.clicked.connect(lambda checked: self._toggle_parity(True, checked))
+        self.even_checkbox.clicked.connect(lambda checked: self._toggle_parity(False, checked))
+        self.toolbar.add_overflow_controls(selection_controls, (self.odd_checkbox, self.even_checkbox))
+        self.toolbar.addAction(self.export_action)
+        self.toolbar.addAction(self.split_action)
+        self.toolbar.addSeparator()
 
         spacer = QWidget()
         spacer.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Preferred)
         self.toolbar.addWidget(spacer)
-        self.toolbar.addSeparator()
         self.zoom_out_action = QAction(tr('縮小'), self)
         self.zoom_out_action.setShortcut(QKeySequence("Ctrl+-"))
-        self.zoom_out_action.setToolTip(tr('縮小（Ctrl+-）'))
+        self.zoom_out_action.setToolTip(tr('縮小'))
         self.zoom_out_action.triggered.connect(lambda: self._adjust_zoom(-25))
         self.addAction(self.zoom_out_action)
         self.zoom_slider = QSlider(Qt.Orientation.Horizontal)
@@ -768,13 +823,13 @@ class MainWindow(QMainWindow):
         self.zoom_slider.valueChanged.connect(self._zoom_changed)
         self.zoom_in_action = QAction(tr('放大'), self)
         self.zoom_in_action.setShortcuts([QKeySequence("Ctrl++"), QKeySequence("Ctrl+=")])
-        self.zoom_in_action.setToolTip(tr('放大（Ctrl++ / Ctrl+=）'))
+        self.zoom_in_action.setToolTip(tr('放大'))
         self.zoom_in_action.triggered.connect(lambda: self._adjust_zoom(25))
         self.addAction(self.zoom_in_action)
         self.zoom_reset_action = QAction("100%", self)
         self.zoom_reset_action.setShortcut(QKeySequence("Ctrl+0"))
         self.zoom_reset_action.setToolTip(
-            tr('頁面顯示比例：25%–200%\n拖曳右側滑桿調整比例。\n放大：Ctrl++ 或 Ctrl+=（每次增加 25 個百分點）\n縮小：Ctrl+-（每次減少 25 個百分點）\n回到 100%：點擊比例或按 Ctrl+0\n100% 以 96 DPI 顯示 PDF 頁面。')
+            tr('頁面顯示比例：25%–200%\n拖曳右側滑桿調整比例；點擊比例回到 100%。\n100% 以 96 DPI 顯示 PDF 頁面。')
         )
         self.zoom_reset_action.triggered.connect(lambda: self._set_manual_zoom(100))
         self.toolbar.addAction(self.zoom_reset_action)
@@ -789,42 +844,79 @@ class MainWindow(QMainWindow):
         self.fit_action.setToolTip(tr("Fit：將目前單頁等比例縮放至預覽區，視窗調整時自動適應"))
         self.fit_action.triggered.connect(self._fit_page)
         self.toolbar.addAction(self.fit_action)
-        self.fullscreen_action = QAction(tr("全螢幕單頁"), self)
+        self.fullscreen_mode = 'single'
+        self.fullscreen_action = QAction(tr('全螢幕'), self)
         self.fullscreen_action.setShortcut(QKeySequence("F11"))
-        self.fullscreen_action.setToolTip(tr("全螢幕單頁（F11）；Esc 結束，方向鍵／Page Up／Page Down 切頁，可勾選頁面"))
-        self.fullscreen_action.triggered.connect(lambda: self._show_fullscreen_preview("single"))
-        self.toolbar.addAction(self.fullscreen_action)
+        self.fullscreen_action.setToolTip(tr('全螢幕'))
+        self.fullscreen_action.triggered.connect(self._toggle_fullscreen_preview)
+        self.addAction(self.fullscreen_action)
+        self.single_action = QAction(tr('全螢幕單頁'), self)
+        self.single_action.setToolTip(tr('全螢幕單頁'))
+        self.single_action.triggered.connect(lambda: self._show_fullscreen_preview('single'))
         self.spread_action = QAction(tr("全螢幕對頁"), self)
         self.spread_action.setToolTip(tr("全螢幕對頁：依目前順序兩頁並排；Esc 結束，方向鍵／Page Up／Page Down 切頁，可勾選頁面"))
         self.spread_action.triggered.connect(lambda: self._show_fullscreen_preview("spread"))
-        self.toolbar.addAction(self.spread_action)
         self.cover_action = QAction(tr("全螢幕封面＋對頁"), self)
         self.cover_action.setToolTip(tr("全螢幕封面＋對頁：第一頁單獨顯示，其餘兩頁並排；Esc 結束，方向鍵／Page Up／Page Down 切頁，可勾選頁面"))
         self.cover_action.triggered.connect(lambda: self._show_fullscreen_preview("cover"))
-        self.toolbar.addAction(self.cover_action)
+        self.fullscreen_menu = QMenu(tr('全螢幕模式'), self)
+        self.fullscreen_modes = QActionGroup(self)
+        self.fullscreen_modes.setExclusive(True)
+        for action in (self.single_action, self.spread_action, self.cover_action):
+            action.setCheckable(True)
+            self.fullscreen_modes.addAction(action)
+            self.fullscreen_menu.addAction(action)
+        self.single_action.setChecked(True)
+        self.fullscreen_menu_button = self.toolbar.add_action_menu_group(
+            self.fullscreen_action, self.fullscreen_menu, arrow_name='fullscreenModeMenu')
+        self.fullscreen_menu_button.setToolTip(tr('全螢幕模式'))
+        self.fullscreen_menu_button.setAccessibleName(tr('全螢幕模式'))
         self.toolbar.addSeparator()
         self.language_action = QAction(self)
         self.language_action.triggered.connect(self._cycle_language)
-        self.toolbar.addAction(self.language_action)
         self.theme_action = QAction(self)
         self.theme_action.triggered.connect(self._cycle_theme)
+        self.toolbar.addAction(self.language_action)
         self.toolbar.addAction(self.theme_action)
         self._refresh_toolbar_icons()
-        for action in self.toolbar.actions():
-            button = self.toolbar.widgetForAction(action)
-            if isinstance(button, QToolButton):
-                if action.isCheckable():
-                    button.setProperty('stateButton', True)
-                    button.setAttribute(Qt.WidgetAttribute.WA_Hover, True)
-                if button is self.zoom_display:
-                    button.setFixedHeight(34)
-                else:
-                    button.setFixedSize(34, 34)
+        for toolbar in (self.toolbar,self.annotation_toolbar):
+            for action in toolbar.actions():
+                button = toolbar.widgetForAction(action)
+                if isinstance(button,QToolButton):
+                    if action.isCheckable():
+                        button.setProperty('stateButton',True)
+                        button.setAttribute(Qt.WidgetAttribute.WA_Hover,True)
+                    if button is self.zoom_display: button.setFixedHeight(34)
+                    else: button.setFixedSize(34,34)
+        self.toolbar.group_sections()
+        self.zoom_display = self.toolbar.widgetForAction(self.zoom_reset_action)
+        self.shortcut_hints = ShortcutHints(self)
+        self.annotation_tools_action.setChecked(self.settings.value('view/annotation_toolbar',False,type=bool))
+
+    def _finish_annotation_modes(self, include_extraction=False):
+        self.annotation_editor.finish_text(True)
+        self.annotation_editor.clear()
+        actions = [self.annotation_editor.mark_action, self.annotation_editor.callout_action, self.annotation_editor.draw_action]
+        if include_extraction:
+            actions.extend((self.copy_text_action, self.region_ocr_action, self.extract_image_action))
+        for action in actions:
+            action.setChecked(False)
+        self._sync_selection_modes()
+
+    def _toggle_annotation_toolbar(self, enabled):
+        if not enabled and hasattr(self,'annotation_editor'):
+            self._finish_annotation_modes()
+        if hasattr(self, 'annotation_floating'):
+            self.annotation_floating.setVisible(enabled and self._fullscreen_preview is None)
+            if enabled:
+                self.annotation_floating.reposition()
+        self.settings.setValue('view/annotation_toolbar',enabled)
 
     def _refresh_toolbar_icons(self) -> None:
         if hasattr(self, 'ocr_language_button'):
             self.ocr_language_button.setIcon(toolbar_icon('chevron_down'))
         for action, kind in ((self.open_action, "open"), (self.export_action, "export"),
+                             (self.save_action, 'save'), (self.save_as_action, 'save_as'),
                              (self.split_action, "split"), (self.copy_text_action, "copy_text"),
                              (self.region_ocr_action, "ocr_region"),
                              (self.extract_image_action, "extract_image"),
@@ -833,22 +925,29 @@ class MainWindow(QMainWindow):
                              (self.bookmark_action, "bookmarks"),
                              (self.annotation_action, "annotations"),
                              (self.fit_action, "fit"),
-                             (self.fullscreen_action, "fullscreen"),
+                             (self.fullscreen_action, {'single': 'fullscreen', 'spread': 'fullscreen_spread', 'cover': 'fullscreen_cover'}[self.fullscreen_mode]),
+                             (self.single_action, 'fullscreen'),
                              (self.spread_action, "fullscreen_spread"),
                              (self.cover_action, "fullscreen_cover")):
             action.setIcon(toolbar_icon(kind))
         if hasattr(self, "language_action"):
             self._update_preference_actions()
+        if hasattr(self, "annotation_editor"):
+            self.annotation_editor.refresh_icons()
+        self.annotation_tools_action.setIcon(toolbar_icon('edit_tools'))
+        for name in ('ocr_language_button', 'fullscreen_menu_button'):
+            if hasattr(self, name):
+                getattr(self, name).setIcon(toolbar_icon('chevron_down'))
 
     def _update_preference_actions(self) -> None:
         language = self.language_controller
         language_names = {"system": tr("跟隨系統"), "zh": tr("中文"), "en": "English"}
         theme_names = {"system": tr("跟隨系統"), "light": tr("淺色"), "dark": tr("深色")}
-        self.language_action.setText(tr("介面語言"))
+        self.language_action.setText(tr("介面語言：{mode}", mode=language_names[language.mode]))
         self.language_action.setIcon(toolbar_icon("language_" + language.mode))
         self.language_action.setToolTip(tr("介面語言：{mode}（目前：{language}）\n點擊依序切換：跟隨系統 → 中文 → English",
                                           mode=language_names[language.mode], language=language_names[language.language]))
-        self.theme_action.setText(tr("介面配色"))
+        self.theme_action.setText(tr("介面配色：{mode}", mode=theme_names[self._theme_controller.mode]))
         self.theme_action.setIcon(toolbar_icon("theme_" + self._theme_controller.mode))
         self.theme_action.setToolTip(tr("介面配色：{mode}\n點擊依序切換：跟隨系統 → 淺色 → 深色",
                                       mode=theme_names[self._theme_controller.mode]))
@@ -879,13 +978,21 @@ class MainWindow(QMainWindow):
             if isinstance(widget, QWidget):
                 widget.setAccessibleName(localize_text(widget.accessibleName()))
         self.toolbar.setWindowTitle(localize_text(self.toolbar.windowTitle()))
+        self.annotation_toolbar.setWindowTitle(localize_text(self.annotation_toolbar.windowTitle()))
         self._update_window_title()
         self._sync_controls()
         self.statusBar().showMessage(status)
         self._update_preference_actions()
+        self.shortcut_hints.refresh()
         self.search_controller.retranslate()
         self.navigation.retranslate()
         self.ocr_languages.refresh()
+        self.annotation_editor.mark_menu.refresh()
+        self.annotation_editor.callout_menu.refresh()
+        self.annotation_editor.draw_menu.refresh()
+        self.annotation_floating.refresh_icons()
+        if self._fullscreen_preview is not None:
+            self._fullscreen_preview.floating_tools.refresh_icons()
 
     def changeEvent(self, event: QEvent) -> None:
         super().changeEvent(event)
@@ -923,6 +1030,9 @@ class MainWindow(QMainWindow):
 
     def _select_mode(self, active, enabled):
         if enabled:
+            for action in (self.annotation_editor.mark_action,self.annotation_editor.callout_action,self.annotation_editor.draw_action):
+                action.blockSignals(True); action.setChecked(False); action.blockSignals(False)
+            self.annotation_editor.anchor = None
             for action in (self.copy_text_action, self.region_ocr_action, self.extract_image_action):
                 if action is not active:
                     action.blockSignals(True)
@@ -1044,12 +1154,29 @@ class MainWindow(QMainWindow):
         finally:
             path.unlink(missing_ok=True)
 
-    def _show_fullscreen_preview(self, mode="single") -> None:
+    def _toggle_fullscreen_preview(self) -> None:
+        if self._fullscreen_preview is not None:
+            self._fullscreen_preview.close()
+        else:
+            self._show_fullscreen_preview()
+
+    def _show_fullscreen_preview(self, mode=None) -> None:
+        self.annotation_editor.finish_text(True)
+        if self._export_running:
+            return
         doc = self.current_document()
         if doc is None or not doc.ready or not doc.page_sizes:
             return
+        mode = mode or self.fullscreen_mode
         if self._fullscreen_preview is not None:
+            self._fullscreen_preview.set_mode(mode)
             return
+        self.fullscreen_mode = mode
+        action = {'single': self.single_action, 'spread': self.spread_action, 'cover': self.cover_action}[mode]
+        action.setChecked(True)
+        self.fullscreen_action.setToolTip(tr('全螢幕模式：{mode}', mode=action.text()))
+        self._refresh_toolbar_icons()
+        self.annotation_floating.hide()
         viewer = FullscreenPreview(self, doc, doc.preview_page_index(), mode)
         self._fullscreen_preview = viewer
         viewer.setGeometry(self.screen().geometry())
@@ -1074,10 +1201,12 @@ class MainWindow(QMainWindow):
         if not included:
             current = self.current_document()
             included = [current] if current is not None else []
-        return [DocumentSelection(doc.source_path, tuple(page for page in doc.page_order if page in doc.selected_pages), doc.password)
+        return [DocumentSelection(doc.source_path, tuple(page for page in doc.page_order if page in doc.selected_pages), doc.password, tuple(doc.annotation_store.changes()))
                 for doc in included if doc.ready and doc.selected_pages]
 
     def _tab_changed(self, _index: int) -> None:
+        self.annotation_editor.finish_text(True)
+        self.annotation_editor.clear()
         if self._closing:
             return
         doc = self.current_document()
@@ -1103,7 +1232,14 @@ class MainWindow(QMainWindow):
         self._update_page_indicator()
         doc = self.current_document()
         ready = doc is not None and doc.ready
+        for action in (self.annotation_editor.mark_action,self.annotation_editor.callout_action,self.annotation_editor.draw_action):
+            action.setEnabled(ready and bool(doc.page_sizes) and not self._export_running and not self.print_controller.busy)
         self.print_action.setEnabled(ready and not self.print_controller.busy and not self._export_running)
+        self.save_action.setEnabled(ready and doc.modified and not self._export_running and not self.print_controller.busy)
+        self.save_as_action.setEnabled(ready and not self._export_running and not self.print_controller.busy)
+        for document in self.documents.values():
+            index = self.tabs.indexOf(document)
+            self.tabs.setTabText(index, document.source_path.stem + (' *' if document.modified else ''))
         self.close_tab_action.setEnabled(self.tabs.count() > 0 and not self._export_running)
         self._syncing_bulk = True
         for checkbox, odd in ((self.odd_checkbox, True), (self.even_checkbox, False)):
@@ -1120,11 +1256,16 @@ class MainWindow(QMainWindow):
             self.zoom_slider.blockSignals(True)
             self.zoom_slider.setValue(round(zoom))
             self.zoom_slider.blockSignals(False)
-        self.zoom_reset_action.setText(f"{zoom:g}%")
+        self.zoom_reset_action.setText(f"{int(zoom + 0.5)}%")
         self.fit_action.setChecked(ready and doc.fit_mode)
         available = ready and bool(doc.page_sizes)
         self.fit_action.setEnabled(available)
         self.fullscreen_action.setEnabled(available)
+        self.single_action.setEnabled(available)
+        self.fullscreen_menu_button.setEnabled(available)
+        mode_action = {'single': self.single_action, 'spread': self.spread_action,
+                       'cover': self.cover_action}[self.fullscreen_mode]
+        self.fullscreen_action.setToolTip(tr('全螢幕模式：{mode}', mode=mode_action.text()))
         self.spread_action.setEnabled(available)
         self.cover_action.setEnabled(available)
         self.copy_text_action.setEnabled(available)
@@ -1284,6 +1425,7 @@ class MainWindow(QMainWindow):
     def _pdf_loaded(self, document_id: int, path: Path, page_count: int) -> None:
         doc = self.documents.get(document_id)
         if doc is not None and not self._closing:
+            doc.fit_mode = True
             doc.loaded(page_count)
             if self.current_document() is doc:
                 self._tab_changed(self.tabs.currentIndex())
@@ -1298,12 +1440,30 @@ class MainWindow(QMainWindow):
             self.close_tab(self.tabs.indexOf(doc), force=True)
         self._finish_load(document_id, error)
 
+    def _confirm_close(self, doc, on_saved=None):
+        if not doc.modified:
+            return True
+        message = unsaved_changes_message(self, doc.source_path.name)
+        result = message.exec()
+        if result == QMessageBox.StandardButton.Discard:
+            return True
+        if result == QMessageBox.StandardButton.Save:
+            self.tabs.setCurrentWidget(doc)
+            self.saving.choose(on_saved=on_saved)
+        else:
+            self._discard_on_close.clear()
+        return False
+
     def close_tab(self, index: int, *, force: bool = False) -> None:
         if (self._export_running and not force) or index < 0:
             return
         doc = self.tabs.widget(index)
         if doc is None:
             return
+        if not force:
+            self.annotation_editor.finish_text(True)
+            if not self._confirm_close(doc, lambda saved: self.close_tab(self.tabs.indexOf(saved), force=True)):
+                return
         doc.password = None
         if self._password_document_id == doc.document_id and self._password_dialog is not None:
             self._password_dialog.reject()
@@ -1342,6 +1502,8 @@ class MainWindow(QMainWindow):
     @Slot(object)
     def _handle_render_message(self, payload) -> None:
         if not isinstance(payload, dict):
+            return
+        if self.annotation_editor.receive(payload):
             return
         if self.navigation.receive(payload):
             return
@@ -1432,6 +1594,7 @@ class MainWindow(QMainWindow):
         self._choose_output(split=True)
 
     def _choose_output(self, *, split: bool) -> None:
+        self.annotation_editor.finish_text(True)
         selections = self.output_selection()
         if not selections or self._export_running:
             return
@@ -1512,7 +1675,19 @@ class MainWindow(QMainWindow):
         QMessageBox.critical(self, tr('輸出失敗'), localize_text(message))
 
     def closeEvent(self, event: QCloseEvent) -> None:
+        if self.saving.task is not None:
+            event.ignore()
+            self.statusBar().showMessage(tr('正在儲存 PDF…'))
+            return
+        self.annotation_editor.finish_text(True)
+        for doc in self.ordered_documents():
+            if doc.document_id not in self._discard_on_close and doc.modified:
+                if not self._confirm_close(doc, lambda _saved: self.close()):
+                    event.ignore()
+                    return
+                self._discard_on_close.add(doc.document_id)
         self._closing = True
+        self.annotation_editor.finish_text(True)
         self.navigation.shutdown()
         self.ocr_languages.close()
         self.print_controller.close()
@@ -1537,7 +1712,13 @@ class MainWindow(QMainWindow):
 
 
 def load_app_icon() -> QIcon:
-    return QIcon(str(files("repdf").joinpath("assets", "repdf.png")))
+    from repdf.icon_layout import fitted_icon
+    import io
+    from PySide6.QtGui import QPixmap
+    buffer=io.BytesIO()
+    fitted_icon(files('repdf').joinpath('assets','repdf.png')).save(buffer,format='PNG')
+    image=QImage.fromData(buffer.getvalue())
+    return QIcon(QPixmap.fromImage(image))
 
 
 def configure_application(app: QApplication) -> None:

@@ -84,6 +84,7 @@ class SearchPanel(QWidget):
         self.query.setClearButtonEnabled(True)
         self.query.setMinimumWidth(0)
         self.search_button = self._button('search', '搜尋')
+        self.search_button.setToolTip(tr('搜尋（搜尋欄中按 Enter）'))
         self.stop_button = self._button('stop', '停止')
         self.stop_button.setEnabled(False)
         row.addWidget(self.query, 1)

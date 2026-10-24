@@ -2,7 +2,7 @@
 
 [繁體中文](UI_DESIGN.md) | [English](UI_DESIGN.en.md)
 
-This document describes the implementation in RePDF 0.1.0 as a reference for other desktop projects. Values come from the code. “Fixed” means an explicitly configured size; “automatic” means Qt, fonts, or content determine the size.
+This document describes the implementation in RePDF as a reference for other desktop projects. Values come from the code. “Fixed” means an explicitly configured size; “automatic” means Qt, fonts, or content determine the size.
 
 ## 1. Style and units
 
@@ -32,6 +32,10 @@ The main layout contains the toolbar, document tabs, scrollable reading area, an
 - PDF page labels use a single line with a maximum width of 180, shortened further in narrow windows. The full label appears in the tooltip.
 
 ## 3. Toolbar and buttons
+
+Fullscreen uses a 34 × 34 main button with a 14 × 34 right-hand dropdown arrow, spacing 2 and 20 × 20 icons. Its menu offers single page, spread and cover plus spread; the main button and <kbd>F11</kbd> reuse the last mode selected in this session.
+
+The main row places Open, Save, Save As, Print, Search, Bookmarks, Annotations, the annotation-tools toggle, copy text, OCR, image extraction, odd/even selection, export and split on the left. An expanding spacer keeps zoom, Fit, the fullscreen mode dropdown, language and theme on the right. Markup, text annotations and drawings use a draggable horizontal floating toolbar with remembered visibility.
 
 | Item | Current specification |
 | --- | --- |
@@ -265,3 +269,44 @@ A color swatch on the same row configures match highlighting, using a 34 × 34 b
 - In reading mode, annotation bounds use a pointing-hand cursor. Clicking marks the annotation and synchronizes the list selection and expanded group. Fullscreen stays open; narrow windows keep the PDF visible.
 - Clicking a page group jumps to and marks its first listed annotation. Individual annotations use a 2 px accent outline with translucent fill, scaled with the page in both normal and fullscreen views.
 - A single-column tree groups annotations by page. Page rows show the number and count and start collapsed; children elide long one-line summaries. Tooltips retain full text and metadata. In narrow windows, selecting an item returns to the PDF; the toolbar button reopens the list.
+
+## Annotation editing tools
+
+- Markup, text-annotation and drawing controls sit in the second toolbar. Each uses a 34 × 34 main button plus a 14 × 34 arrow, spacing 2, and a 20 × 20 icon with 1 px strokes.
+- Popup style panels provide line icons, swatches, widths and text styles without a fixed sidebar. Selected callouts show accent-coloured corner and arrow handles and support inline text editing.
+- Application artwork is retained, centred by its visible bounds and fitted to 92% of the canvas consistently for windows, Windows ICO and macOS ICNS.
+
+- Clicking a target automatically places a text box with space for at least one line nearby. An outside click only finishes editing. Dragged boxes and handles share the same preview coordinates.
+- Unsaved-change prompts use Qt message boxes with a 28 px orange circular warning icon, a 14 pt heading and a separate 10 pt explanation. Light mode uses white; dark mode retains the theme background.
+
+- Inline callout editors use 6 px corners, theme backgrounds and a thin accent border. Content sizes the box automatically, wrapping at its width limit and growing within the page. Finished annotations use their configured PDF appearance.
+- The markup panel offers highlight, underline, strikeout and squiggly modes. Drag previews follow glyph ranges instead of a rectangular selection. Highlights default to yellow at 35% opacity and disable the width control.
+- Save prompts have 24 px padding and right-aligned 88 × 34 px buttons ordered Cancel, Don’t Save, Save. Cancel has an accent outline, Don’t Save uses orange text, and Save is the filled accent default button.
+
+- Toolbar zoom percentages are rounded to whole numbers; Fit and page rendering retain the original precision.
+
+- Clicking an existing callout selects it immediately. When the annotations pane is closed, opening the list waits for the system double-click interval so relayout cannot interrupt editing. Bodies use move cursors, corners use rotation-aware diagonal resize cursors, and arrow endpoints use pointing-hand cursors.
+
+- Annotation list items use 20 px type icons without textual type prefixes. Type names remain in tooltips and accessible text; selected icons use the selected foreground colour.
+- Items with text reveal a read-only selectable text area below the list, with 34 × 34 / 20 × 20 select-all and copy controls. Partial selections and standard keyboard selection/copy shortcuts work.
+- New callouts default to 6 pt corners, adjustable from 0–24 pt in the style panel. Existing annotations retain their shape; 0 means square. Preview and saved PDF appearances share the rounded path.
+
+- Rows with text reserve a 34 × 34 / 20 × 20 copy control on the right, eliding the summary before it. Clicking copies the complete item text without changing selection, navigating or opening the details area. The standard copy shortcut also works when the list is focused.
+- The callout tool icon uses a text box and a single diagonal arrow.
+
+- Inline typing retains the box’s original minimum width and expands it to the right with single-line content, wrapping only when page space is exhausted. IME composition participates in sizing without entering the saved PDF text.
+
+- The text annotation main button combines callouts and sticky notes, with 34 × 34 / 20 × 20 type buttons in its dropdown. Notes show only applicable colour settings, defaulting to golden yellow and remembering their colour independently. Choosing a type activates the tool and updates its main icon without converting existing items.
+- An adjacent drawing main button/dropdown offers lines, arrows, rectangles, ellipses and ink. Fill controls appear only for rectangles/ellipses. Annotation tools are mutually exclusive with copy text, OCR and image extraction.
+- Notes appear as page icons and open a Qt text dialog on double-click. They can be moved, and the sidebar shows their content and copy action.
+
+- Annotation-panel numeric fields use the same 12 × 12 chevrons as toolbar dropdowns, with up/down variants, press-and-hold stepping, keyboard entry and range limits.
+- The markup panel optionally adds a callout or note via two type icons. Its anchor is the upper midpoint of the selected glyph bounds in display orientation, including rotated/cropped pages. Notes are constrained to page bounds when space above is limited.
+
+- Fullscreen uses a movable, collapsible horizontal floating annotation toolbar without changing the PDF fit area. Its horizontal inner bar is 42 px high. Controls remain 34 × 34 with 20 × 20 icons; settings arrows stay to the right of their main buttons. The mode dropdown remains available when annotation tools are collapsed. Switching modes preserves the current page; exiting restores the reading window’s floating-toolbar visibility.
+
+- First-row buttons are shown directly when space permits and enter the overflow menu when needed. Floating annotation expansion is remembered independently.
+
+- Buttons with keyboard shortcuts list their actual bindings in tooltips, using native platform key names and updating with the UI language.
+
+- Separators surround the page-output group. Odd/even checkboxes retain their full text width and move into overflow together with export and split when space is insufficient.

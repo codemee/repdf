@@ -24,10 +24,12 @@ def main() -> None:
         raise SystemExit("Build Windows on Windows or macOS on macOS.")
     version = tomllib.loads((ROOT / "pyproject.toml").read_text(encoding="utf-8"))["project"]["version"]
     OUT.mkdir(parents=True, exist_ok=True)
-    if sys.platform == "darwin":
-        from PIL import Image
-        with Image.open(ROOT / "src/repdf/assets/repdf.png") as image:
-            image.resize((1024, 1024)).save(OUT / "repdf.icns", format="ICNS")
+    from repdf.icon_layout import fitted_icon
+    image=fitted_icon(ROOT / 'src/repdf/assets/repdf.png')
+    if sys.platform == 'darwin':
+        image.save(OUT / 'repdf.icns',format='ICNS')
+    else:
+        image.save(OUT / 'repdf.ico',format='ICO',sizes=[(n,n) for n in (16,20,24,32,40,48,64,128,256)])
     build_env = os.environ.copy()
     if sys.platform == "win32":
         # Prevent unrelated tools on PATH from supplying incompatible native DLLs.

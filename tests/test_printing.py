@@ -235,6 +235,8 @@ def test_single_print_window_does_not_open_native_dialog(qtbot, tmp_path, monkey
     captured = []
     monkeypatch.setattr(window.print_controller, 'start', lambda printer, pages, scaling: captured.append((pages, scaling)))
     def confirm(dialog):
+        assert QKeySequence(Qt.Key.Key_PageUp).toString(QKeySequence.SequenceFormat.NativeText) in dialog.previous.toolTip()
+        assert QKeySequence(Qt.Key.Key_PageDown).toString(QKeySequence.SequenceFormat.NativeText) in dialog.next.toolTip()
         dialog.options.scope.setCurrentIndex(2)
         dialog.options.range_edit.setText('1,3')
         dialog.scaling.setCurrentIndex(1)

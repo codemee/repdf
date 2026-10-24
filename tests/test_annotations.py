@@ -134,20 +134,29 @@ def test_annotation_sidebar_is_lazy_and_jumps_after_reordering(qtbot, tmp_path, 
     qtbot.waitUntil(lambda: doc.focused_page == 2 and settled(doc), timeout=15000)
     assert window.page_number_input.text() == '3' and doc.page_order[0] == 2
     rect = doc.annotations[3]['destination']['annotation_rect']
-    assert doc.pages.annotation_highlights == {2: rect}
+    # Supported highlights now use editable annotation handles rather than the
+    # read-only navigation overlay.
+    selected = window.annotation_editor.current()
+    assert selected and selected['kind'] == 'highlight' and selected['page'] == 2
+    assert not doc.pages.annotation_highlights
     assert clipboard.text() == 'Marked text'
-    assert doc.page_cards[2].preview._annotation_rect == rect
+    assert doc.page_cards[2].preview._annotation_rect is None
+    assert window.annotation_editor.current()["id"] == selected["id"]
     if virtual:
         old_card = doc.page_cards.realized.pop(2)
         old_card.hide()
         old_card.deleteLater()
         doc.pages.ensure_page(2)
     doc.pages.prepare_card(doc.page_cards[2])
-    assert doc.page_cards[2].preview._annotation_rect == rect
+    assert doc.page_cards[2].preview._annotation_rect is None
+    assert window.annotation_editor.current()["id"] == selected["id"]
     window._show_fullscreen_preview()
     viewer = window._fullscreen_preview
-    assert viewer.labels[2]._annotation_rect == rect
+    assert viewer.labels[2]._annotation_rect is None
+    assert window.annotation_editor.current()["id"] == selected["id"]
     viewer.close()
+    # Fullscreen metadata can refresh the tree and replace its Qt items.
+    group = nav.items[1].parent()
     nav._clicked(group)
     qtbot.waitUntil(lambda: doc.focused_page == 1 and settled(doc), timeout=15000)
     assert doc.pages.annotation_highlights == {1: first_rect}
@@ -199,7 +208,8 @@ def test_annotation_tabs_empty_state_translation_and_stale_response(qtbot, tmp_p
     assert QApplication.clipboard().text() == 'keep across tabs'
     window.language_controller.set_mode('en')
     assert nav.panel.title.text() == 'Annotations'
-    assert 'Highlight' in nav.items[3].text(0)
+    assert not nav.items[3].icon(0).isNull()
+    assert 'Highlight' in nav.items[3].toolTip(0)
     assert nav.items[2].parent().isExpanded()
     doc.annotations = None
     nav.panel.tree.clear()
@@ -307,3 +317,71 @@ def test_closing_annotations_clears_markers_and_pending_copy(qtbot, tmp_path, cl
                  'annotation_rect': [0.2, 0.3, 0.4, 0.5]})
     assert not doc.pages.annotation_highlights
     assert clipboard.text() == 'unchanged on reopen'
+
+
+
+def test_annotation_type_icons_and_selectable_text_details(qtbot, tmp_path):
+    from PySide6.QtGui import QTextCursor
+    source = tmp_path / 'details.pdf'
+    annotations_pdf(source)
+    window, doc = load_window(qtbot, source)
+    window.annotation_action.trigger()
+    nav = window.navigation
+    qtbot.waitUntil(lambda: len(nav.items) == 4, timeout=10000)
+    for item, annotation in zip(nav.items, doc.annotations):
+        assert not item.icon(0).isNull()
+        assert ' · ' not in item.text(0)
+        assert annotation['kind'] in item.toolTip(0)
+    item = nav.items[0]
+    nav.panel.tree.setCurrentItem(item)
+    text = doc.annotations[0]['contents']
+    assert nav.panel.text_panel.isVisible()
+    assert nav.panel.annotation_text.isReadOnly()
+    assert nav.panel.annotation_text.toPlainText() == text
+    cursor = nav.panel.annotation_text.textCursor()
+    cursor.setPosition(0)
+    cursor.setPosition(min(6, len(text)), QTextCursor.MoveMode.KeepAnchor)
+    nav.panel.annotation_text.setTextCursor(cursor)
+    qtbot.mouseClick(nav.panel.copy_text_button, Qt.MouseButton.LeftButton)
+    assert QApplication.clipboard().text() == text[:6]
+    qtbot.mouseClick(nav.panel.select_text_button, Qt.MouseButton.LeftButton)
+    qtbot.keyClick(nav.panel.annotation_text, Qt.Key.Key_C, Qt.KeyboardModifier.ControlModifier)
+    assert QApplication.clipboard().text() == text
+    window.bookmark_action.trigger()
+    assert not nav.panel.text_panel.isVisible()
+
+
+@pytest.mark.parametrize('width', [320, 1000])
+def test_copy_on_annotation_row_does_not_select_or_navigate(qtbot, tmp_path, width):
+    from repdf.annotation_tree import copy_rect, TEXT_ROLE
+    source = tmp_path / 'row-copy.pdf'
+    annotations_pdf(source)
+    window, doc = load_window(qtbot, source)
+    window.resize(width, 700)
+    window.annotation_action.trigger()
+    nav = window.navigation
+    qtbot.waitUntil(lambda: len(nav.items) == 4, timeout=10000)
+    tree = nav.panel.tree
+    tree.setCurrentItem(nav.items[0])
+    target = nav.items[1]
+    target.parent().setExpanded(True)
+    tree.scrollToItem(target)
+    focused = doc.focused_page
+    current = tree.currentItem()
+    old_text = nav.panel.annotation_text.toPlainText()
+    clicks = []
+    tree.itemClicked.connect(lambda *args: clicks.append(args))
+    QApplication.clipboard().setText('before copy')
+    rectangle = tree.visualItemRect(target)
+    assert rectangle.height() >= 34
+    position = copy_rect(rectangle).center()
+    qtbot.mouseMove(tree.viewport(), position)
+    assert tree.viewport().cursor().shape() == Qt.CursorShape.PointingHandCursor
+    qtbot.mouseClick(tree.viewport(), Qt.MouseButton.LeftButton, pos=position)
+    assert QApplication.clipboard().text() == target.data(0, TEXT_ROLE)
+    assert tree.currentItem() is current and not clicks
+    assert doc.focused_page == focused and not doc.modified
+    assert nav.panel.annotation_text.toPlainText() == old_text
+    tree.setFocus()
+    qtbot.keyClick(tree, Qt.Key.Key_C, Qt.KeyboardModifier.ControlModifier)
+    assert QApplication.clipboard().text() == current.data(0, TEXT_ROLE)

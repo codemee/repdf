@@ -1,6 +1,9 @@
 from __future__ import annotations
 
 import json
+import io
+from pypdf import PdfReader, PdfWriter
+from repdf.annotation_data import read_models, apply_changes
 from math import ceil
 import socket
 import sys
@@ -23,12 +26,20 @@ class PdfDocumentCache:
         self.limit = limit
         self.documents = OrderedDict()
 
-    def get(self, source, password=None):
+    def get(self, source, password=None, annotation_changes=()):
         path = Path(source).resolve()
         stat = path.stat()
-        key = (path, stat.st_size, stat.st_mtime_ns, password)
+        import hashlib
+        fingerprint=hashlib.sha256(json.dumps(annotation_changes,sort_keys=True).encode()).hexdigest() if annotation_changes else None
+        key = (path, stat.st_size, stat.st_mtime_ns, password, fingerprint)
         if key not in self.documents:
-            self.documents[key] = pdfium.PdfDocument(str(path), password=password)
+            if annotation_changes:
+                reader=PdfReader(path,password=password)
+                writer=PdfWriter(); writer.clone_document_from_reader(reader); apply_changes(writer,annotation_changes)
+                buffer=io.BytesIO(); writer.write(buffer)
+                self.documents[key]=pdfium.PdfDocument(buffer.getvalue())
+            else:
+                self.documents[key] = pdfium.PdfDocument(str(path), password=password)
         self.documents.move_to_end(key)
         while len(self.documents) > self.limit:
             _, document = self.documents.popitem(last=False)
@@ -48,6 +59,8 @@ class PdfDocumentCache:
         for document in self.documents.values():
             document.close()
         self.documents.clear()
+        from repdf.annotation_reader_cache import clear
+        clear()
 
 
 def render_document(
@@ -57,9 +70,20 @@ def render_document(
     password: str | None = None,
     document=None,
     max_pixels: int | None = None,
+    annotation_changes=(),
+    interactive=False,
 ) -> None:
-    own_document = document is None
-    if own_document:
+    edited_reader = None
+    if annotation_changes:
+        edited_reader = PdfReader(source, password=password)
+        writer = PdfWriter(); writer.clone_document_from_reader(edited_reader)
+        apply_changes(writer, annotation_changes)
+        buffer = io.BytesIO(); writer.write(buffer)
+        document = pdfium.PdfDocument(buffer.getvalue())
+        own_document = True
+    else:
+        own_document = document is None
+    if own_document and not annotation_changes:
         document = pdfium.PdfDocument(str(source), password=password)
     try:
         indices = range(len(document)) if pages is None else pages
@@ -81,7 +105,34 @@ def render_document(
                     render_scale = min(render_scale, (max_pixels / (width_points * height_points)) ** .5)
                     while ceil(width_points * render_scale) * ceil(height_points * render_scale) > max_pixels:
                         render_scale *= .999
-                bitmap = page.render(scale=render_scale)
+                editable, readonly, geometry = [], {}, None
+                hidden = []
+                if interactive:
+                    from repdf.annotation_reader_cache import models_for_page
+                    try:
+                        editable, readonly, geometry = models_for_page(source, password, page_index)
+                    except Exception:
+                        editable=[]
+                        readonly={-1:'Annotation data could not be parsed reliably'}
+                    geometry={'box':list(page.get_bbox()),'rotation':page.get_rotation()}
+                    for model in editable:
+                        model['geometry']=geometry
+                    editable_indices={model['source_index'] for model in editable}
+                    annotation_hits=[hit for hit in annotation_hits if hit['destination']['annotation_index'] not in editable_indices]
+                    import pypdfium2.raw as raw
+                    for model in editable:
+                        annotation = raw.FPDFPage_GetAnnot(page, model['source_index'])
+                        if annotation:
+                            flags = raw.FPDFAnnot_GetFlags(annotation)
+                            raw.FPDFAnnot_SetFlags(annotation, flags | 2)
+                            hidden.append((annotation, flags))
+                try:
+                    bitmap = page.render(scale=render_scale)
+                finally:
+                    if hidden:
+                        for annotation, flags in hidden:
+                            raw.FPDFAnnot_SetFlags(annotation, flags)
+                            raw.FPDFPage_CloseAnnot(annotation)
                 try:
                     image = bitmap.to_pil().convert("RGB")
                     output = output_dir / f"g{generation}-p{page_index}.png"
@@ -96,11 +147,15 @@ def render_document(
                 "width_points": width_points, "height_points": height_points,
                 "links": links,
                 "annotation_hits": annotation_hits,
+                "editable_annotations": editable, "annotation_readonly": readonly, "geometry": geometry,
                 "page_label": page_label,
             }), file=output_stream, flush=True)
     finally:
         if own_document:
             document.close()
+            if interactive:
+                from repdf.annotation_reader_cache import release
+                release(source)
 
 
 def extract_selection_result(source: Path, page_index: int, start: list[float],
@@ -162,6 +217,7 @@ def extract_selection_result(source: Path, page_index: int, start: list[float],
                     text = textpage.get_text_range(lo, hi - lo + 1)
 
                 rects = []
+                quads = []
                 if text:
                     for index in range(lo, hi + 1):
                         box = textpage.get_charbox(index)
@@ -171,7 +227,8 @@ def extract_selection_result(source: Path, page_index: int, start: list[float],
                                    for y in (box[1], box[3])]
                         xs, ys = zip(*corners)
                         rects.append([min(xs), min(ys), max(xs), max(ys)])
-                result = {"text": text, "rects": rects}
+                        quads.append([box[0],box[3],box[2],box[3],box[0],box[1],box[2],box[1]])
+                result = {"text": text, "rects": rects, "quads": quads}
                 if allow_ocr and text and suspicious_text(text):
                     if on_ocr is not None:
                         on_ocr()
@@ -213,6 +270,8 @@ def serve(
                 request = json.loads(line)
                 if request.get('type') == 'release_document':
                     documents.release(request['source'])
+                    from repdf.annotation_reader_cache import release
+                    release(request['source'])
                 elif request.get('type') in ('bookmarks', 'annotations', 'navigate'):
                     owned = request['type'] == 'annotations'
                     document = (pdfium.PdfDocument(request['source'], password=request.get('password')) if owned
@@ -271,7 +330,8 @@ def serve(
                         Path(request["output_dir"]), int(request["generation"]), output_stream,
                         pages=request.get("pages"),
                         password=request.get('password'),
-                        document=documents.get(request['source'], request.get('password')),
+                        document=documents.get(request['source'], request.get('password'), request.get('annotation_changes', ())),
+                        interactive=request.get('type') not in ('print_page', 'print_preview'),
                         max_pixels={'print_page': 30_000_000, 'print_preview': 4_000_000}.get(request.get('type')),
                     )
                 print(json.dumps({

@@ -10,6 +10,8 @@ def toolbar_icon(kind: str) -> QIcon:
     for mode, group, state, role in (
             (QIcon.Mode.Normal, QPalette.ColorGroup.Active, QIcon.State.Off, QPalette.ColorRole.ButtonText),
             (QIcon.Mode.Normal, QPalette.ColorGroup.Active, QIcon.State.On, QPalette.ColorRole.Highlight),
+            (QIcon.Mode.Selected, QPalette.ColorGroup.Active, QIcon.State.Off, QPalette.ColorRole.HighlightedText),
+            (QIcon.Mode.Selected, QPalette.ColorGroup.Active, QIcon.State.On, QPalette.ColorRole.HighlightedText),
             (QIcon.Mode.Disabled, QPalette.ColorGroup.Disabled, QIcon.State.Off, QPalette.ColorRole.ButtonText),
             (QIcon.Mode.Disabled, QPalette.ColorGroup.Disabled, QIcon.State.On, QPalette.ColorRole.ButtonText)):
         pixmap = QPixmap(48, 48)
@@ -20,17 +22,83 @@ def toolbar_icon(kind: str) -> QIcon:
         painter.setPen(QPen(QApplication.palette().color(group, role),
                             1.0, Qt.PenStyle.SolidLine, Qt.PenCapStyle.RoundCap,
                             Qt.PenJoinStyle.RoundJoin))
-        if kind == 'annotations':
+        if kind == 'drag_handle':
+            painter.setBrush(painter.pen().color())
+            for x in (9,15):
+                for y in (6,12,18): painter.drawEllipse(QRectF(x-0.75,y-0.75,1.5,1.5))
+        elif kind == 'edit_tools':
+            painter.drawPolygon(QPolygonF([QPointF(3,21),QPointF(5,15),QPointF(16,4),QPointF(20,8),QPointF(9,19)]))
+            painter.drawLine(13,7,17,11)
+        elif kind in ('copy', 'select_all_text'):
+            if kind == 'copy':
+                painter.drawRect(QRectF(8,7,12,14))
+                painter.drawPolyline(QPolygonF([QPointF(5,17),QPointF(3,17),QPointF(3,3),QPointF(15,3),QPointF(15,5)]))
+            else:
+                for x, y, dx, dy in [(3,3,1,1),(21,3,-1,1),(3,21,1,-1),(21,21,-1,-1)]:
+                    painter.drawLine(x,y,x+dx*4,y)
+                    painter.drawLine(x,y,x,y+dy*4)
+                painter.drawLine(7,9,17,9); painter.drawLine(7,15,17,15)
+        elif kind in ('note', 'text_box', 'line', 'arrow', 'rectangle', 'ellipse', 'polygon', 'polyline', 'ink', 'stamp', 'attachment', 'caret', 'redact'):
+            if kind == 'note':
+                painter.drawPolygon(QPolygonF([QPointF(4,3),QPointF(20,3),QPointF(20,15),QPointF(14,21),QPointF(4,21)]))
+                painter.drawPolyline(QPolygonF([QPointF(14,21),QPointF(14,15),QPointF(20,15)]))
+                painter.drawLine(7,8,17,8); painter.drawLine(7,12,13,12)
+            elif kind in ('rectangle', 'text_box', 'redact'):
+                painter.drawRoundedRect(QRectF(3,5,18,14),2,2)
+                if kind == 'text_box':
+                    painter.drawLine(7,9,17,9); painter.drawLine(7,14,14,14)
+                elif kind == 'redact':
+                    painter.drawLine(4,6,20,18); painter.drawLine(4,18,20,6)
+            elif kind == 'ellipse': painter.drawEllipse(QRectF(3,5,18,14))
+            elif kind in ('line', 'arrow'):
+                painter.drawLine(4,20,20,4)
+                if kind == 'arrow':
+                    painter.drawLine(20,4,15,4); painter.drawLine(20,4,20,9)
+            elif kind in ('polygon','polyline','ink'):
+                points=QPolygonF([QPointF(3,17),QPointF(8,5),QPointF(14,18),QPointF(21,8)])
+                if kind == 'polygon': painter.drawPolygon(points)
+                else: painter.drawPolyline(points)
+            elif kind == 'stamp':
+                painter.drawRect(QRectF(3,16,18,5))
+                painter.drawRoundedRect(QRectF(8,3,8,13),3,3)
+            elif kind == 'caret': painter.drawPolyline(QPolygonF([QPointF(5,17),QPointF(12,6),QPointF(19,17)]))
+            else:
+                path=QPainterPath(QPointF(9,17)); path.lineTo(17,9)
+                path.cubicTo(22,4,16,0,12,4); path.lineTo(4,12)
+                path.cubicTo(-1,18,7,25,12,20); path.lineTo(20,12)
+                painter.drawPath(path)
+        elif kind.startswith('annotation_'):
+            if kind == 'annotation_callout':
+                painter.drawRect(QRectF(8,3,14,10))
+                painter.drawLine(11,13,3,21)
+                painter.drawLine(3,21,3,16); painter.drawLine(3,21,8,21)
+                painter.drawLine(11,6,19,6); painter.drawLine(11,10,17,10)
+            else:
+                font=QFont(QApplication.font()); font.setPixelSize(16); painter.setFont(font)
+                painter.drawText(QRectF(3,1,18,20),Qt.AlignmentFlag.AlignCenter,'A')
+                if kind=='annotation_highlight':
+                    color = painter.pen().color()
+                    color.setAlphaF(.3)
+                    painter.fillRect(QRectF(3,4,18,17),color)
+                    painter.drawLine(4,21,20,21)
+                elif kind=='annotation_strikeout': painter.drawLine(4,12,20,12)
+                elif kind=='annotation_squiggly':
+                    path=QPainterPath(QPointF(4,21))
+                    for i in range(1,9): path.lineTo(4+i*2,20 if i%2 else 22)
+                    painter.drawPath(path)
+                else: painter.drawLine(4,21,20,21)
+        elif kind == 'annotations':
             painter.drawPolyline(QPolygonF([QPointF(4, 3), QPointF(21, 3), QPointF(21, 17),
                                             QPointF(11, 17), QPointF(6, 21), QPointF(6, 17),
                                             QPointF(4, 17), QPointF(4, 3)]))
             painter.drawLine(8, 8, 17, 8)
             painter.drawLine(8, 12, 15, 12)
-        elif kind == 'chevron_down':
+        elif kind in ('chevron_down', 'chevron_up'):
             pen = painter.pen()
             pen.setWidthF(2)
             painter.setPen(pen)
-            painter.drawPolyline(QPolygonF([QPointF(6, 9), QPointF(12, 15), QPointF(18, 9)]))
+            points = [(6,9),(12,15),(18,9)] if kind == 'chevron_down' else [(6,15),(12,9),(18,15)]
+            painter.drawPolyline(QPolygonF([QPointF(x,y) for x,y in points]))
         elif kind == "more":
             painter.setBrush(painter.pen().color())
             for x in (5, 12, 19):
@@ -152,6 +220,14 @@ def toolbar_icon(kind: str) -> QIcon:
                                             QPointF(12, 8), QPointF(20, 8), QPointF(20, 10)]))
             painter.drawPolygon(QPolygonF([QPointF(3, 19), QPointF(7, 11), QPointF(22, 11),
                                            QPointF(18, 19)]))
+        elif kind in ('save', 'save_as'):
+            painter.drawPolyline(QPolygonF([QPointF(3, 3), QPointF(17, 3), QPointF(21, 7),
+                                            QPointF(21, 21), QPointF(3, 21), QPointF(3, 3)]))
+            painter.drawRect(QRectF(7, 3, 9, 6))
+            painter.drawRect(QRectF(7, 14, 10, 7))
+            if kind == 'save_as':
+                painter.drawLine(13, 18, 22, 9)
+                painter.drawLine(20, 8, 23, 11)
         elif kind == "export":
             painter.drawPolyline(QPolygonF([QPointF(8, 16), QPointF(4, 16), QPointF(4, 3),
                                             QPointF(14, 3), QPointF(18, 7), QPointF(18, 10)]))
@@ -176,3 +252,16 @@ def toolbar_icon(kind: str) -> QIcon:
         if mode == QIcon.Mode.Normal:
             icon.addPixmap(pixmap, QIcon.Mode.Active, state)
     return icon
+
+
+def annotation_icon(kind: str) -> QIcon:
+    names = {
+        '備註': 'note', '文字方塊': 'text_box', '直線': 'line', '箭頭': 'arrow',
+        '矩形': 'rectangle', '橢圓': 'ellipse', '多邊形': 'polygon',
+        '折線': 'polyline', '手繪': 'ink', '印章': 'stamp',
+        '附件': 'attachment', '插入符號': 'caret', '遮蔽標記': 'redact',
+        '螢光標示': 'annotation_highlight', '螢光筆': 'annotation_highlight',
+        '底線': 'annotation_underline', '刪除線': 'annotation_strikeout',
+        '波浪底線': 'annotation_squiggly',
+    }
+    return toolbar_icon(names.get(kind, 'annotations'))

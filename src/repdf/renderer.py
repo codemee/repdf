@@ -113,9 +113,10 @@ class RenderService(QObject):
             self._pending.move_to_end(document_id, last=False)
             self._start_next()
 
-    def request_print(self, source, page, output_dir, generation, *, password=None, preview=False):
+    def request_print(self, source, page, output_dir, generation, *, password=None, preview=False, annotation_changes=()):
         payload = {'type': 'print_preview' if preview else 'print_page', 'source': str(source), 'pages': [page],
                    'output_dir': str(output_dir), 'scale': (150 if preview else 300) / 72, 'generation': generation}
+        payload['annotation_changes'] = annotation_changes
         if password is not None:
             payload['password'] = password
         with self._lock:

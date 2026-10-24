@@ -5,7 +5,7 @@ from pathlib import Path
 from PySide6.QtCore import QObject, QRunnable, Signal, Slot
 
 from repdf.core import (DocumentSelection, IncorrectPasswordError, PasswordRequiredError,
-                        export_documents, inspect_pdf, split_documents)
+                        export_documents, inspect_pdf, split_documents, save_document)
 
 
 class LoadSignals(QObject):
@@ -46,7 +46,7 @@ class ExportPdfTask(QRunnable):
         *, split: bool = False, overwrite: bool = False, protected_sources: tuple[Path, ...] = (),
     ) -> None:
         super().__init__()
-        self.documents = tuple(DocumentSelection(item.source, tuple(item.pages), item.password) for item in documents)
+        self.documents = tuple(DocumentSelection(item.source, tuple(item.pages), item.password, item.annotation_changes) for item in documents)
         self.destination = destination
         self.session_id = session_id
         self.signals = ExportSignals()
@@ -68,3 +68,23 @@ class ExportPdfTask(QRunnable):
             self.signals.failed.emit(self.session_id, str(exc))
         finally:
             self.documents = ()
+
+
+class SavePdfTask(QRunnable):
+    def __init__(self, source, destination, order, password, overwrite=False, annotation_changes=()):
+        super().__init__()
+        self.source, self.destination, self.order = source, destination, tuple(order)
+        self.annotation_changes = annotation_changes
+        self.password, self.overwrite = password, overwrite
+        self.signals = ExportSignals()
+
+    @Slot()
+    def run(self):
+        try:
+            count = save_document(self.source, self.destination, self.order,
+                                  password=self.password, overwrite=self.overwrite, annotation_changes=self.annotation_changes)
+            self.signals.completed.emit(0, self.destination, count)
+        except Exception as exc:
+            self.signals.failed.emit(0, str(exc))
+        finally:
+            self.password = None

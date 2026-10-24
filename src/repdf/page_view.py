@@ -313,6 +313,7 @@ class PageViewport:
         navigation = d._search_navigation
         navigation_visible = (navigation is not None
                               and self.rect(navigation[0]).intersects(self.visible_rect()))
+        d.owner.annotation_editor.loaded(d,page,payload)
         d.page_links[page] = payload.get('links', [])
         d.page_annotations[page] = payload.get('annotation_hits', [])
         d.page_labels[page] = payload.get('page_label')

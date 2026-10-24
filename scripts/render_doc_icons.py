@@ -17,8 +17,10 @@ from repdf.theme import ThemeController
 OUTPUT = Path(__file__).resolve().parents[1] / "docs" / "images"
 SCALE = 2
 ICON_KINDS = {
-    "open": "open", "print": "print", "export": "export", "split": "split",
+    "open": "open", "save": "save", "save-as": "save_as", "print": "print", "export": "export", "split": "split",
     "copy-text": "copy_text", "ocr-region": "ocr_region", "extract-image": "extract_image",
+    "text-markup": "annotation_underline", "callout": "annotation_callout", "drawing": "rectangle",
+    "annotation-tools": "edit_tools", "more": "more",
     "search": "search", "bookmarks": "bookmarks", "annotations": "annotations",
     "fit": "fit", "fullscreen": "fullscreen", "fullscreen-spread": "fullscreen_spread",
     "fullscreen-cover": "fullscreen_cover", "language-system": "language_system",
