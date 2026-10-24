@@ -844,6 +844,8 @@ def test_shortcut_tooltips_follow_bindings_and_language(qtbot, monkeypatch):
     actions = window.toolbar.tool_actions()
     order = (window.zoom_reset_action, window.fit_action, window.language_action, window.theme_action)
     assert [actions.index(action) for action in order] == sorted(actions.index(action) for action in order)
-    window.print_action.setShortcuts([QKeySequence('Ctrl+Alt+P')])
-    assert 'Ctrl+Alt+P' in window.toolbar.widgetForAction(window.print_action).toolTip()
-    assert 'Ctrl+P' not in window.print_action.toolTip()
+    changed_shortcut = QKeySequence('Ctrl+Alt+P')
+    window.print_action.setShortcuts([changed_shortcut])
+    expected = changed_shortcut.toString(QKeySequence.SequenceFormat.NativeText)
+    assert expected in window.toolbar.widgetForAction(window.print_action).toolTip()
+    assert window.print_action.toolTip().splitlines()[-1] == f'Shortcuts: {expected}'
