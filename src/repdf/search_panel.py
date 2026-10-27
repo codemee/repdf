@@ -5,8 +5,8 @@ from html import escape
 from PySide6.QtCore import QEvent, QObject, QSize, Qt, QTimer, Signal
 from PySide6.QtGui import QAction, QActionGroup, QColor, QIcon, QPainter, QPixmap
 from PySide6.QtWidgets import (
-    QAbstractItemView, QColorDialog, QComboBox, QHBoxLayout, QLabel, QLayout, QLineEdit, QListView, QListWidget,
-    QListWidgetItem, QMenu, QSplitter, QStyle, QStyledItemDelegate, QStyleOptionViewItem,
+    QAbstractItemView, QColorDialog, QComboBox, QGroupBox, QHeaderView, QHBoxLayout, QLabel, QLayout, QLineEdit,
+    QTreeWidget, QTreeWidgetItem, QMenu, QSplitter, QStyle, QStyledItemDelegate, QStyleOptionViewItem,
     QToolButton, QVBoxLayout, QWidget,
 )
 
@@ -26,7 +26,13 @@ class SearchStatus(QLabel):
         self.setToolTip('<qt>' + escape(text).replace('\n', '<br>') + '</qt>')
 
 
-class ParagraphDelegate(QStyledItemDelegate):
+class ResultRowDelegate(QStyledItemDelegate):
+    def sizeHint(self, option, index):
+        hint = super().sizeHint(option, index)
+        return QSize(hint.width(), option.fontMetrics.height() + 4)
+
+
+class ParagraphDelegate(ResultRowDelegate):
     """Keep complete result text in the model, but paint one elided line."""
 
     @staticmethod
@@ -49,7 +55,7 @@ class ParagraphDelegate(QStyledItemDelegate):
         style.drawControl(QStyle.ControlElement.CE_ItemViewItem, opt, painter, opt.widget)
 
     def sizeHint(self, option, index):
-        return QSize(0, option.fontMetrics.height() + 10)
+        return QSize(0, option.fontMetrics.height() + 4)
 
 
 class SearchPanel(QWidget):
@@ -150,22 +156,48 @@ class SearchPanel(QWidget):
         status_row.addWidget(self.status, 1)
         layout.addLayout(status_row)
         self.results_splitter = QSplitter(Qt.Orientation.Vertical)
-        self.files = QListWidget()
+        self.files = QTreeWidget()
         self.files.setAccessibleName(tr('有命中的檔案'))
-        self.files.setMinimumSize(0, 0)
+        self.files.setHeaderLabels([tr('檔名'), tr('筆數')])
+        self.files.headerItem().setTextAlignment(1, Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
+        self.files.header().setStretchLastSection(False)
+        self.files.header().setSectionResizeMode(0, QHeaderView.ResizeMode.Stretch)
+        self.files.header().setSectionResizeMode(1, QHeaderView.ResizeMode.ResizeToContents)
         self.files.setTextElideMode(Qt.TextElideMode.ElideMiddle)
-        self.files.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
-        self.paragraphs = QListWidget()
+        self.files.setItemDelegate(ResultRowDelegate(self.files))
+        self.paragraphs = QTreeWidget()
         self.paragraphs.setAccessibleName(tr('命中段落'))
-        self.paragraphs.setWordWrap(False)
+        self.paragraphs.setHeaderLabels([tr('頁碼'), tr('段落')])
+        self.paragraphs.headerItem().setTextAlignment(0, Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
+        self.paragraphs.header().setSectionResizeMode(0, QHeaderView.ResizeMode.ResizeToContents)
+        self.paragraphs.header().setSectionResizeMode(1, QHeaderView.ResizeMode.Stretch)
+        self.paragraphs.setItemDelegate(ResultRowDelegate(self.paragraphs))
+        self.paragraphs.setItemDelegateForColumn(1, ParagraphDelegate(self.paragraphs))
         self.paragraphs.setAlternatingRowColors(True)
-        self.paragraphs.setItemDelegate(ParagraphDelegate(self.paragraphs))
-        self.paragraphs.setResizeMode(QListView.ResizeMode.Adjust)
-        self.paragraphs.setVerticalScrollMode(QAbstractItemView.ScrollMode.ScrollPerPixel)
-        self.paragraphs.setMinimumSize(0, 0)
-        self.paragraphs.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
-        self.results_splitter.addWidget(self.files)
-        self.results_splitter.addWidget(self.paragraphs)
+        self.result_groups = []
+        for table, title in ((self.files, '檔案'), (self.paragraphs, '命中項目')):
+            table.setRootIsDecorated(False)
+            table.setItemsExpandable(False)
+            table.setUniformRowHeights(True)
+            table.setWordWrap(False)
+            table.setSelectionMode(QAbstractItemView.SelectionMode.SingleSelection)
+            table.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
+            table.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
+            table.setMinimumSize(0, 0)
+            table.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+            table.setVerticalScrollMode(QAbstractItemView.ScrollMode.ScrollPerPixel)
+            table.header().setMinimumSectionSize(40)
+            table.header().setSectionsMovable(False)
+            header_font = table.header().font()
+            header_font.setBold(True)
+            table.header().setFont(header_font)
+            group = QGroupBox(tr(title))
+            group.setMinimumSize(0, 0)
+            group_layout = QVBoxLayout(group)
+            group_layout.setContentsMargins(6, 8, 6, 6)
+            group_layout.addWidget(table)
+            self.result_groups.append(group)
+            self.results_splitter.addWidget(group)
         self.results_splitter.setSizes([140, 260])
         layout.addWidget(self.results_splitter, 1)
         self.refresh_icons()
@@ -219,6 +251,10 @@ class SearchPanel(QWidget):
         self.highlight_color_action.setText(tr('命中標示顏色'))
         self.scope.setCurrentIndex(index)
         self.query.setPlaceholderText(tr('輸入文字或規則表達式'))
+        self.files.setHeaderLabels([tr('檔名'), tr('筆數')])
+        self.paragraphs.setHeaderLabels([tr('頁碼'), tr('段落')])
+        for group, title in zip(self.result_groups, ('檔案', '命中項目')):
+            group.setTitle(tr(title))
 
     def set_compact(self, compact):
         self.options_box.setVisible(not compact)
@@ -454,7 +490,7 @@ class SearchController(QObject):
     def _refresh_files(self):
         p = self.panel
         current = p.files.currentItem()
-        selected_id = current.data(Qt.ItemDataRole.UserRole) if current else None
+        selected_id = current.data(0, Qt.ItemDataRole.UserRole) if current else None
         p.files.blockSignals(True)
         p.files.clear()
         for document_id in self.order:
@@ -464,43 +500,46 @@ class SearchController(QObject):
             if not paragraphs:
                 continue
             doc = self.owner.documents[document_id]
-            item = QListWidgetItem(tr('{p0} — {p1} 處／{p2} 段', p0=doc.source_path.name,
-                                      p1=sum(p['count'] for p in paragraphs), p2=len(paragraphs)))
-            item.setData(Qt.ItemDataRole.UserRole, document_id)
-            item.setToolTip(str(doc.source_path))
-            p.files.addItem(item)
+            item = QTreeWidgetItem([doc.source_path.name, str(len(paragraphs))])
+            item.setData(0, Qt.ItemDataRole.UserRole, document_id)
+            item.setTextAlignment(1, Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
+            item.setToolTip(0, str(doc.source_path))
+            item.setToolTip(1, tr('找到 {p0} 個段落、{p1} 處命中', p0=len(paragraphs), p1=sum(p['count'] for p in paragraphs)))
+            p.files.addTopLevelItem(item)
             if document_id == selected_id:
                 p.files.setCurrentItem(item)
-        if p.files.currentRow() < 0 and p.files.count():
-            p.files.setCurrentRow(0)
+        if p.files.currentItem() is None and p.files.topLevelItemCount():
+            p.files.setCurrentItem(p.files.topLevelItem(0))
         p.files.blockSignals(False)
         self._show_paragraphs()
 
     def _show_paragraphs(self, *_args):
         p = self.panel
         selected = p.paragraphs.currentItem()
-        previous = selected.data(Qt.ItemDataRole.UserRole) if selected else None
+        previous = selected.data(0, Qt.ItemDataRole.UserRole) if selected else None
         p.paragraphs.clear()
         file_item = p.files.currentItem()
         if file_item is None:
             return
-        document_id = file_item.data(Qt.ItemDataRole.UserRole)
+        document_id = file_item.data(0, Qt.ItemDataRole.UserRole)
         doc = self.owner.documents.get(document_id)
         if doc is None:
             return
         for page in doc.page_order:
             for result in self.results.get(document_id, {}).get(page, []):
                 key = (document_id, page, result['paragraph_id'])
-                item = QListWidgetItem(tr('第 {p0} 頁 · {p1} 處命中 · {p2}',
-                                         p0=page + 1, p1=result['count'], p2=result['text']))
-                item.setData(Qt.ItemDataRole.UserRole, key)
-                item.setToolTip('<qt>' + escape(result['text']).replace('\n', '<br>') + '</qt>')
-                p.paragraphs.addItem(item)
+                item = QTreeWidgetItem([str(page + 1), result['text']])
+                item.setTextAlignment(0, Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
+                item.setData(0, Qt.ItemDataRole.UserRole, key)
+                tooltip = '<qt>' + escape(tr('第 {p0} 頁 · {p1} 處命中 · {p2}', p0=page + 1, p1=result['count'], p2=result['text'])).replace('\n', '<br>') + '</qt>'
+                item.setToolTip(0, tooltip)
+                item.setToolTip(1, tooltip)
+                p.paragraphs.addTopLevelItem(item)
                 if key == previous:
                     p.paragraphs.setCurrentItem(item)
 
-    def _activate_item(self, item):
-        document_id, page, paragraph_id = item.data(Qt.ItemDataRole.UserRole)
+    def _activate_item(self, item, _column=0):
+        document_id, page, paragraph_id = item.data(0, Qt.ItemDataRole.UserRole)
         doc = self.owner.documents.get(document_id)
         if doc is None or not doc.ready:
             return

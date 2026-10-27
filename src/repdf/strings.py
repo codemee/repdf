@@ -5,6 +5,11 @@ from string import Formatter
 
 LANGUAGE = "zh"
 ENGLISH = {
+    '檔案': 'Files',
+    '檔名': 'Filename',
+    '筆數': 'Count',
+    '命中項目': 'Matches',
+    '段落': 'Paragraph',
     '儲存': 'Save',
     '取消': 'Cancel',
     '有尚未儲存的變更': 'You have unsaved changes',

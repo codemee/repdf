@@ -360,7 +360,7 @@ Packaged smoke tests must stop render backends holding cached PDFs before removi
 ## 16. Text search
 
 - A swatch button or compact options menu opens `QColorDialog` for match colors, stored as RGB in `search/highlight_color`. The default and fallback for invalid settings is `#ffe13c`. Ordinary highlights use alpha 100; selected paragraphs overlay `darker(120)` with alpha 115. Changes repaint without rerunning searches. Existing pages, recreated virtual cards, and fullscreen share this setting independently of the interface theme.
-- `SearchController` in `search_panel.py` manages the right pane, exclusive scope, query generations, results, and cancellation. `SearchPanel` supplies input, options, and upper/lower result lists.
+- `SearchController` in `search_panel.py` manages the right pane, exclusive scope, query generations, results, and cancellation. `SearchPanel` supplies input, options, and upper/lower result tables with column headers.
 - Search snapshots loaded documents, tab order, and page order at execution. Tab checkboxes control document scope; page checkboxes do not filter searches.
 - A dedicated PDF backend starts lazily for the first search, reusing source/frozen communication without sharing the preview/OCR/image queue.
 - `RenderService.request_search()` sends one file at a time with `type=search`, document ID, generation, source, original page indices, query, regex/case/whole-word flags, and any password.
@@ -485,3 +485,5 @@ Packaged smoke tests must stop render backends holding cached PDFs before removi
 - `OverflowToolBar.group_sections()` packs separator-delimited runs into indivisible QWidgetAction containers, keeping expanding spacers separate. Overflow lists each complete group and its settings menus in order. `tool_actions()` exposes logical ordering and `widgetForAction()` retains individual-button lookup. Window registration keeps shortcuts active while sections are hidden.
 
 - `message_dialogs.py` creates the Qt unsaved-changes prompt with a separate heading, filename and discard explanation. Save is the default and Cancel handles Escape; all three choices retain the existing save/close flow.
+
+- Search results retain a vertical split: the upper Files table shows Filename/Count, where Count means matching paragraphs. The lower Matches table shows Page/Paragraph; clicking either column navigates to the result. Numbers align right and paragraphs retain single-line ellipsis and full tooltips.

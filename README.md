@@ -59,7 +59,7 @@ repdf
 | <picture><source media="(prefers-color-scheme: dark)" srcset="docs/images/toolbar-extract-image-dark.png"><img src="docs/images/toolbar-extract-image.png" width="24" alt="擷取圖片圖示"></picture> | 擷取圖片 | 啟用後點選內嵌點陣圖片，再選擇位置另存為 PNG。 | — |
 | <picture><source media="(prefers-color-scheme: dark)" srcset="docs/images/toolbar-bookmarks-dark.png"><img src="docs/images/toolbar-bookmarks.png" width="24" alt="書籤圖示"></picture> | 書籤 | 在左側章節樹展開或收合書籤，點選章節即可跳頁。 | — |
 | <picture><source media="(prefers-color-scheme: dark)" srcset="docs/images/toolbar-annotations-dark.png"><img src="docs/images/toolbar-annotations.png" width="24" alt="註解圖示"></picture> | 註解 | 在左側列出註解，點選即可跳至對應頁面。 | — |
-| <picture><source media="(prefers-color-scheme: dark)" srcset="docs/images/toolbar-search-dark.png"><img src="docs/images/toolbar-search.png" width="24" alt="搜尋文字圖示"></picture> | 搜尋文字 | 在右側窗格搜尋文字，上方選檔案、下方選命中段落，單擊即可跳頁並高亮。 | Windows／Linux：<kbd>Ctrl</kbd>+<kbd>F</kbd>；macOS：<kbd>⌘</kbd>+<kbd>F</kbd> |
+| <picture><source media="(prefers-color-scheme: dark)" srcset="docs/images/toolbar-search-dark.png"><img src="docs/images/toolbar-search.png" width="24" alt="搜尋文字圖示"></picture> | 搜尋文字 | 在右側窗格搜尋文字，上方以「檔名／筆數」表格選檔案，下方以「頁碼／段落」表格選命中項目，單擊即可跳頁並高亮。 | Windows／Linux：<kbd>Ctrl</kbd>+<kbd>F</kbd>；macOS：<kbd>⌘</kbd>+<kbd>F</kbd> |
 | <picture><source media="(prefers-color-scheme: dark)" srcset="docs/images/toolbar-text-markup-dark.png"><img src="docs/images/toolbar-text-markup.png" width="24" alt="文字畫線"></picture> | 文字畫線 | 拖曳選字畫線；下拉設定螢光筆、底線、刪除線、波浪線、顏色與粗細。 | — |
 | <picture><source media="(prefers-color-scheme: dark)" srcset="docs/images/toolbar-callout-dark.png"><img src="docs/images/toolbar-callout.png" width="24" alt="箭頭文字註解"></picture> | 文字註解 | 下拉選擇箭頭文字框或便利貼，點選頁面新增；雙擊可編輯文字。 | — |
 | <picture><source media="(prefers-color-scheme: dark)" srcset="docs/images/toolbar-drawing-dark.png"><img src="docs/images/toolbar-drawing.png" width="24" alt="繪圖註解"></picture> | 繪圖註解 | 下拉選擇直線、箭頭、矩形、橢圓或自由手繪；設定線條與填色後拖曳建立。 | — |
@@ -201,7 +201,7 @@ repdf
 1. 點「搜尋文字」或按 <kbd>Ctrl</kbd>+<kbd>F</kbd>（macOS：<kbd>⌘</kbd>+<kbd>F</kbd>），開啟右側窗格。
 2. 輸入搜尋內容，選擇「目前標籤頁」、「勾選的標籤頁」或「所有標籤頁」；同一列的 `.*`、`Aa` 與底線 `ab` 狀態按鈕分別切換「規則表達式」、「區分大小寫」與「僅限單字」，亮起表示啟用。
 3. 按 <kbd>Enter</kbd> 或「搜尋」執行；修改條件後再次執行才會更新結果。
-4. 上方選取有命中的檔案，下方以交錯底色單行列出命中段落、原始頁碼與命中次數；內容過長時以 `...` 結尾，滑鼠停留可查看完整段落。
+4. 上方「檔案」表格列出檔名與命中段落筆數；選取檔案後，下方「命中項目」表格以「頁碼／段落」分欄顯示，段落採交錯底色單行呈現，命中次數保留在提示文字中；內容過長時以 `...` 結尾，滑鼠停留可查看完整段落。
 5. 單擊段落，切換到對應標籤與頁面，捲至命中位置；尚未載入的頁面會自動載入。命中預設以黃色螢光筆標示，選取段落以較深的同色系突出。
 
 - 預設搜尋目前標籤頁、不區分大小寫、不使用規則表達式；三種範圍互斥。

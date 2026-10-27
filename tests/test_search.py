@@ -13,15 +13,19 @@ from repdf.app import DocumentView, MainWindow
 from repdf.search import compile_query, search_page
 
 
-def test_sidebar_icon_buttons_and_single_line_results(qtbot):
+def test_sidebar_icon_buttons_and_single_line_results(qtbot, monkeypatch):
     from PySide6.QtCore import QSize
-    from PySide6.QtWidgets import QListWidgetItem
+    from PySide6.QtWidgets import QTreeWidgetItem
     from repdf.search_panel import ParagraphDelegate, SearchPanel
 
     panel = SearchPanel()
     qtbot.addWidget(panel)
     panel.resize(320, 420)
     panel.show()
+    assert panel.results_splitter.orientation() == Qt.Orientation.Vertical
+    assert [group.title() for group in panel.result_groups] == ['檔案', '命中項目']
+    assert [panel.files.headerItem().text(i) for i in range(2)] == ['檔名', '筆數']
+    assert [panel.paragraphs.headerItem().text(i) for i in range(2)] == ['頁碼', '段落']
     for button in (panel.search_button, panel.stop_button, panel.close_button, panel.compact_options, panel.highlight_color_button,
                    panel.regular_expression, panel.case_sensitive, panel.whole_word):
         assert button.size() == QSize(34, 34)
@@ -33,7 +37,7 @@ def test_sidebar_icon_buttons_and_single_line_results(qtbot):
     assert panel.paragraphs.alternatingRowColors()
     text = 'A long matching paragraph\nwith complete text retained for navigation. ' * 10
     for _ in range(3):
-        panel.paragraphs.addItem(QListWidgetItem(text))
+        panel.paragraphs.addTopLevelItem(QTreeWidgetItem(['1', text]))
     qtbot.wait(30)
     assert panel.scope.geometry().center().y() == panel.regular_expression.geometry().center().y()
     assert panel.regular_expression.geometry().top() == panel.case_sensitive.geometry().top()
@@ -44,14 +48,19 @@ def test_sidebar_icon_buttons_and_single_line_results(qtbot):
         assert button.isChecked() and action.isChecked()
         action.trigger()
         assert not button.isChecked()
-    rect = panel.paragraphs.visualItemRect(panel.paragraphs.item(0))
-    assert rect.height() == panel.paragraphs.fontMetrics().height() + 10
+    rect = panel.paragraphs.visualItemRect(panel.paragraphs.topLevelItem(0))
+    assert rect.height() == panel.paragraphs.fontMetrics().height() + 4
     metrics = panel.paragraphs.fontMetrics()
     clipped = ParagraphDelegate.elided_text(text, metrics, 180)
     assert clipped.endswith('...') and '\n' not in clipped
     assert metrics.horizontalAdvance(clipped) <= 180
     assert ParagraphDelegate.elided_text('short\ntext', metrics, 180) == 'short text'
-    assert panel.paragraphs.item(0).text() == text
+    assert panel.paragraphs.topLevelItem(0).text(1) == text
+    monkeypatch.setattr('repdf.strings.LANGUAGE', 'en')
+    panel.retranslate()
+    assert [group.title() for group in panel.result_groups] == ['Files', 'Matches']
+    assert [panel.files.headerItem().text(i) for i in range(2)] == ['Filename', 'Count']
+    assert [panel.paragraphs.headerItem().text(i) for i in range(2)] == ['Page', 'Paragraph']
 
 
 def search_pdf(path, pages=None, rotation=0, crop=False):
@@ -226,19 +235,22 @@ def test_scope_results_navigation_highlights_and_narrow_layout(qtbot, tmp_path, 
     c.panel.query.setText('copy')
     c.start()
     wait_search(qtbot, c)
-    assert c.panel.files.count() == 1
-    assert c.panel.files.item(0).data(Qt.ItemDataRole.UserRole) == doc_b.document_id
+    assert c.panel.files.topLevelItemCount() == 1
+    assert c.panel.files.topLevelItem(0).data(0, Qt.ItemDataRole.UserRole) == doc_b.document_id
     c.panel.scope.setCurrentIndex(1)
     c.start()
     assert not c.pending
-    assert c.panel.files.count() == 0
+    assert c.panel.files.topLevelItemCount() == 0
     doc_a.include_checkbox.setChecked(True)
     c.start()
     wait_search(qtbot, c)
-    assert c.panel.files.count() == 1
-    assert c.panel.paragraphs.count() == 2
-    assert c.panel.files.item(0).data(Qt.ItemDataRole.UserRole) == doc_a.document_id
-    item = c.panel.paragraphs.item(0)
+    assert c.panel.files.topLevelItemCount() == 1
+    assert c.panel.paragraphs.topLevelItemCount() == 2
+    assert c.panel.files.topLevelItem(0).text(0) == doc_a.source_path.name
+    assert c.panel.files.topLevelItem(0).text(1) == '2'
+    assert c.panel.paragraphs.topLevelItem(0).text(0) == '1'
+    assert c.panel.files.topLevelItem(0).data(0, Qt.ItemDataRole.UserRole) == doc_a.document_id
+    item = c.panel.paragraphs.topLevelItem(0)
     c._activate_item(item)
     assert window.current_document() is doc_a
     label = doc_a.page_cards[0].preview
@@ -249,10 +261,10 @@ def test_scope_results_navigation_highlights_and_narrow_layout(qtbot, tmp_path, 
     c.panel.scope.setCurrentIndex(2)
     c.start()
     wait_search(qtbot, c)
-    assert c.panel.files.count() == 2
+    assert c.panel.files.topLevelItemCount() == 2
     assert c.service.process.pid != window.render_service.process.pid
-    c.panel.files.setCurrentRow(1)
-    assert c.panel.paragraphs.count() == 1
+    c.panel.files.setCurrentItem(c.panel.files.topLevelItem(1))
+    assert c.panel.paragraphs.topLevelItemCount() == 1
     window.region_ocr_action.setChecked(False)
     doc_b._move_page(1, 0)
     assert doc_b.page_order == [1, 0]
@@ -261,12 +273,12 @@ def test_scope_results_navigation_highlights_and_narrow_layout(qtbot, tmp_path, 
     assert c.panel.isVisible() and not c.content.isVisible()
     assert c.panel.compact_options.isVisible()
     assert not c.panel.scope.isVisible()
-    c._activate_item(c.panel.paragraphs.item(0))
+    c._activate_item(c.panel.paragraphs.topLevelItem(0))
     assert c.content.isVisible() and not c.panel.isVisible()
     assert window.current_document() is doc_b
     assert doc_b.focused_page == 1
     c.open()
-    assert c.panel.isVisible() and c.panel.paragraphs.count() == 1
+    assert c.panel.isVisible() and c.panel.paragraphs.topLevelItemCount() == 1
     c.close()
     assert not doc_b.page_cards[1].preview._search_rects
     assert c.content.isVisible()
@@ -299,9 +311,9 @@ def test_cancel_stale_results_invalid_regex_close_and_keyboard(qtbot, tmp_path, 
     assert c.panel.query.cursorPosition() == 0
     qtbot.keyClick(c.panel.query, Qt.Key.Key_Return)
     wait_search(qtbot, c)
-    assert c.panel.files.count() == 1
+    assert c.panel.files.topLevelItemCount() == 1
     window.close_tab(window.tabs.indexOf(doc))
-    assert not c.results and c.panel.files.count() == 0
+    assert not c.results and c.panel.files.topLevelItemCount() == 0
 
 
 def test_unicode_wrap_and_raw_character_index_mapping(monkeypatch):
@@ -364,7 +376,7 @@ def test_one_file_error_and_closing_pending_file_keep_other_results(qtbot, tmp_p
     c.start()
     wait_search(qtbot, c)
     assert bad.document_id in c.failures
-    assert c.panel.files.count() == 2
+    assert c.panel.files.topLevelItemCount() == 2
     assert '不完整' in c.panel.status.text()
     window.close_tab(window.tabs.indexOf(bad))
     c.start()
@@ -372,7 +384,7 @@ def test_one_file_error_and_closing_pending_file_keep_other_results(qtbot, tmp_p
     window.close_tab(window.tabs.indexOf(doc_a))
     wait_search(qtbot, c)
     assert list(c.results) == [doc_b.document_id]
-    assert c.panel.files.count() == 1
+    assert c.panel.files.topLevelItemCount() == 1
 
 
 def test_click_search_result_loads_offscreen_page(qtbot, tmp_path):
@@ -393,9 +405,9 @@ def test_click_search_result_loads_offscreen_page(qtbot, tmp_path):
     c.panel.query.setText('target')
     c.start()
     wait_search(qtbot, c)
-    assert c.panel.paragraphs.count() == 1
+    assert c.panel.paragraphs.topLevelItemCount() == 1
     assert doc.page_cards[9].preview.pixmap().isNull()
-    item_rect = c.panel.paragraphs.visualItemRect(c.panel.paragraphs.item(0))
+    item_rect = c.panel.paragraphs.visualItemRect(c.panel.paragraphs.topLevelItem(0))
     qtbot.mouseClick(c.panel.paragraphs.viewport(), Qt.MouseButton.LeftButton, pos=item_rect.center())
     qtbot.waitUntil(lambda: doc.preview_page_index() == 9 and settled(doc), timeout=15000)
     label = doc.page_cards[9].preview
@@ -419,7 +431,7 @@ def test_search_highlight_is_independent_and_persists_through_zoom(qtbot, tmp_pa
     c.panel.query.setText('copy')
     c.start()
     wait_search(qtbot, c)
-    c._activate_item(c.panel.paragraphs.item(0))
+    c._activate_item(c.panel.paragraphs.topLevelItem(0))
     label = doc.page_cards[0].preview
     assert not label.text_mode
     rect = label._active_search_rects[0]
@@ -431,9 +443,9 @@ def test_search_highlight_is_independent_and_persists_through_zoom(qtbot, tmp_pa
     assert label._active_search_rects == expected
     window._theme_controller.set_mode('dark')
     assert label._active_search_rects == expected
-    c.panel.paragraphs.setCurrentRow(0)
+    c.panel.paragraphs.setCurrentItem(c.panel.paragraphs.topLevelItem(0))
     c._refresh_files()
-    assert c.panel.paragraphs.currentRow() == 0
+    assert c.panel.paragraphs.indexOfTopLevelItem(c.panel.paragraphs.currentItem()) == 0
 
 
 def test_find_shortcut_fullscreen_and_compact_options(qtbot, tmp_path, monkeypatch):
@@ -492,8 +504,8 @@ def test_search_uses_each_documents_password_and_disambiguates_names(qtbot, tmp_
     c.start()
     wait_search(qtbot, c)
     assert not c.failures
-    assert c.panel.files.count() == 2
-    assert c.panel.files.item(0).toolTip() != c.panel.files.item(1).toolTip()
+    assert c.panel.files.topLevelItemCount() == 2
+    assert c.panel.files.topLevelItem(0).toolTip(0) != c.panel.files.topLevelItem(1).toolTip(0)
     assert len(c.results) == 2
 
 

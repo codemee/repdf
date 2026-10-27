@@ -310,3 +310,7 @@ A color swatch on the same row configures match highlighting, using a 34 × 34 b
 - Buttons with keyboard shortcuts list their actual bindings in tooltips, using native platform key names and updating with the UI language.
 
 - Separators surround the page-output group. Odd/even checkboxes retain their full text width and move into overflow together with export and split when space is insufficient.
+
+- Search results retain a vertical split: the upper Files table shows Filename/Count, where Count means matching paragraphs. The lower Matches table shows Page/Paragraph; clicking either column navigates to the result. Numbers align right and paragraphs retain single-line ellipsis and full tooltips.
+
+- The export icon uses a closed document outline with a downward arrow inside, retaining a 20 × 20 display area and 1 px design stroke so the small-size outline has no gaps.

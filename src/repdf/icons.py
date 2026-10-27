@@ -229,13 +229,11 @@ def toolbar_icon(kind: str) -> QIcon:
                 painter.drawLine(13, 18, 22, 9)
                 painter.drawLine(20, 8, 23, 11)
         elif kind == "export":
-            painter.drawPolyline(QPolygonF([QPointF(8, 16), QPointF(4, 16), QPointF(4, 3),
-                                            QPointF(14, 3), QPointF(18, 7), QPointF(18, 10)]))
-            painter.drawPolyline(QPolygonF([QPointF(14, 3), QPointF(14, 7), QPointF(18, 7)]))
-            painter.drawLine(13, 11, 13, 20)
-            painter.drawPolyline(QPolygonF([QPointF(9, 16), QPointF(13, 20), QPointF(17, 16)]))
-            painter.drawPolyline(QPolygonF([QPointF(6, 20), QPointF(6, 22), QPointF(20, 22),
-                                            QPointF(20, 20)]))
+            painter.drawPolygon(QPolygonF([QPointF(4, 2), QPointF(14, 2), QPointF(20, 8),
+                                           QPointF(20, 22), QPointF(4, 22)]))
+            painter.drawPolyline(QPolygonF([QPointF(14, 2), QPointF(14, 8), QPointF(20, 8)]))
+            painter.drawLine(12, 11, 12, 18)
+            painter.drawPolyline(QPolygonF([QPointF(8, 14), QPointF(12, 18), QPointF(16, 14)]))
         elif kind == "split":
             painter.drawRoundedRect(QRectF(2, 2, 8, 13), 1, 1)
             painter.drawRoundedRect(QRectF(14, 9, 8, 13), 1, 1)
