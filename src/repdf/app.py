@@ -481,14 +481,6 @@ class MainWindow(QMainWindow):
         if menu is not None:
             menu.refresh()
 
-    def event(self, event):
-        result = super().event(event)
-        if event.type() == QEvent.Type.WinIdChange:
-            menu = getattr(self, '_windows_system_menu', None)
-            if menu is not None and menu.api is not None:
-                QTimer.singleShot(0, menu.refresh)
-        return result
-
     def nativeEvent(self, event_type, message):
         menu = getattr(self, '_windows_system_menu', None)
         if menu is not None and menu.native_event(event_type, message):

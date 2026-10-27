@@ -1,7 +1,7 @@
 """Windows system menu integration; other platforms use Qt menu roles."""
 import sys
 
-from PySide6.QtCore import QTimer
+from PySide6.QtCore import QEvent, QObject, QTimer
 from PySide6.QtGui import QGuiApplication
 from shiboken6 import isValid
 
@@ -15,8 +15,9 @@ def is_about_command(message, command):
     return message == WM_SYSCOMMAND and command & 0xFFF0 == ABOUT_COMMAND
 
 
-class WindowsSystemMenu:
+class WindowsSystemMenu(QObject):
     def __init__(self, owner):
+        super().__init__(owner)
         self.owner = owner
         self.api = None
         self.menu = None
@@ -32,6 +33,12 @@ class WindowsSystemMenu:
             self.api.AppendMenuW.restype = wintypes.BOOL
             self.api.ModifyMenuW.argtypes = [wintypes.HMENU, wintypes.UINT, wintypes.UINT, ctypes.c_size_t, wintypes.LPCWSTR]
             self.api.ModifyMenuW.restype = wintypes.BOOL
+            owner.installEventFilter(self)
+
+    def eventFilter(self, watched, event):
+        if watched is self.owner and event.type() == QEvent.Type.WinIdChange:
+            QTimer.singleShot(0, self.refresh)
+        return False
 
     def refresh(self):
         if self.api is None or not isValid(self.owner) or getattr(self.owner, '_closing', False):

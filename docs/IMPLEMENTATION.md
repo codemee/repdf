@@ -521,6 +521,6 @@ Fit 使用最近點擊且仍可見的頁面，或距預覽區中央最近的頁�
 - 本專案沿用的 PDFPick 原始碼與本專案由同一權利人 Shin-Wei Hwang 持有；權利人已確認相關作者名稱與帳號均屬本人，並指定本專案採用 `GPL-3.0-only`，無須另行取得上游作者同意。第三方程式庫、模型與素材維持各自授權；逐項結果及發行要求見 [授權核對](LICENSE_AUDIT.md)。雲端打包以 `scripts/collect_licenses.py` 彙整實際環境的完整聲明，嵌入程式並產生平台別授權 ZIP；依賴或 Qt 模組超出核對範圍時停止。
 
 - `about.py` 提供 Qt「關於 RePDF」、GPL 全文與離線第三方文件樹，僅點選原始碼按鈕才開啟外部網站。文件解析支援原始碼、Python wheel 的 dist-info 授權及 frozen 資源；介面跟隨中英文與配色，重複開啟沿用交談窗。
-- Windows `system_menu.py` 以 Win32 `GetSystemMenu` 加入分隔線及自訂命令，`nativeEvent` 僅攔截自有的 `WM_SYSCOMMAND` ID，其餘交回 Qt。重複顯示或切換語系更新同一項，原生視窗 handle 改變後重新掛載。macOS 以 `QAction.AboutRole` 搭配原生 QMenuBar 交由 Qt 放入標準應用程式選單；不在 Windows 增加額外選單列。
+- Windows `system_menu.py` 以 Win32 `GetSystemMenu` 加入分隔線及自訂命令，`nativeEvent` 僅攔截自有的 `WM_SYSCOMMAND` ID，其餘交回 Qt。重複顯示或切換語系更新同一項，原生視窗 handle 改變後由獨立 QObject 事件篩選器重新掛載；不覆寫主視窗的通用 event()，也不攔截其他 Qt 事件。macOS 以 `QAction.AboutRole` 搭配原生 QMenuBar 交由 Qt 放入標準應用程式選單；不在 Windows 增加額外選單列。
 
 - 打包排除未使用的 QtPdf／QtPdfWidgets、QImage 的 qpdf 外掛，以及 Qt 虛擬鍵盤與其 QML／Quick 原生模組。保留作業系統原生輸入法；PDF 閱讀及輸出仍使用 pypdfium2。Python 授權檔同時支援 Windows 安裝根目錄及 macOS／Unix 的 stdlib 位置。

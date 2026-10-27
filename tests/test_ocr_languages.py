@@ -66,6 +66,21 @@ def window_for_test(qtbot, monkeypatch):
     return window
 
 
+def test_about_and_real_ocr_do_not_block_model_download(qtbot, monkeypatch, tmp_path, model_server):
+    window = window_for_test(qtbot, monkeypatch)
+    window.about_action.trigger()
+    window._about_dialog.close()
+    source = tmp_path / 'damaged.pdf'
+    damaged_pdf(source)
+    result = render_worker.extract_selection_result(source, 0, [.12, .22], [.78, .27], allow_ocr=True)
+    assert result['text'] == 'Copy this text'
+    window.ocr_languages.actions['korean'].trigger()
+    window.ocr_languages.dialog.start()
+    qtbot.waitUntil(lambda: window.ocr_languages.dialog is None, timeout=5000)
+    assert model_server['requests'] == 1
+    assert window.ocr_languages.profile == 'korean'
+
+
 def test_language_menu_download_requires_confirmation_and_persists(qtbot, monkeypatch, model_server):
     window = window_for_test(qtbot, monkeypatch)
     control = window.ocr_languages
