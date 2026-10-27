@@ -39,7 +39,7 @@ requires = ["uv_build>=0.9,<0.13"]
 build-backend = "uv_build"
 
 [tool.uv.build-backend]
-source-include = ["scripts/**", "packaging/**", "third_party/**", "docs/**", "README.en.md", "uv.lock"]
+source-include = ["scripts/**", "packaging/**", "third_party/**", "docs/**", ".github/workflows/**", "README.en.md", "uv.lock"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
