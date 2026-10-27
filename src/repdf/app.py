@@ -1665,7 +1665,7 @@ class MainWindow(QMainWindow):
         suggested = default_output_path(selections[0].source)
         filename, selected_filter = QFileDialog.getSaveFileName(
             self._fullscreen_preview or self,
-            tr('拆分頁面（PDF／PNG）') if split else tr('重組輸出（單一 PDF）'),
+            tr('拆分頁面（PDF／PNG；新 PDF 不加密）') if split else tr('重組輸出（單一 PDF；新 PDF 不加密）'),
             str(suggested), tr('PDF 檔案 (*.pdf)') + (';;' + tr('PNG 圖檔 (*.png)') if split else ''), '',
             QFileDialog.Option.DontUseNativeDialog | QFileDialog.Option.DontConfirmOverwrite,
         )
