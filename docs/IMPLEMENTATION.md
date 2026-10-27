@@ -522,3 +522,5 @@ Fit 使用最近點擊且仍可見的頁面，或距預覽區中央最近的頁�
 
 - `about.py` 提供 Qt「關於 RePDF」、GPL 全文與離線第三方文件樹，僅點選原始碼按鈕才開啟外部網站。文件解析支援原始碼、Python wheel 的 dist-info 授權及 frozen 資源；介面跟隨中英文與配色，重複開啟沿用交談窗。
 - Windows `system_menu.py` 以 Win32 `GetSystemMenu` 加入分隔線及自訂命令，`nativeEvent` 僅攔截自有的 `WM_SYSCOMMAND` ID，其餘交回 Qt。重複顯示或切換語系更新同一項，原生視窗 handle 改變後重新掛載。macOS 以 `QAction.AboutRole` 搭配原生 QMenuBar 交由 Qt 放入標準應用程式選單；不在 Windows 增加額外選單列。
+
+- 打包排除未使用的 QtPdf／QtPdfWidgets 與 QImage 的 qpdf 外掛，避免透過 QtGui 重複附帶另一套 PDF 引擎；PDF 閱讀及輸出仍使用 pypdfium2。

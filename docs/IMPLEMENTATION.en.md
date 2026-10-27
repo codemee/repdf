@@ -506,3 +506,5 @@ Packaged smoke tests must stop render backends holding cached PDFs before removi
 
 - `about.py` provides the Qt About RePDF dialog, full GPL text and an offline third-party notice tree. Only the source button opens a website. Resource discovery supports checkouts, wheel dist-info licenses and frozen resources. UI labels follow language/theme changes; repeated activation reuses the dialog.
 - On Windows, `system_menu.py` uses Win32 `GetSystemMenu` to append a separator and custom command. `nativeEvent` handles only its own `WM_SYSCOMMAND` ID and delegates all other messages to Qt. Refresh updates one entry across language changes and reinstalls it after native handle changes. On macOS, Qt places `QAction.AboutRole` from a native QMenuBar into the standard application menu. Windows gains no extra menu bar.
+
+- Packaging excludes unused QtPdf/QtPdfWidgets and the QImage qpdf plugin, avoiding a second PDF engine pulled in by QtGui. PDF reading and output continue to use pypdfium2.

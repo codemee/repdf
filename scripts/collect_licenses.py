@@ -13,18 +13,28 @@ import sys
 ROOT = Path(__file__).resolve().parents[1]
 
 
+def qt_binary_module(name):
+    name = str(name).replace('\\', '/')
+    match = re.search(r'(?:^|/)(?:lib)?Qt6([A-Za-z0-9]+)\.(?:dll|dylib|so)', name)
+    if not match:
+        match = re.search(r'(?:^|/)Qt([A-Za-z0-9]+)\.framework/', name)
+    return match[1] if match else None
+
+
+def without_unused_pdf_plugin(binaries):
+    # QImage's qpdf plugin pulls a second PDF engine into QtGui builds. RePDF
+    # renders PDF with pypdfium2 and never uses QtPdf or its image plugin.
+    return [entry for entry in binaries
+            if qt_binary_module(entry[0]) not in {'Pdf', 'PdfWidgets'}
+            and not re.search(r'(?:^|/)imageformats/(?:lib)?qpdf\.(?:dll|dylib|so)$',
+                              str(entry[0]).replace('\\', '/'))]
+
+
 def check_qt_binaries(binaries):
     """Reject newly collected Qt modules outside the reviewed source scope."""
     reviewed = {'Core', 'Gui', 'Widgets', 'Network', 'PrintSupport', 'OpenGL',
                 'OpenGLWidgets', 'DBus', 'Svg', 'SvgWidgets'}
-    found = set()
-    for entry in binaries:
-        name = str(entry[0]).replace('\\', '/')
-        match = re.search(r'(?:^|/)(?:lib)?Qt6([A-Za-z0-9]+)\.(?:dll|dylib|so)', name)
-        if not match:
-            match = re.search(r'(?:^|/)Qt([A-Za-z0-9]+)\.framework/', name)
-        if match:
-            found.add(match[1])
+    found = {module for entry in binaries if (module := qt_binary_module(entry[0]))}
     if found - reviewed:
         raise ValueError(f'Unreviewed Qt binary modules: {sorted(found - reviewed)}')
     return sorted(found)

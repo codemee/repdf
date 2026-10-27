@@ -61,6 +61,15 @@ def test_qt_module_scope_in_windows_and_macos_binaries():
         collector.check_qt_binaries([('PySide6/Qt6Quick.dll', '', '')])
 
 
+def test_unused_qt_pdf_plugin_does_not_remove_pdfium_or_other_image_plugins():
+    used = [('pypdfium2_raw/pdfium.dll', '', ''), ('PySide6/plugins/imageformats/qjpeg.dll', '', ''),
+            ('PySide6/Qt6Core.dll', '', '')]
+    extra = [('PySide6/plugins/imageformats/qpdf.dll', '', ''), ('PySide6/Qt6Pdf.dll', '', ''),
+             ('PySide6/Qt/plugins/imageformats/libqpdf.dylib', '', ''),
+             ('PySide6/Qt/lib/QtPdf.framework/Versions/A/QtPdf', '', '')]
+    assert collector.without_unused_pdf_plugin(used + extra) == used
+
+
 def test_reviewed_models_match_current_catalog_and_real_weights():
     from repdf.ocr_models import PROFILES
     import rapidocr
