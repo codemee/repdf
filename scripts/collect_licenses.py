@@ -9,8 +9,19 @@ from pathlib import Path
 import re
 import shutil
 import sys
+import sysconfig
 
 ROOT = Path(__file__).resolve().parents[1]
+
+
+def python_license_path(base_prefix=None, stdlib=None):
+    prefix = Path(base_prefix or sys.base_prefix)
+    library = Path(stdlib or sysconfig.get_path('stdlib'))
+    for candidate in (prefix / 'LICENSE.txt', library / 'LICENSE.txt',
+                      prefix / 'LICENSE', prefix / 'licenses/LICENSE.cpython.txt'):
+        if candidate.is_file():
+            return candidate
+    raise FileNotFoundError(f'Python license not found under {prefix} or {library}')
 
 
 def qt_binary_module(name):
@@ -21,12 +32,14 @@ def qt_binary_module(name):
     return match[1] if match else None
 
 
-def without_unused_pdf_plugin(binaries):
-    # QImage's qpdf plugin pulls a second PDF engine into QtGui builds. RePDF
-    # renders PDF with pypdfium2 and never uses QtPdf or its image plugin.
+def without_unused_qt_plugins(binaries):
+    # Widgets uses native platform input methods, not Qt's QML virtual keyboard.
+    # QImage's qpdf plugin also pulls in a second, unused PDF engine.
+    unused = {'Pdf', 'PdfWidgets', 'Qml', 'QmlMeta', 'QmlModels', 'QmlWorkerScript',
+              'Quick', 'QuickWidgets', 'VirtualKeyboard'}
     return [entry for entry in binaries
-            if qt_binary_module(entry[0]) not in {'Pdf', 'PdfWidgets'}
-            and not re.search(r'(?:^|/)imageformats/(?:lib)?qpdf\.(?:dll|dylib|so)$',
+            if qt_binary_module(entry[0]) not in unused
+            and not re.search(r'(?:^|/)(?:imageformats/(?:lib)?qpdf|platforminputcontexts/(?:lib)?qtvirtualkeyboardplugin)\.(?:dll|dylib|so)$',
                               str(entry[0]).replace('\\', '/'))]
 
 
@@ -97,7 +110,7 @@ def collect(destination, *, root=ROOT, distributions=None, python_license=None):
             if not copied:
                 raise ValueError(f'Missing license material: {name} {dist.version}')
         inventory.append({'name': name, 'version': dist.version, 'notice_files': sorted(copied)})
-    python_license = Path(python_license) if python_license else Path(sys.base_prefix) / 'LICENSE.txt'
+    python_license = Path(python_license) if python_license else python_license_path()
     if not python_license.is_file():
         raise FileNotFoundError(f'Python license not found: {python_license}')
     shutil.copy2(python_license, destination / 'PYTHON-LICENSE.txt')

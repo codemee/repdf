@@ -63,11 +63,25 @@ def test_qt_module_scope_in_windows_and_macos_binaries():
 
 def test_unused_qt_pdf_plugin_does_not_remove_pdfium_or_other_image_plugins():
     used = [('pypdfium2_raw/pdfium.dll', '', ''), ('PySide6/plugins/imageformats/qjpeg.dll', '', ''),
-            ('PySide6/Qt6Core.dll', '', '')]
+            ('PySide6/Qt6Core.dll', '', ''),
+            ('PySide6/plugins/platforminputcontexts/libibusplatforminputcontextplugin.so', '', '')]
     extra = [('PySide6/plugins/imageformats/qpdf.dll', '', ''), ('PySide6/Qt6Pdf.dll', '', ''),
              ('PySide6/Qt/plugins/imageformats/libqpdf.dylib', '', ''),
-             ('PySide6/Qt/lib/QtPdf.framework/Versions/A/QtPdf', '', '')]
-    assert collector.without_unused_pdf_plugin(used + extra) == used
+             ('PySide6/Qt/lib/QtPdf.framework/Versions/A/QtPdf', '', ''),
+             ('PySide6/plugins/platforminputcontexts/qtvirtualkeyboardplugin.dll', '', ''),
+             ('PySide6/Qt/lib/QtQuick.framework/Versions/A/QtQuick', '', ''),
+             ('PySide6/Qt6QmlMeta.dll', '', '')]
+    assert collector.without_unused_qt_plugins(used + extra) == used
+
+
+def test_python_license_is_found_in_unix_stdlib_and_windows_prefix(tmp_path):
+    prefix = tmp_path / 'python'
+    library = prefix / 'lib/python3.12'
+    library.mkdir(parents=True)
+    (library / 'LICENSE.txt').write_text('Unix CPython license')
+    assert collector.python_license_path(prefix, library) == library / 'LICENSE.txt'
+    (prefix / 'LICENSE.txt').write_text('Windows CPython license')
+    assert collector.python_license_path(prefix, library) == prefix / 'LICENSE.txt'
 
 
 def test_reviewed_models_match_current_catalog_and_real_weights():

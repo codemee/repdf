@@ -28,11 +28,12 @@ a = Analysis(
     [str(root / "packaging/launcher.py")],
     pathex=[str(root / "src")],
     binaries=binaries, datas=data, hiddenimports=hiddenimports,
-    excludes=["pytest", "tkinter", "PySide6.QtPdf", "PySide6.QtPdfWidgets"], noarchive=False,
+    excludes=["pytest", "tkinter", "PySide6.QtPdf", "PySide6.QtPdfWidgets", "PySide6.QtQml",
+              "PySide6.QtQuick", "PySide6.QtQuickWidgets", "PySide6.QtVirtualKeyboard"], noarchive=False,
 )
 sys.path.insert(0, str(root / "scripts"))
-from collect_licenses import check_qt_binaries, without_unused_pdf_plugin
-a.binaries = without_unused_pdf_plugin(a.binaries)
+from collect_licenses import check_qt_binaries, without_unused_qt_plugins
+a.binaries = without_unused_qt_plugins(a.binaries)
 check_qt_binaries(a.binaries)
 pyz = PYZ(a.pure)
 if sys.platform == "darwin":
