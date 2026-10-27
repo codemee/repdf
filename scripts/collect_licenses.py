@@ -35,12 +35,14 @@ def qt_binary_module(name):
 def without_unused_qt_plugins(binaries):
     # Widgets uses native platform input methods, not Qt's QML virtual keyboard.
     # QImage's qpdf plugin also pulls in a second, unused PDF engine.
-    unused = {'Pdf', 'PdfWidgets', 'Qml', 'QmlMeta', 'QmlModels', 'QmlWorkerScript',
-              'Quick', 'QuickWidgets', 'VirtualKeyboard'}
+    def unused(entry):
+        name = str(entry[0]).replace('\\', '/')
+        module = qt_binary_module(name)
+        return (bool(module and module.startswith(('Pdf', 'Qml', 'Quick', 'VirtualKeyboard')))
+                or re.search(r'(?:^|/)(?:imageformats/(?:lib)?qpdf|platforminputcontexts/(?:lib)?qtvirtualkeyboardplugin)\.(?:dll|dylib|so)$', name)
+                or re.search(r'(?:^|/)PySide6/(?:Qt/)?qml/', name))
     return [entry for entry in binaries
-            if qt_binary_module(entry[0]) not in unused
-            and not re.search(r'(?:^|/)(?:imageformats/(?:lib)?qpdf|platforminputcontexts/(?:lib)?qtvirtualkeyboardplugin)\.(?:dll|dylib|so)$',
-                              str(entry[0]).replace('\\', '/'))]
+            if not unused(entry)]
 
 
 def check_qt_binaries(binaries):

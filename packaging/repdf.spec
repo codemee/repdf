@@ -34,6 +34,7 @@ a = Analysis(
 sys.path.insert(0, str(root / "scripts"))
 from collect_licenses import check_qt_binaries, without_unused_qt_plugins
 a.binaries = without_unused_qt_plugins(a.binaries)
+a.datas = without_unused_qt_plugins(a.datas)
 check_qt_binaries(a.binaries)
 pyz = PYZ(a.pure)
 if sys.platform == "darwin":

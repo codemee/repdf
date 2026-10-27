@@ -70,6 +70,9 @@ def test_unused_qt_pdf_plugin_does_not_remove_pdfium_or_other_image_plugins():
              ('PySide6/Qt/lib/QtPdf.framework/Versions/A/QtPdf', '', ''),
              ('PySide6/plugins/platforminputcontexts/qtvirtualkeyboardplugin.dll', '', ''),
              ('PySide6/Qt/lib/QtQuick.framework/Versions/A/QtQuick', '', ''),
+             ('PySide6/Qt/lib/QtVirtualKeyboardQml.framework/Versions/A/QtVirtualKeyboardQml', '', ''),
+             ('PySide6/Qt/lib/QtVirtualKeyboardQml.framework/Resources/Info.plist', '', ''),
+             ('PySide6/Qt/qml/QtQuick/Controls/qmldir', '', ''),
              ('PySide6/Qt6QmlMeta.dll', '', '')]
     assert collector.without_unused_qt_plugins(used + extra) == used
 
