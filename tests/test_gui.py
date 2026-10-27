@@ -470,7 +470,7 @@ def test_tabs_keep_independent_state_and_output_scope(qtbot, monkeypatch, tmp_pa
     assert window.odd_checkbox.checkState() == Qt.CheckState.Checked
 
 
-def test_checked_empty_tab_does_not_fall_back(qtbot, monkeypatch, tmp_path) -> None:
+def test_checked_empty_tab_uses_current_page_for_export_only(qtbot, monkeypatch, tmp_path) -> None:
     monkeypatch.setattr(DocumentView, "_queue_all_renders", lambda self: None)
     window = MainWindow()
     qtbot.addWidget(window)
@@ -479,7 +479,8 @@ def test_checked_empty_tab_does_not_fall_back(qtbot, monkeypatch, tmp_path) -> N
     b.page_cards[0].checkbox.click()
     a.include_checkbox.setChecked(True)
     assert window.output_selection() == []
-    assert not window.export_action.isEnabled()
+    assert window.export_action.isEnabled()
+    assert window.output_selection(fallback_current=True)[0].source == b.source_path
     a.include_checkbox.setChecked(False)
     assert window.export_action.isEnabled()
 

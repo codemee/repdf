@@ -49,6 +49,13 @@ def main(report_path: str) -> int:
         language.close()
         if load_app_icon().isNull():
             raise RuntimeError("Application icon is missing")
+        from repdf.about import AboutDialog
+        about = AboutDialog()
+        if ('GNU GENERAL PUBLIC LICENSE' not in about.license_text.toPlainText()
+                or 'THIRD_PARTY_NOTICES.md' not in about.documents
+                or not any(name.startswith('third_party/') for name in about.documents)):
+            raise RuntimeError('Packaged offline license resources are missing')
+        about.close()
         if not QSslSocket.supportsSsl():
             raise RuntimeError('HTTPS support for optional OCR model downloads is missing')
         if get_display('abc') != 'abc' or 'korean' not in PROFILES:
@@ -159,6 +166,34 @@ def main(report_path: str) -> int:
             if (not annotations or len(annotations) != 1 or annotations[0]['page'] != 1
                     or annotations[0]['contents'] != 'Smoke annotation 註解'):
                 raise RuntimeError(f'Packaged annotation extraction failed: {annotations}')
+            staging = root / 'png-stage'
+            staging.mkdir()
+            process.stdin.write(json.dumps({'type': 'export_png', 'generation': 3,
+                'destination': str(root / 'pages.png'), 'staging_dir': str(staging),
+                'documents': [{'source': str(source), 'pages': [1, 0]}]}) + '\n')
+            process.stdin.flush()
+            for line in process.stdout:
+                message = json.loads(line)
+                if message['type'] == 'error':
+                    raise RuntimeError(message['message'])
+                if message['type'] == 'done':
+                    break
+            if QImage(str(staging / 'pages_01.png')).width() != 1250:
+                raise RuntimeError('Packaged PNG page export failed')
+            process.stdin.write(json.dumps({'type': 'copy_document', 'generation': 4,
+                'source': str(source), 'pages': [1, 0]}) + '\n')
+            process.stdin.flush()
+            copied_pages = []
+            for line in process.stdout:
+                message = json.loads(line)
+                if message['type'] == 'error':
+                    raise RuntimeError(message['message'])
+                if message['type'] == 'document_text_page':
+                    copied_pages.append(message['page'])
+                if message['type'] == 'done':
+                    break
+            if copied_pages != [1, 0]:
+                raise RuntimeError('Packaged whole-document text extraction failed')
             from PySide6.QtCore import QEventLoop, QTimer
             from PySide6.QtPrintSupport import QPrinter
             from repdf.printing import PrintJob, PrintPage

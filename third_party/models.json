@@ -1,0 +1,100 @@
+{
+  "reviewed_on": "2026-10-27",
+  "downloadable": [
+    {
+      "profile": "korean",
+      "artifact_url": "https://www.modelscope.cn/models/RapidAI/RapidOCR/resolve/v3.10.0/onnx/PP-OCRv5/rec/korean_PP-OCRv5_rec_mobile.onnx",
+      "sha256": "cd6e2ea50f6943ca7271eb8c56a877a5a90720b7047fe9c41a2e541a25773c9b",
+      "license": "Apache-2.0",
+      "upstream_model": "PaddlePaddle/korean_PP-OCRv5_mobile_rec",
+      "upstream_revision": "c02ecaf1f22bfd1c618cce154fd19185b47e663a",
+      "evidence": "https://huggingface.co/api/models/PaddlePaddle/korean_PP-OCRv5_mobile_rec",
+      "card_file": "third_party/notices/models/korean/README.md"
+    },
+    {
+      "profile": "th",
+      "artifact_url": "https://www.modelscope.cn/models/RapidAI/RapidOCR/resolve/v3.10.0/onnx/PP-OCRv5/rec/th_PP-OCRv5_rec_mobile.onnx",
+      "sha256": "de541dd83161c241ff426f7ecfd602a0ba77d686cf3ab9a6c255ea82fd08006e",
+      "license": "Apache-2.0",
+      "upstream_model": "PaddlePaddle/th_PP-OCRv5_mobile_rec",
+      "upstream_revision": "9e25080455925d3943f5db885fddc79db6a07ca3",
+      "evidence": "https://huggingface.co/api/models/PaddlePaddle/th_PP-OCRv5_mobile_rec",
+      "card_file": "third_party/notices/models/th/README.md"
+    },
+    {
+      "profile": "cyrillic",
+      "artifact_url": "https://www.modelscope.cn/models/RapidAI/RapidOCR/resolve/v3.10.0/onnx/PP-OCRv5/rec/cyrillic_PP-OCRv5_rec_mobile.onnx",
+      "sha256": "90f761b4bfcce0c8c561c0cb5c887b0971d3ec01c32164bdf7374a35b0982711",
+      "license": "Apache-2.0",
+      "upstream_model": "PaddlePaddle/cyrillic_PP-OCRv5_mobile_rec",
+      "upstream_revision": "712d2d65556ccc1ea7b5d2bb232b018838b6a3ab",
+      "evidence": "https://huggingface.co/api/models/PaddlePaddle/cyrillic_PP-OCRv5_mobile_rec",
+      "card_file": "third_party/notices/models/cyrillic/README.md"
+    },
+    {
+      "profile": "arabic",
+      "artifact_url": "https://www.modelscope.cn/models/RapidAI/RapidOCR/resolve/v3.10.0/onnx/PP-OCRv5/rec/arabic_PP-OCRv5_rec_mobile.onnx",
+      "sha256": "c1192e632d0baa9146ae5b756a0e635e3dc63c1733737ebfd1629e87144e9295",
+      "license": "Apache-2.0",
+      "upstream_model": "PaddlePaddle/arabic_PP-OCRv5_mobile_rec",
+      "upstream_revision": "33d91636a65dca87f5562cc48860332ae367ee1b",
+      "evidence": "https://huggingface.co/api/models/PaddlePaddle/arabic_PP-OCRv5_mobile_rec",
+      "card_file": "third_party/notices/models/arabic/README.md"
+    },
+    {
+      "profile": "devanagari",
+      "artifact_url": "https://www.modelscope.cn/models/RapidAI/RapidOCR/resolve/v3.10.0/onnx/PP-OCRv5/rec/devanagari_PP-OCRv5_rec_mobile.onnx",
+      "sha256": "d6f0a906580e3fa6b324a318718f1f31f268b6ea8ef985f91c2012a37f52c91e",
+      "license": "Apache-2.0",
+      "upstream_model": "PaddlePaddle/devanagari_PP-OCRv5_mobile_rec",
+      "upstream_revision": "99dcce6d196bd4aaf268c7a5c72c3cc9f3ea4932",
+      "evidence": "https://huggingface.co/api/models/PaddlePaddle/devanagari_PP-OCRv5_mobile_rec",
+      "card_file": "third_party/notices/models/devanagari/README.md"
+    },
+    {
+      "profile": "el",
+      "artifact_url": "https://www.modelscope.cn/models/RapidAI/RapidOCR/resolve/v3.10.0/onnx/PP-OCRv5/rec/el_PP-OCRv5_rec_mobile.onnx",
+      "sha256": "b4368bccd557123c702b7549fee6cd1e94b581337d1c9b65310f109131542b7f",
+      "license": "Apache-2.0",
+      "upstream_model": "PaddlePaddle/el_PP-OCRv5_mobile_rec",
+      "upstream_revision": "b15bcf2467a03a0c079baa4b0347da51e89aaaba",
+      "evidence": "https://huggingface.co/api/models/PaddlePaddle/el_PP-OCRv5_mobile_rec",
+      "card_file": "third_party/notices/models/el/README.md"
+    },
+    {
+      "profile": "ta",
+      "artifact_url": "https://www.modelscope.cn/models/RapidAI/RapidOCR/resolve/v3.10.0/onnx/PP-OCRv5/rec/ta_PP-OCRv5_rec_mobile.onnx",
+      "sha256": "a42448808b7dea87597336f12438935f40353f1949e8360acd9e06b4da21bfe1",
+      "license": "Apache-2.0",
+      "upstream_model": "PaddlePaddle/ta_PP-OCRv5_mobile_rec",
+      "upstream_revision": "1bb164dad1d8eb23c7f7a382827e5305b37868d4",
+      "evidence": "https://huggingface.co/api/models/PaddlePaddle/ta_PP-OCRv5_mobile_rec",
+      "card_file": "third_party/notices/models/ta/README.md"
+    },
+    {
+      "profile": "te",
+      "artifact_url": "https://www.modelscope.cn/models/RapidAI/RapidOCR/resolve/v3.10.0/onnx/PP-OCRv5/rec/te_PP-OCRv5_rec_mobile.onnx",
+      "sha256": "a3690451b50028a09a3316a1274f7c05728151ea3f8fd392696397a7fefcbd92",
+      "license": "Apache-2.0",
+      "upstream_model": "PaddlePaddle/te_PP-OCRv5_mobile_rec",
+      "upstream_revision": "151ab3b1c2f2a058f07a944416b92e9eaec6bf36",
+      "evidence": "https://huggingface.co/api/models/PaddlePaddle/te_PP-OCRv5_mobile_rec",
+      "card_file": "third_party/notices/models/te/README.md"
+    }
+  ],
+  "bundled": [
+    {
+      "name": "PP-OCRv6_det_small.onnx",
+      "sha256": "090f04abcd9d9a7498bc4ebf677e4cb9bdce1fe4197ddb7e529f1ef44e1ff94f",
+      "license": "Apache-2.0",
+      "notice": "third_party/notices/rapidocr/3.10.0/rapidocr-3.10.0.dist-info/licenses/MODEL_LICENSES.md"
+    },
+    {
+      "name": "PP-OCRv6_rec_small.onnx",
+      "sha256": "6f327246b50388f3c176ae304bd95767ea6dc0c9ae92153ef8cbe210b3c14884",
+      "license": "Apache-2.0",
+      "notice": "third_party/notices/rapidocr/3.10.0/rapidocr-3.10.0.dist-info/licenses/MODEL_LICENSES.md"
+    }
+  ],
+  "registry_sha256": "90e0159dead16c21adbf000014a46043c981ae097f041d92d8b19a52c2f2ed9a"
+}

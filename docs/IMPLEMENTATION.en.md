@@ -225,7 +225,7 @@ Odd/even controls are tri-state checkboxes. Partial manual selections show the i
 
 ## 10. PDF output and file safety
 
-`choose_output()` uses a save dialog with default filename `<source_stem>_selected.pdf`. Export is enabled only with at least one selected page and no active export.
+`choose_output()` and `choose_split_output()` share a Qt save dialog with default filename `<source_stem>_selected.pdf`. Merge offers PDF only and combines pages into one file. Split offers PDF or PNG and writes one file per page. Export is enabled when output pages are available and no export is active. `output_selection(fallback_current=True)` falls back to the active tab's `preview_page_index()` when the checked scope contains no selected pages; fullscreen uses the first page of the current group. The default does not fall back, preserving printing's own selection rules.
 
 `core.export_documents()` behaves as follows; `export_selected_pages()` remains a single-file wrapper:
 
@@ -244,7 +244,9 @@ Reordering changes only original indices in `page_order`; `page_cards` and `sele
 
 Each source is read once. Pages retain their source content and metadata. All PDFs are generated in a temporary directory within the destination directory, then published individually with atomic operations. Without overwrite authorization, existing targets are rejected. Generation failure leaves output unchanged. A disk error during publication reports the number already completed and retains published files.
 
-During export, users may switch tabs, read, and zoom, but cannot open/close files, check/reorder tabs, or select/reorder pages. Background export uses the immutable starting snapshot. Empty selections disable output without falling back to another file. Split numbering is continuous across source files.
+During export, users may switch tabs, read, and zoom, but cannot open/close files, check/reorder tabs, or select/reorder pages. Background export uses an immutable starting snapshot of pages and unsaved annotations. Split numbering is continuous across source files.
+
+`png_export.py` renders pages sequentially through PDFium in a dedicated `RenderService` subprocess. `PdfDocumentCache` applies each source password and annotation snapshot; rendering respects page rotation, crop, and visible annotations. RGB PNGs use 300 DPI with a 30-million-pixel cap per page, reducing DPI for larger pages. Single images use the chosen filename; multiple images use continuous numbering from `png_output_paths()`. All images are written and fsynced in a temporary directory beside the destination before individual atomic publication. Unauthorized overwrites and overwriting any open source are rejected. Canceling terminates the subprocess and removes temporary files without publishing images; publication disk errors report the completed count. This requires no new dependencies and is separate from extracting original embedded images.
 
 ## 11. Themes, fonts, and icons
 
@@ -487,3 +489,20 @@ Packaged smoke tests must stop render backends holding cached PDFs before removi
 - `message_dialogs.py` creates the Qt unsaved-changes prompt with a separate heading, filename and discard explanation. Save is the default and Cancel handles Escape; all three choices retain the existing save/close flow.
 
 - Search results retain a vertical split: the upper Files table shows Filename/Count, where Count means matching paragraphs. The lower Matches table shows Page/Paragraph; clicking either column navigates to the result. Numbers align right and paragraphs retain single-line ellipsis and full tooltips.
+
+## Folder search and whole-document text copying
+
+- `SearchTarget` decouples paths, page orders and in-memory passwords from tab lifetimes. Open PDFs retain document IDs; unopened files use independent negative IDs. Folder enumeration is nonrecursive; background searches discover page counts when `pages=None`, without rendering or creating tabs first.
+- Result activation records the query generation, loading document and paragraph key. `_pdf_loaded()` navigates only after loading. Stops, new searches, closure and newer selections invalidate pending jumps. Existing paths reuse their tabs. Folder results survive tab closure while password references are cleared.
+- `document_text.py` uses a dedicated `RenderService` and `copy_document` request to stream page text and normalized text rectangles, merged in display order without OCR. Only complete success updates the clipboard; errors, cancellation and empty results retain its contents.
+- Whole-document selections also apply to lazily realized cards and fullscreen pages. Select All is intercepted only in text-copy reading mode, excluding search inputs, annotation editors and other text fields. Closure, document/mode changes and saving stop the dedicated reader.
+
+## Open-source licensing and releases
+
+- The project license identifier is `GPL-3.0-only`. The root `LICENSE` contains the full terms; `NOTICE` provides the project grant and third-party information. Both are included in Python distributions through `license-files`.
+- Cloud desktop builds embed both files under `repdf/licenses` and attach `LICENSE.txt` and `NOTICE.txt` to release artifacts. Executables are not built locally.
+- Binary releases must preserve corresponding versioned source, locked dependencies, and build instructions, and meet the distribution requirements of the GPL and third-party components.
+- The incorporated PDFPick source and this project share the same rights holder, Shin-Wei Hwang. The rights holder confirmed ownership of the associated author identities and accounts and selected `GPL-3.0-only` for this project; separate upstream author permission is not required. Third-party libraries, models, and assets retain their own licenses; see the [license review](LICENSE_AUDIT.en.md) for per-component findings and distribution requirements. Cloud builds use `scripts/collect_licenses.py` to embed full actual-environment notices and attach platform-specific license ZIPs, rejecting dependencies or Qt modules outside the reviewed scope.
+
+- `about.py` provides the Qt About RePDF dialog, full GPL text and an offline third-party notice tree. Only the source button opens a website. Resource discovery supports checkouts, wheel dist-info licenses and frozen resources. UI labels follow language/theme changes; repeated activation reuses the dialog.
+- On Windows, `system_menu.py` uses Win32 `GetSystemMenu` to append a separator and custom command. `nativeEvent` handles only its own `WM_SYSCOMMAND` ID and delegates all other messages to Qt. Refresh updates one entry across language changes and reinstalls it after native handle changes. On macOS, Qt places `QAction.AboutRole` from a native QMenuBar into the standard application menu. Windows gains no extra menu bar.

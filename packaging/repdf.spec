@@ -7,6 +7,8 @@ from PyInstaller.utils.hooks import collect_all, copy_metadata
 root = Path(SPECPATH).parent
 version = tomllib.loads((root / "pyproject.toml").read_text(encoding="utf-8"))["project"]["version"]
 data = [(str(root / "src/repdf/assets"), "repdf/assets")]
+data += [(str(root / name), "repdf/licenses") for name in ("LICENSE", "NOTICE")]
+data += [(str(root / "output/desktop/licenses"), "repdf/licenses/third-party")]
 data += [(str(Path(QLibraryInfo.path(QLibraryInfo.LibraryPath.TranslationsPath)) / "qtbase_zh_TW.qm"), "repdf/assets")]
 data += copy_metadata("repdf")
 binaries = []
@@ -28,6 +30,9 @@ a = Analysis(
     binaries=binaries, datas=data, hiddenimports=hiddenimports,
     excludes=["pytest", "tkinter"], noarchive=False,
 )
+sys.path.insert(0, str(root / "scripts"))
+from collect_licenses import check_qt_binaries
+check_qt_binaries(a.binaries)
 pyz = PYZ(a.pure)
 if sys.platform == "darwin":
     exe = EXE(pyz, a.scripts, [], exclude_binaries=True, name="repdf",

@@ -6,7 +6,7 @@ RePDF stands for **Read the PDF**. Its command and Python package name are `repd
 
 ## Highlights
 
-- **Search with regular expressions**: Search the current tab, checked tabs, or all tabs, with regular expression, case-sensitive, and whole-word options. Click a result to jump to its page and highlight the matching text.
+- **Search with regular expressions**: Search the current tab, checked tabs, all tabs, or PDFs in the current tab’s folder, with regular expression, case-sensitive, and whole-word options. Click a result to jump to its page and highlight the matching text.
 - **Extract embedded PDF images directly**: Click an embedded raster image to save it as a PNG, preserving its original pixel dimensions and transparency regardless of the reading zoom level.
 
 ## Install and launch
@@ -53,7 +53,7 @@ The controls are described below. Hover over a control to see its tooltip, inclu
 | <picture><source media="(prefers-color-scheme: dark)" srcset="docs/images/toolbar-print-dark.png"><img src="docs/images/toolbar-print.png" width="24" alt="Print"></picture> | Print | Choose pages, scaling, and a printer, then review the preview before printing. | Windows/Linux: <kbd>Ctrl</kbd>+<kbd>P</kbd>; macOS: <kbd>⌘</kbd>+<kbd>P</kbd> |
 | <picture><source media="(prefers-color-scheme: dark)" srcset="docs/images/toolbar-annotation-tools-dark.png"><img src="docs/images/toolbar-annotation-tools.png" width="24" alt="Annotation tools"></picture> | Annotation tools | Show/hide the draggable horizontal floating annotation toolbar. Hiding finishes text input. | — |
 | <picture><source media="(prefers-color-scheme: dark)" srcset="docs/images/toolbar-more-dark.png"><img src="docs/images/toolbar-more.png" width="24" alt="More"></picture> | More | Open controls that do not fit in a narrow window. | — |
-| <picture><source media="(prefers-color-scheme: dark)" srcset="docs/images/toolbar-copy-text-dark.png"><img src="docs/images/toolbar-copy-text.png" width="24" alt="Copy text"></picture> | Copy text | Drag to select text, then release to copy it to the clipboard. Selected text is highlighted. | — |
+| <picture><source media="(prefers-color-scheme: dark)" srcset="docs/images/toolbar-copy-text-dark.png"><img src="docs/images/toolbar-copy-text.png" width="24" alt="Copy text"></picture> | Copy text | Drag to select text, then release to copy it to the clipboard. Selected text is highlighted. | When enabled: <kbd>Ctrl</kbd>+<kbd>A</kbd> (macOS: <kbd>⌘</kbd>+<kbd>A</kbd>) |
 | <picture><source media="(prefers-color-scheme: dark)" srcset="docs/images/toolbar-ocr-region-dark.png"><img src="docs/images/toolbar-ocr-region.png" width="24" alt="Region OCR"></picture> | Region OCR | Draw a rectangle over a page or image, then release to recognize and copy the text. | — |
 | <picture><source media="(prefers-color-scheme: dark)" srcset="docs/images/toolbar-extract-image-dark.png"><img src="docs/images/toolbar-extract-image.png" width="24" alt="Extract image"></picture> | Extract image | Enable this mode, click an embedded raster image, and choose where to save it as a PNG. | — |
 | <picture><source media="(prefers-color-scheme: dark)" srcset="docs/images/toolbar-bookmarks-dark.png"><img src="docs/images/toolbar-bookmarks.png" width="24" alt="Bookmarks"></picture> | Bookmarks | Expand or collapse the chapter tree on the left. Click a chapter to jump to it. | — |
@@ -64,8 +64,8 @@ The controls are described below. Hover over a control to see its tooltip, inclu
 | <picture><source media="(prefers-color-scheme: dark)" srcset="docs/images/toolbar-drawing-dark.png"><img src="docs/images/toolbar-drawing.png" width="24" alt="Drawing annotations"></picture> | Drawing annotations | Choose a line, arrow, rectangle, ellipse or freehand stroke; set stroke/fill styles and drag to create it. | — |
 | <picture><source media="(prefers-color-scheme: dark)" srcset="docs/images/toolbar-odd-dark.png"><img src="docs/images/toolbar-odd.png" height="22" alt="Odd pages checkbox"></picture> | Odd pages | Select or clear original odd-numbered pages in the current tab. A partial selection uses an intermediate checkbox state. | — |
 | <picture><source media="(prefers-color-scheme: dark)" srcset="docs/images/toolbar-even-dark.png"><img src="docs/images/toolbar-even.png" height="22" alt="Even pages checkbox"></picture> | Even pages | Select or clear original even-numbered pages in the current tab. A partial selection uses an intermediate checkbox state. | — |
-| <picture><source media="(prefers-color-scheme: dark)" srcset="docs/images/toolbar-export-dark.png"><img src="docs/images/toolbar-export.png" width="24" alt="Export"></picture> | Export | Combine selected pages in their current order into a new PDF, choosing its name and location. | — |
-| <picture><source media="(prefers-color-scheme: dark)" srcset="docs/images/toolbar-split-dark.png"><img src="docs/images/toolbar-split.png" width="24" alt="Split"></picture> | Split | Save each selected page as a separate PDF in the current order, choosing a base filename and location. | — |
+| <picture><source media="(prefers-color-scheme: dark)" srcset="docs/images/toolbar-export-dark.png"><img src="docs/images/toolbar-export.png" width="24" alt="Export"></picture> | Merge export | Combine selected pages into one PDF; without selected pages, export the currently viewed page. | — |
+| <picture><source media="(prefers-color-scheme: dark)" srcset="docs/images/toolbar-split-dark.png"><img src="docs/images/toolbar-split.png" width="24" alt="Split"></picture> | Split | Save each selected page as a separate PDF or PNG; without selected pages, use the currently viewed page. | — |
 | <picture><source media="(prefers-color-scheme: dark)" srcset="docs/images/toolbar-zoom-dark.png"><img src="docs/images/toolbar-zoom.png" width="160" alt="Zoom percentage and slider"></picture> | Zoom | Adjust from 25% to 200% with the slider. Click the percentage to reset to 100%. Keyboard shortcuts change zoom by 25 percentage points. | In: <kbd>Ctrl</kbd>+<kbd>+</kbd> / <kbd>Ctrl</kbd>+<kbd>=</kbd>; out: <kbd>Ctrl</kbd>+<kbd>-</kbd>; 100%: <kbd>Ctrl</kbd>+<kbd>0</kbd> |
 | <picture><source media="(prefers-color-scheme: dark)" srcset="docs/images/toolbar-fit-dark.png"><img src="docs/images/toolbar-fit.png" width="24" alt="Fit"></picture> | Fit | Fit the current page proportionally into the reading area and adapt when the window is resized. The slider or zoom shortcuts return to manual zoom. | — |
 | <picture><source media="(prefers-color-scheme: dark)" srcset="docs/images/toolbar-fullscreen-dark.png"><img src="docs/images/toolbar-fullscreen.png" width="24" alt="Fullscreen"></picture> | Fullscreen | Use the main button for the last selected mode, or its right-hand dropdown for single page, spread or cover plus spread. | <kbd>F11</kbd> to enter/return; <kbd>Esc</kbd> to return |
@@ -94,7 +94,7 @@ The controls are described below. Hover over a control to see its tooltip, inclu
 - After unlocking, you can read, search, print, export, split, copy text, use region OCR, and extract images.
 - You will not be asked again while the tab stays open. Reopening a closed file requires its password again.
 - Passwords are used only in memory and are not saved to settings or logs.
-- **New PDFs created by export or split are unencrypted**, as indicated in the output dialog. The original file is unchanged.
+- **New PDFs created by export or split are unencrypted**, as indicated in the completion message. The original file is unchanged.
 
 ### Reading and zoom
 
@@ -133,7 +133,7 @@ The controls are described below. Hover over a control to see its tooltip, inclu
 - Newly opened PDFs use Fit mode and adapt to the reading area. Changing zoom switches to manual scaling.
 - Reordering pages adds `*` to the tab name. Click Save or press <kbd>Ctrl</kbd>+<kbd>S</kbd> to save the original PDF.
 - Click Save As or press <kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>S</kbd> to choose another filename. The tab switches to the saved file. On macOS use <kbd>⌘</kbd> instead of <kbd>Ctrl</kbd>.
-- Saving includes every page in the active tab, independently of page and tab checkboxes. Export and Split continue to use checked selections.
+- Saving includes every page in the active tab, independently of page and tab checkboxes. Export and Split use checked selections, falling back to the currently viewed page when there are no eligible checked pages.
 - Bookmarks, internal links, annotations, metadata, and page labels are preserved. Password PDFs are re-encrypted with AES-256 using the password used to open the file.
 - Save failures preserve the original file and current page order for retry. Choose another filename if the destination is open in another tab.
 
@@ -199,12 +199,15 @@ The controls are described below. Hover over a control to see its tooltip, inclu
 ### Search text
 
 1. Click Search text or press <kbd>Ctrl</kbd>+<kbd>F</kbd> (macOS: <kbd>⌘</kbd>+<kbd>F</kbd>) to open the right pane.
-2. Enter a query and choose the current tab, checked tabs, or all tabs. On the same row, the `.*`, `Aa`, and underlined `ab` toggle buttons control regular expressions, case sensitivity, and whole-word matching. A highlighted button means the option is enabled.
+2. Enter a query and choose the current tab, checked tabs, all tabs, or the current tab’s folder. On the same row, the `.*`, `Aa`, and underlined `ab` toggle buttons control regular expressions, case sensitivity, and whole-word matching. A highlighted button means the option is enabled.
 3. Press <kbd>Enter</kbd> or Search. After changing the criteria, run the search again to update results.
 4. The upper Files table shows filenames and matching-paragraph counts. Select a file to see its matches in the lower Page/Paragraph table, with alternating backgrounds and match counts in tooltips. Each paragraph occupies one line; long text ends with `...`. Hover to read the full paragraph.
+
+- The folder scope searches all PDFs directly in the current PDF’s directory, including unopened files, without opening every file as a tab. Subfolders are excluded.
+- Selecting a result file or paragraph opens an unopened PDF in a new tab, or reuses its existing tab, and navigates to the match. Open password-protected PDFs and enter their passwords before folder searches. Unreadable files are reported without discarding other results.
 5. Click a paragraph to switch to its tab and page and scroll to the match. Pages that have not been loaded are loaded automatically. Matches use yellow highlighting by default; matches in the selected paragraph use a darker shade of the same color.
 
-- By default, search covers the current tab, ignores case, and does not use regular expressions. The three search scopes are mutually exclusive.
+- By default, search covers the current tab, ignores case, and does not use regular expressions. The four search scopes are mutually exclusive.
 - Whole-word matching is off by default. When enabled, matches cannot be immediately adjacent to Unicode letters, digits, underscores, or combining marks. For example, `cat` does not match `catalog`. This works with regular expressions but does not segment continuous Chinese text into words.
 - Checked tabs use the checkboxes on the left of tabs. If none are checked, a message appears; search does not automatically fall back to the current file.
 - Search covers all pages in successfully loaded files within the chosen scope, regardless of page selection. Password-protected files must be unlocked first.
@@ -217,7 +220,7 @@ The controls are described below. Hover over a control to see its tooltip, inclu
 - Below a window width of 640 px, search and the PDF share a single pane. Selecting a result displays the PDF; click Search again to return to results.
 - In short windows, use the three-dot Options menu to change scope, regular expression, case-sensitive, and whole-word settings.
 - Click the color swatch in the search options row to choose the match highlight color. In short windows, use Options → Match highlight color. Changes immediately recolor existing highlights without rerunning the search, including fullscreen and pages loaded later. Your choice is remembered; canceling the color picker leaves it unchanged.
-- Closing the search pane stops searching and clears highlights while retaining the query and results. Closing a document removes its results.
+- Closing the search pane stops searching and clears highlights while retaining the query and results. Closing a document removes its results for tab-based searches; folder results remain available for reopening.
 - Using the search shortcut in fullscreen returns to the main window and opens the search pane.
 
 ### Select and reorder pages
@@ -229,19 +232,26 @@ The controls are described below. Hover over a control to see its tooltip, inclu
 - Drop on the left half of a page to insert before it, or the right half to insert after it.
 - Release to confirm, or press <kbd>Esc</kbd> to cancel.
 
-### Export and split
+### Export PDF, PNG, and split
 
 - Tab checkboxes are unchecked by default.
 - If any tabs are checked, only selected pages from those files are exported.
 - If no tabs are checked, only selected pages from the current tab are exported.
-- A checked file with no selected pages contributes no pages; RePDF does not automatically use the current file instead.
+- If the scope above contains no selected pages, export the single page currently viewed in the active tab. Fullscreen spreads use the first page of the current group.
 - Drag tabs to change file order. Output follows tab order, then each file's current page order, excluding unselected pages.
 - Splitting with the name `report.pdf` creates files such as `report_01.pdf` and `report_02.pdf`.
 - Split numbering is continuous across files, starts at 1, and uses at least two digits. Numbers are padded to the total output count, such as `001`–`100` for 100 pages, independently of original page numbers.
 - You are asked before overwriting existing single-page files.
 - Password-protected PDFs must be unlocked first. New output PDFs are unencrypted.
+- Merge export combines selected pages into one PDF. Split offers PDF or PNG, producing one file per page. PDF preserves original page quality; PNG renders the entire page, including text, images, and unsaved annotations.
+- A single PNG uses the chosen filename. Multiple pages named `report.png` produce `report_01.png`, `report_02.png`, and so on, following the same numbering and order as Split.
+- PNG uses 300 DPI independently of reading zoom. Very large pages use a lower resolution to stay within 30 million pixels per image. You can cancel generation; canceled exports do not publish their images.
 
 ### Copy text, region OCR, and image extraction
+
+- With Copy text enabled, press <kbd>Ctrl</kbd>+<kbd>A</kbd> (<kbd>⌘</kbd>+<kbd>A</kbd> on macOS) in the PDF reading area to select and copy the entire PDF text in normal or fullscreen view.
+- All pages follow the current display order, independently of page checkboxes. Extraction runs in the background with progress; the clipboard changes only on success. Switching tabs, leaving text-copy mode or closing the document cancels an active extraction.
+- Whole-document copying reads the text layer, without automatic OCR or annotation contents. Empty results and failures retain the clipboard. Select All inside search inputs or text editors still applies only to that field.
 
 - These three modes are mutually exclusive and work in normal and fullscreen view.
 - Active modes use the hover background and an accent-colored icon without an outline. Turning the mode off restores drag-and-drop reordering.
@@ -268,6 +278,14 @@ Two three-state buttons on the right of the toolbar follow the system by default
 - Changing language updates existing page labels, toolbar controls, tooltips, status messages, and dialogs.
 - Language changes preserve filenames, selected pages, page order, and zoom.
 - File dialogs use the selected Chinese or English language for their buttons and fields.
+
+## License
+
+RePDF is licensed under the **GNU General Public License v3.0 (GPL-3.0-only)**. Use, modification, and commercial use are permitted. Distribution of the program or modified versions must comply with the GPL, including providing corresponding source code and preserving license and copyright notices. The program comes without any warranty.
+
+Open About RePDF to view the version, copyright, full GPL text and offline third-party licenses, or visit the source repository. On Windows, click the main window’s top-left application icon and select About RePDF from the system menu (also available via <kbd>Alt</kbd>+<kbd>Space</kbd>). On macOS, choose About RePDF in the standard RePDF application menu in the system menu bar.
+
+See [LICENSE](LICENSE) for the full terms and [NOTICE](NOTICE) for copyright information. Third-party libraries, models, and assets retain their respective licenses; see [third-party notices](THIRD_PARTY_NOTICES.md) and the [license review](docs/LICENSE_AUDIT.en.md).
 
 ## Further documentation
 

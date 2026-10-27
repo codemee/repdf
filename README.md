@@ -6,7 +6,7 @@ RePDF 代表 **Read the PDF**，命令與 Python 套件名稱為 `repdf`。這�
 
 ## 重點特色
 
-- **支援規則表達式的搜尋**：可搜尋目前、勾選或所有標籤頁，並切換規則表達式、區分大小寫及僅限單字。點選搜尋結果即可跳到對應頁面，並以螢光筆效果標示命中文字。
+- **支援規則表達式的搜尋**：可搜尋目前、勾選、所有標籤頁，或目前標籤所在資料夾的 PDF，並切換規則表達式、區分大小寫及僅限單字。點選搜尋結果即可跳到對應頁面，並以螢光筆效果標示命中文字。
 - **直接擷取 PDF 內嵌圖片**：以滑鼠點選內嵌的點陣圖片，即可另存為 PNG，保留圖片的原始像素尺寸與透明度，不受閱讀時的縮放比例影響。
 
 ## 安裝與啟動
@@ -54,7 +54,7 @@ repdf
 | <picture><source media="(prefers-color-scheme: dark)" srcset="docs/images/toolbar-print-dark.png"><img src="docs/images/toolbar-print.png" width="24" alt="列印圖示"></picture> | 列印 | 設定頁面範圍、縮放與印表機，預覽確認後列印。 | Windows／Linux：<kbd>Ctrl</kbd>+<kbd>P</kbd>；macOS：<kbd>⌘</kbd>+<kbd>P</kbd> |
 | <picture><source media="(prefers-color-scheme: dark)" srcset="docs/images/toolbar-annotation-tools-dark.png"><img src="docs/images/toolbar-annotation-tools.png" width="24" alt="註解工具"></picture> | 註解工具 | 顯示或隱藏可拖移的水平懸浮註解工具列；隱藏時完成目前文字輸入。 | — |
 | <picture><source media="(prefers-color-scheme: dark)" srcset="docs/images/toolbar-more-dark.png"><img src="docs/images/toolbar-more.png" width="24" alt="更多"></picture> | 更多 | 視窗寬度不足時，開啟放不下的工具。 | — |
-| <picture><source media="(prefers-color-scheme: dark)" srcset="docs/images/toolbar-copy-text-dark.png"><img src="docs/images/toolbar-copy-text.png" width="24" alt="複製文字圖示"></picture> | 複製文字 | 啟用後拖曳選取文字，放開滑鼠即複製到剪貼簿；選取的文字會顯示高亮。 | — |
+| <picture><source media="(prefers-color-scheme: dark)" srcset="docs/images/toolbar-copy-text-dark.png"><img src="docs/images/toolbar-copy-text.png" width="24" alt="複製文字圖示"></picture> | 複製文字 | 啟用後拖曳選取文字，放開滑鼠即複製到剪貼簿；選取的文字會顯示高亮。 | 啟用後：<kbd>Ctrl</kbd>+<kbd>A</kbd>（macOS：<kbd>⌘</kbd>+<kbd>A</kbd>） |
 | <picture><source media="(prefers-color-scheme: dark)" srcset="docs/images/toolbar-ocr-region-dark.png"><img src="docs/images/toolbar-ocr-region.png" width="24" alt="區域 OCR 圖示"></picture> | 區域 OCR | 拖曳矩形框選頁面或圖片，放開滑鼠後辨識並複製文字。 | — |
 | <picture><source media="(prefers-color-scheme: dark)" srcset="docs/images/toolbar-extract-image-dark.png"><img src="docs/images/toolbar-extract-image.png" width="24" alt="擷取圖片圖示"></picture> | 擷取圖片 | 啟用後點選內嵌點陣圖片，再選擇位置另存為 PNG。 | — |
 | <picture><source media="(prefers-color-scheme: dark)" srcset="docs/images/toolbar-bookmarks-dark.png"><img src="docs/images/toolbar-bookmarks.png" width="24" alt="書籤圖示"></picture> | 書籤 | 在左側章節樹展開或收合書籤，點選章節即可跳頁。 | — |
@@ -65,8 +65,8 @@ repdf
 | <picture><source media="(prefers-color-scheme: dark)" srcset="docs/images/toolbar-drawing-dark.png"><img src="docs/images/toolbar-drawing.png" width="24" alt="繪圖註解"></picture> | 繪圖註解 | 下拉選擇直線、箭頭、矩形、橢圓或自由手繪；設定線條與填色後拖曳建立。 | — |
 | <picture><source media="(prefers-color-scheme: dark)" srcset="docs/images/toolbar-odd-dark.png"><img src="docs/images/toolbar-odd.png" height="22" alt="單數頁核取方塊"></picture> | 單數頁 | 選取或取消目前標籤的原始單數頁；部分選取時顯示三態標記。 | — |
 | <picture><source media="(prefers-color-scheme: dark)" srcset="docs/images/toolbar-even-dark.png"><img src="docs/images/toolbar-even.png" height="22" alt="雙數頁核取方塊"></picture> | 雙數頁 | 選取或取消目前標籤的原始雙數頁；部分選取時顯示三態標記。 | — |
-| <picture><source media="(prefers-color-scheme: dark)" srcset="docs/images/toolbar-export-dark.png"><img src="docs/images/toolbar-export.png" width="24" alt="重組輸出圖示"></picture> | 重組輸出 | 將選取頁面依目前順序合併為一個新 PDF，指定檔名與儲存位置。 | — |
-| <picture><source media="(prefers-color-scheme: dark)" srcset="docs/images/toolbar-split-dark.png"><img src="docs/images/toolbar-split.png" width="24" alt="拆分輸出圖示"></picture> | 拆分輸出 | 將選取頁面依目前順序逐頁存成獨立 PDF，指定基本檔名與儲存位置。 | — |
+| <picture><source media="(prefers-color-scheme: dark)" srcset="docs/images/toolbar-export-dark.png"><img src="docs/images/toolbar-export.png" width="24" alt="重組輸出圖示"></picture> | 重組輸出 | 將選取頁面合併為單一 PDF；未選頁時輸出目前檢視頁面。 | — |
+| <picture><source media="(prefers-color-scheme: dark)" srcset="docs/images/toolbar-split-dark.png"><img src="docs/images/toolbar-split.png" width="24" alt="拆分輸出圖示"></picture> | 拆分輸出 | 將選取頁面逐頁存成獨立 PDF 或 PNG；未選頁時使用目前檢視頁面。 | — |
 | <picture><source media="(prefers-color-scheme: dark)" srcset="docs/images/toolbar-zoom-dark.png"><img src="docs/images/toolbar-zoom.png" width="160" alt="顯示比例與縮放滑桿"></picture> | 顯示比例 | 滑桿調整 25%–200%；點擊比例回到 100%。鍵盤縮放每次調整 25 個百分點。 | 放大：<kbd>Ctrl</kbd>+<kbd>+</kbd>／<kbd>Ctrl</kbd>+<kbd>=</kbd>；縮小：<kbd>Ctrl</kbd>+<kbd>-</kbd>；100%：<kbd>Ctrl</kbd>+<kbd>0</kbd> |
 | <picture><source media="(prefers-color-scheme: dark)" srcset="docs/images/toolbar-fit-dark.png"><img src="docs/images/toolbar-fit.png" width="24" alt="Fit 圖示"></picture> | Fit | 將目前單頁等比例縮放至預覽區；調整視窗大小時自動適應。拖動滑桿或使用縮放快捷鍵會回到手動比例。 | — |
 | <picture><source media="(prefers-color-scheme: dark)" srcset="docs/images/toolbar-fullscreen-dark.png"><img src="docs/images/toolbar-fullscreen.png" width="24" alt="全螢幕"></picture> | 全螢幕 | 主按鈕開啟上次選擇的模式，右側下拉箭頭選擇單頁、對頁或封面＋對頁。 | <kbd>F11</kbd> 開啟／返回；<kbd>Esc</kbd> 返回 |
@@ -95,7 +95,7 @@ repdf
 - 解鎖後可閱讀、搜尋、列印、重組、拆分、複製文字、區域 OCR 與擷取圖片。
 - 同一標籤開啟期間不再詢問；關閉後再次開啟需重新輸入。
 - 密碼只在記憶體中使用，不儲存到設定檔或記錄。
-- 重組與拆分產生的 **新 PDF 不加密**，輸出對話框會明確標示；原始檔案保持不變。
+- 重組與拆分產生的 **新 PDF 不加密**，完成訊息會明確標示；原始檔案保持不變。
 
 ### 預覽與縮放
 
@@ -133,7 +133,7 @@ repdf
 - 新開啟的 PDF 預設使用 Fit 模式，自動適應閱讀區；調整比例可切換為手動縮放。
 - 拖曳調整頁面順序後，標籤名稱會顯示 `*`；點「存檔」或按 <kbd>Ctrl</kbd>+<kbd>S</kbd> 儲存原 PDF。
 - 點「另存新檔」或按 <kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>S</kbd>，選擇另一個檔名；儲存完成後，標籤改為新檔案。macOS 使用 <kbd>⌘</kbd> 取代 <kbd>Ctrl</kbd>。
-- 存檔包含目前標籤的所有頁面，與頁面及標籤核取方塊無關；「重組輸出／拆分」仍依勾選內容輸出。
+- 存檔包含目前標籤的所有頁面，與頁面及標籤核取方塊無關；「重組輸出／拆分」使用勾選內容，沒有可輸出的勾選頁面時使用目前檢視頁面。
 - 保留書籤、內部連結、註解、文件資料與頁碼標籤。密碼 PDF 以開啟時使用的密碼重新進行 AES-256 加密。
 - 儲存失敗時保留原檔與目前頁序，可修正問題後重試；另存目的檔案若已在其他標籤開啟，請選擇其他檔名。
 
@@ -199,15 +199,17 @@ repdf
 ### 搜尋文字
 
 1. 點「搜尋文字」或按 <kbd>Ctrl</kbd>+<kbd>F</kbd>（macOS：<kbd>⌘</kbd>+<kbd>F</kbd>），開啟右側窗格。
-2. 輸入搜尋內容，選擇「目前標籤頁」、「勾選的標籤頁」或「所有標籤頁」；同一列的 `.*`、`Aa` 與底線 `ab` 狀態按鈕分別切換「規則表達式」、「區分大小寫」與「僅限單字」，亮起表示啟用。
+2. 輸入搜尋內容，選擇「目前標籤頁」、「勾選的標籤頁」、「所有標籤頁」或「目前標籤所在的資料夾」；同一列的 `.*`、`Aa` 與底線 `ab` 狀態按鈕分別切換「規則表達式」、「區分大小寫」與「僅限單字」，亮起表示啟用。
 3. 按 <kbd>Enter</kbd> 或「搜尋」執行；修改條件後再次執行才會更新結果。
 4. 上方「檔案」表格列出檔名與命中段落筆數；選取檔案後，下方「命中項目」表格以「頁碼／段落」分欄顯示，段落採交錯底色單行呈現，命中次數保留在提示文字中；內容過長時以 `...` 結尾，滑鼠停留可查看完整段落。
 5. 單擊段落，切換到對應標籤與頁面，捲至命中位置；尚未載入的頁面會自動載入。命中預設以黃色螢光筆標示，選取段落以較深的同色系突出。
 
-- 預設搜尋目前標籤頁、不區分大小寫、不使用規則表達式；三種範圍互斥。
+- 預設搜尋目前標籤頁、不區分大小寫、不使用規則表達式；四種範圍互斥。
 - 「僅限單字」預設關閉；啟用後，命中內容兩側不能緊接 Unicode 字母、數字、底線或組合標記，例如 `cat` 不會命中 `catalog`。可與規則表達式併用；此選項不會替連續中文斷詞。
 - 「勾選的標籤頁」沿用標籤左側的核取方塊；沒有勾選時會提示，不自動改搜目前檔案。
 - 搜尋涵蓋範圍內已成功載入檔案的全部頁面，不受頁面勾選限制；密碼文件需先解鎖。
+- 「目前標籤所在的資料夾」搜尋該 PDF 所在資料夾這一層的所有 PDF，包含尚未開啟的檔案，不包含子資料夾；搜尋本身不會替所有檔案開啟標籤。
+- 在結果中選取檔案或命中段落時，尚未開啟的 PDF 會自動開為新標籤；已開啟的檔案沿用原標籤，並跳到命中位置。密碼保護檔案請先開啟並輸入密碼，再進行資料夾搜尋；無法讀取的檔案會列入失敗提示，其餘結果仍可使用。
 - 只搜尋既有文字層，不啟動 OCR；掃描圖片或損壞的文字層可能搜尋不到。
 - 同段落內的多次命中合併為一筆；段落依文字行與版面位置推估，不跨頁搜尋，分欄及複雜版面可能有段落差異。
 - 支援同一段落內的跨行搜尋：視覺換行會合併，中日文字之間不補空格，其餘續行以空格銜接；跨行命中會標示對應各行的文字。
@@ -217,7 +219,7 @@ repdf
 - 視窗寬度小於 640px 時，搜尋與 PDF 改為單一窗格切換；點結果後顯示 PDF，再點搜尋按鈕可返回結果。
 - 視窗較矮時，從三點「選項」選單調整範圍、規則表達式、區分大小寫與僅限單字設定。
 - 點選搜尋選項列的色塊按鈕可設定命中標示顏色；較矮視窗可從「選項 → 命中標示顏色」開啟。變更會立即更新現有標示，無須重新搜尋，並套用至全螢幕與之後載入的頁面；選擇會記住，取消選色不會變更設定。
-- 關閉搜尋窗格會停止搜尋並清除高亮，保留輸入與結果；文件關閉時會移除其結果。
+- 關閉搜尋窗格會停止搜尋並清除高亮，保留輸入與結果；標籤頁搜尋會在文件關閉時移除其結果；資料夾搜尋保留結果，方便再次開啟。
 - 全螢幕使用搜尋快捷鍵時，會返回主視窗並開啟搜尋窗格。
 
 ### 選頁與拖曳排序
@@ -229,19 +231,26 @@ repdf
 - 移到頁面左半部插入其前方，右半部插入其後方。
 - 放開滑鼠確認排序；按 <kbd>Esc</kbd> 取消。
 
-### 重組與拆分輸出
+### 輸出 PDF、PNG 與拆分
 
 - 標籤左側的核取方塊預設不勾選。
 - 有勾選標籤：只輸出勾選檔案的已選頁面。
 - 沒有勾選任何標籤：只輸出目前標籤的已選頁面。
-- 勾選檔案沒有選頁時，不提供輸出頁面，也不會自動改選目前檔案。
+- 若上述範圍內沒有勾選頁面，預設輸出目前標籤正在檢視的單一頁面；全螢幕並排時使用目前組的第一頁。
 - 拖曳標籤可調整檔案順序；輸出先依標籤順序，再依各檔內的頁面排序，未勾選的頁面不會輸出。
 - 拆分指定 `report.pdf` 時，會輸出 `report_01.pdf`、`report_02.pdf` 等檔案。
 - 拆分序號跨檔連續、從 1 開始，至少兩位；依本次輸出總數補零對齊，例如 100 頁使用 `001`–`100`，與原始頁碼無關。
 - 已存在的單頁檔案會先詢問是否覆蓋。
 - 密碼保護的 PDF 須先成功解鎖；輸出的新 PDF 不加密。
+- 「重組輸出」將選取頁面合併為單一 PDF；「拆分輸出」可選 PDF 或 PNG，每頁各產生一個檔案。PDF 保留原始頁面品質；PNG 將整頁文字、圖片與註解合成為圖檔，包含尚未儲存的註解。
+- PNG 單頁使用指定檔名；多頁指定 `report.png` 時，依輸出順序產生 `report_01.png`、`report_02.png` 等檔案，序號規則與拆分相同。
+- PNG 以 300 DPI 輸出，不受閱讀縮放比例影響；超大頁面會降低解析度，使單張不超過 3,000 萬像素。輸出期間可取消，取消時不發布本次產生的圖檔。
 
 ### 複製文字、區域 OCR 與擷取圖片
+
+- 啟用「複製文字」後，在 PDF 閱讀區按 <kbd>Ctrl</kbd>+<kbd>A</kbd>（macOS：<kbd>⌘</kbd>+<kbd>A</kbd>），可選取整份 PDF 的文字並複製到剪貼簿，一般與全螢幕皆可使用。
+- 全文複製依目前頁面排列順序處理全部頁面，不受頁面核取方塊影響；背景擷取期間顯示進度，完成前不改動剪貼簿。切換標籤、離開選字模式或關閉文件會取消進行中的擷取。
+- 全文複製只讀取文字層，不自動 OCR 掃描頁，也不包含註解文字；無文字或失敗時保留原剪貼簿內容。搜尋欄與文字編輯框中的全選仍只選取該欄位。
 
 - 三種模式互斥；一般預覽與全螢幕皆可使用。
 - 啟用時按鈕以 hover 底色與強調色圖示標示，不顯示外框；關閉後恢復拖放排序。
@@ -269,6 +278,14 @@ repdf
 - 切換語言會更新既有頁面標籤、工具列、tooltip、狀態與對話框。
 - 切換語言不改動檔名、選頁、頁序或比例。
 - 檔案選擇視窗的按鈕與欄位會跟隨指定的中英文語言。
+
+## 授權
+
+RePDF 採用 **GNU General Public License v3.0（GPL-3.0-only）**。允許使用、修改與商用；散布程式或修改版時，須遵守 GPL，提供對應原始碼並保留授權與版權聲明。程式不提供任何擔保。
+
+在程式內可開啟「關於 RePDF」，查看版本、版權、GPL 全文與離線第三方授權，或前往原始碼儲存庫。Windows：點選主視窗左上角程式圖示，在系統功能表選「關於 RePDF」（亦可按 <kbd>Alt</kbd>+<kbd>Space</kbd>）。macOS：在系統選單列的「RePDF」應用程式選單選「關於 RePDF」。
+
+完整條款見 [LICENSE](LICENSE)，版權說明見 [NOTICE](NOTICE)，第三方程式庫與模型維持各自的授權；完整清單見 [第三方聲明](THIRD_PARTY_NOTICES.md) 與 [授權核對](docs/LICENSE_AUDIT.md)。
 
 ## 其他文件
 

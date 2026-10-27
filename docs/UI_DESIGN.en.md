@@ -314,3 +314,7 @@ A color swatch on the same row configures match highlighting, using a 34 × 34 b
 - Search results retain a vertical split: the upper Files table shows Filename/Count, where Count means matching paragraphs. The lower Matches table shows Page/Paragraph; clicking either column navigates to the result. Numbers align right and paragraphs retain single-line ellipsis and full tooltips.
 
 - The export icon uses a closed document outline with a downward arrow inside, retaining a 20 × 20 display area and 1 px design stroke so the small-size outline has no gaps.
+
+- Search scope includes the current tab’s folder in both standard and compact controls, with the full selected name in its tooltip. Copy text tooltips describe Select All; normal and fullscreen reading views support whole-document text selection.
+
+- Merge export produces one PDF. Split offers PDF or PNG in the save dialog, producing one file per page without adding toolbar buttons. With no selected pages, the buttons remain enabled and the status bar and tooltips explain the current-page default. Background PNG export displays page progress and a cancel button.

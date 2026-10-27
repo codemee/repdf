@@ -287,6 +287,12 @@ def serve(
                             document.close()
                     print(json.dumps({'type': request['type'], 'generation': request['generation'], **result}),
                           file=output_stream, flush=True)
+                elif request.get('type') == 'export_png':
+                    from repdf.png_export import render_png_pages
+                    render_png_pages(request, documents, lambda message: print(json.dumps(message), file=output_stream, flush=True))
+                elif request.get('type') == 'copy_document':
+                    from repdf.document_text import extract_document_text
+                    extract_document_text(request, lambda message: print(json.dumps(message), file=output_stream, flush=True))
                 elif request.get('type') == 'search':
                     from repdf.search import search_document
                     search_document(request, lambda message: print(json.dumps(message), file=output_stream, flush=True))

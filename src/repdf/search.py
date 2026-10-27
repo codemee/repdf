@@ -162,7 +162,9 @@ def search_document(request, emit):
     pattern = compile_query(request['query'], request['regular_expression'], request['case_sensitive'],
                             request.get('whole_word', False))
     with closing(pdfium.PdfDocument(request['source'], password=request.get('password'))) as document:
-        pages = request['pages']
+        pages = request.get('pages')
+        if pages is None:
+            pages = list(range(len(document)))
         for position, index in enumerate(pages):
             with closing(document[index]) as page:
                 paragraphs, zero_width = search_page(page, pattern)

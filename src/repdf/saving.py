@@ -62,6 +62,7 @@ class SaveController(QObject):
         w.navigation.requests.clear()
         w.navigation.latest_jump = None
         w.search_controller.stop()
+        w.document_text.cancel()
         for other in w.documents.values():
             other.render_timer.stop()
             other.fit_timer.stop()

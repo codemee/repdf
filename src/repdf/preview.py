@@ -105,6 +105,7 @@ class FullscreenPreview(QWidget):
             label.selection_preview.connect(
                 lambda start, end, page=index, preview=label:
                 self.owner._copy_text_selection(self.document, page, preview, start, end, copy=False))
+            self.owner.document_text.apply_label(label, self.document, index)
             label.setAlignment(Qt.AlignmentFlag.AlignCenter)
             if self.images[index].isNull():
                 label.setText(tr("正在產生頁面預覽…"))
@@ -218,6 +219,8 @@ class FullscreenPreview(QWidget):
             return False
         if event.type()==QEvent.Type.KeyPress and event.key()==Qt.Key.Key_Escape and (editor.anchor is not None or editor.drag is not None):
             return False
+        if self.owner.document_text.handle_event(watched, event, self):
+            return True
         if (not self.closed and isinstance(watched,QWidget) and watched.window() is self
                 and event.type() in (QEvent.Type.ShortcutOverride,QEvent.Type.KeyPress)
                 and (event.matches(QKeySequence.StandardKey.Save) or event.matches(QKeySequence.StandardKey.SaveAs))):

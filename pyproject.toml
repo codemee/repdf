@@ -1,9 +1,11 @@
 [project]
 name = "repdf"
-version = "0.1.4"
+version = "0.1.5"
 description = "RePDF (Read the PDF): a desktop PDF reader with printing, search, bookmarks, OCR and page rearrangement."
 readme = "README.md"
 requires-python = ">=3.11"
+license = "GPL-3.0-only"
+license-files = ["LICENSE", "NOTICE", "THIRD_PARTY_NOTICES.md"]
 
 dependencies = [
     "onnxruntime>=1.31.0,<2",
@@ -35,6 +37,9 @@ dev = [
 [build-system]
 requires = ["uv_build>=0.9,<0.13"]
 build-backend = "uv_build"
+
+[tool.uv.build-backend]
+source-include = ["scripts/**", "packaging/**", "third_party/**", "docs/**", "README.en.md", "uv.lock"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

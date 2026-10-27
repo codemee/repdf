@@ -1,6 +1,8 @@
 """Search sidebar and its cancellable, independent background service."""
 
 from html import escape
+from dataclasses import dataclass, field
+from pathlib import Path
 
 from PySide6.QtCore import QEvent, QObject, QSize, Qt, QTimer, Signal
 from PySide6.QtGui import QAction, QActionGroup, QColor, QIcon, QPainter, QPixmap
@@ -14,6 +16,21 @@ from repdf.icons import toolbar_icon
 from repdf.renderer import RenderService, start_render_backend
 from repdf.search import compile_query
 from repdf.strings import tr
+
+
+@dataclass
+class SearchTarget:
+    source_path: Path
+    page_order: list[int] | None
+    password: str | None = field(default=None, repr=False)
+    stamp: tuple[int, int] | None = field(init=False, default=None)
+
+    def __post_init__(self):
+        try:
+            stat = self.source_path.stat()
+            self.stamp = stat.st_mtime_ns, stat.st_size
+        except OSError:
+            pass
 
 
 class SearchStatus(QLabel):
@@ -100,7 +117,9 @@ class SearchPanel(QWidget):
         layout.addLayout(row)
         self.scope = QComboBox()
         self.scope.setAccessibleName(tr('搜尋範圍'))
-        self.scope.addItems([tr('目前標籤頁'), tr('勾選的標籤頁'), tr('所有標籤頁')])
+        self.scope.addItems([tr('目前標籤頁'), tr('勾選的標籤頁'), tr('所有標籤頁'), tr('目前標籤所在的資料夾')])
+        self.scope.setToolTip(self.scope.currentText())
+        self.scope.currentTextChanged.connect(self.scope.setToolTip)
         self.scope.setMinimumWidth(0)
         self.options_box = QWidget()
         options = QHBoxLayout(self.options_box)
@@ -244,7 +263,7 @@ class SearchPanel(QWidget):
 
     def retranslate(self):
         index = self.scope.currentIndex()
-        for i, label in enumerate(('目前標籤頁', '勾選的標籤頁', '所有標籤頁')):
+        for i, label in enumerate(('目前標籤頁', '勾選的標籤頁', '所有標籤頁', '目前標籤所在的資料夾')):
             self.scope.setItemText(i, tr(label))
             self.scope_actions[i].setText(tr(label))
         self.scope_menu.setTitle(tr('搜尋範圍'))
@@ -281,6 +300,9 @@ class SearchController(QObject):
         self.service = None
         self.generation = 0
         self.results = {}
+        self.targets = {}
+        self.folder_search = False
+        self.pending_activation = None
         self.order = []
         self.page_orders = {}
         self.pending = set()
@@ -301,6 +323,9 @@ class SearchController(QObject):
         p.stop_button.clicked.connect(self.stop)
         p.close_button.clicked.connect(self.close)
         p.files.currentItemChanged.connect(self._show_paragraphs)
+        p.files.currentItemChanged.connect(self._activate_file)
+        p.files.itemClicked.connect(self._activate_file)
+        p.files.itemActivated.connect(self._activate_file)
         p.paragraphs.itemClicked.connect(self._activate_item)
         p.paragraphs.itemActivated.connect(self._activate_item)
 
@@ -360,6 +385,7 @@ class SearchController(QObject):
             service.deleteLater()
 
     def stop(self):
+        self.pending_activation = None
         running = bool(self.pending)
         refresh = self._refresh_timer.isActive()
         self._refresh_timer.stop()
@@ -385,6 +411,8 @@ class SearchController(QObject):
     def _reset_results(self):
         self.clear_highlights()
         self.results.clear()
+        self.targets.clear()
+        self.pending_activation = None
         self.order.clear()
         self.page_orders.clear()
         self.failures.clear()
@@ -413,11 +441,30 @@ class SearchController(QObject):
             documents = [doc for doc in documents if doc.include_checkbox.isChecked()]
         documents = [doc for doc in documents if doc.ready]
         self._reset_results()
-        if not documents:
+        self.folder_search = p.scope.currentIndex() == 3
+        if self.folder_search:
+            current = self.owner.current_document()
+            if current is None or not current.ready:
+                p.status.setText(tr('請先開啟資料夾中的 PDF 檔案'))
+                return
+            opened = {doc.source_path.resolve(): doc for doc in documents}
+            try:
+                paths = sorted((path.resolve() for path in current.source_path.parent.iterdir()
+                                if path.is_file() and path.suffix.lower() == '.pdf'), key=lambda path: path.name.casefold())
+            except OSError as exc:
+                p.status.setText(tr('無法讀取資料夾：{message}', message=str(exc)))
+                return
+            for index, path in enumerate(dict.fromkeys(paths), 1):
+                doc = opened.get(path)
+                key = doc.document_id if doc is not None else -index
+                self.targets[key] = SearchTarget(path, list(doc.page_order) if doc else None, doc.password if doc else None)
+        else:
+            self.targets = {doc.document_id: SearchTarget(doc.source_path, list(doc.page_order), doc.password) for doc in documents}
+        if not self.targets:
             p.status.setText(tr('此範圍沒有已載入的檔案；請先開啟或勾選標籤頁'))
             return
-        self.order = [doc.document_id for doc in documents]
-        self.page_orders = {doc.document_id: list(doc.page_order) for doc in documents}
+        self.order = list(self.targets)
+        self.page_orders = {key: target.page_order for key, target in self.targets.items()}
         self.params = {'query': query, 'regular_expression': p.regular_expression.isChecked(),
                        'case_sensitive': p.case_sensitive.isChecked(), 'whole_word': p.whole_word.isChecked()}
         self.pending = set(self.order)
@@ -432,7 +479,7 @@ class SearchController(QObject):
             for document_id in self.order:
                 if document_id not in self.pending:
                     continue
-                doc = self.owner.documents.get(document_id)
+                doc = self.targets.get(document_id)
                 if doc is None:
                     continue
                 self.service.request_search({
@@ -449,14 +496,14 @@ class SearchController(QObject):
                 or payload.get('generation') != self.generation):
             return
         document_id = payload.get('document_id')
-        if document_id not in self.pending or document_id not in self.owner.documents:
+        if document_id not in self.pending or document_id not in self.targets:
             return
         kind = payload.get('type')
         if kind == 'search_page':
             self.zero_width[(document_id, payload['page'])] = payload.get('zero_width', 0)
             self.results.setdefault(document_id, {})[payload['page']] = payload['paragraphs']
             self.panel.status.setText(tr('搜尋 {p0}：第 {p1} / {p2} 頁',
-                p0=self.owner.documents[document_id].source_path.name, p1=payload['position'], p2=payload['total']))
+                p0=self.targets[document_id].source_path.name, p1=payload['position'], p2=payload['total']))
             if not self._refresh_timer.isActive():
                 self._refresh_timer.start()
         elif kind in ('done', 'error'):
@@ -483,8 +530,8 @@ class SearchController(QObject):
             text += '\n' + tr('有 {p0} 個檔案搜尋失敗；結果不完整', p0=len(self.failures))
         self.panel.status.setText(text)
         if self.failures:
-            details = '\n'.join(f'{self.owner.documents[key].source_path}\n{message}'
-                                for key, message in self.failures.items() if key in self.owner.documents)
+            details = '\n'.join(f'{self.targets[key].source_path}\n{message}'
+                                for key, message in self.failures.items() if key in self.targets)
             self.panel.status.setToolTip('<qt>' + escape(details).replace('\n', '<br>') + '</qt>')
 
     def _refresh_files(self):
@@ -494,12 +541,12 @@ class SearchController(QObject):
         p.files.blockSignals(True)
         p.files.clear()
         for document_id in self.order:
-            if document_id not in self.owner.documents:
+            if document_id not in self.targets:
                 continue
             paragraphs = [item for items in self.results.get(document_id, {}).values() for item in items]
             if not paragraphs:
                 continue
-            doc = self.owner.documents[document_id]
+            doc = self.targets[document_id]
             item = QTreeWidgetItem([doc.source_path.name, str(len(paragraphs))])
             item.setData(0, Qt.ItemDataRole.UserRole, document_id)
             item.setTextAlignment(1, Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
@@ -522,10 +569,12 @@ class SearchController(QObject):
         if file_item is None:
             return
         document_id = file_item.data(0, Qt.ItemDataRole.UserRole)
-        doc = self.owner.documents.get(document_id)
-        if doc is None:
+        target = self.targets.get(document_id)
+        if target is None:
             return
-        for page in doc.page_order:
+        doc = self._open_document(target.source_path)
+        pages = doc.page_order if doc is not None and doc.ready else (target.page_order or sorted(self.results.get(document_id, {})))
+        for page in pages:
             for result in self.results.get(document_id, {}).get(page, []):
                 key = (document_id, page, result['paragraph_id'])
                 item = QTreeWidgetItem([str(page + 1), result['text']])
@@ -538,10 +587,61 @@ class SearchController(QObject):
                 if key == previous:
                     p.paragraphs.setCurrentItem(item)
 
+    def _open_document(self, path):
+        return next((doc for doc in self.owner.documents.values() if doc.source_path == path), None)
+
+    def _target_unchanged(self, key):
+        target = self.targets.get(key)
+        if target is None:
+            return False
+        try:
+            stat = target.source_path.stat()
+            unchanged = target.stamp is None or target.stamp == (stat.st_mtime_ns, stat.st_size)
+        except OSError:
+            unchanged = False
+        if not unchanged:
+            self.panel.status.setText(tr('搜尋結果的檔案已變更或無法讀取，請重新搜尋'))
+        return unchanged
+
+    def _activate_file(self, item, _column=0):
+        if item is None:
+            self.pending_activation = None
+            return
+        first = self.panel.paragraphs.topLevelItem(0)
+        if first is not None:
+            self._activate_item(first)
+
     def _activate_item(self, item, _column=0):
-        document_id, page, paragraph_id = item.data(0, Qt.ItemDataRole.UserRole)
-        doc = self.owner.documents.get(document_id)
-        if doc is None or not doc.ready:
+        key = tuple(item.data(0, Qt.ItemDataRole.UserRole))
+        self.pending_activation = None
+        target = self.targets.get(key[0])
+        if target is None or not self._target_unchanged(key[0]):
+            return
+        doc = self._open_document(target.source_path)
+        if doc is None:
+            self.owner.load_pdf(target.source_path)
+            doc = self._open_document(target.source_path)
+        if doc is None:
+            return
+        if not doc.ready:
+            self.owner.tabs.setCurrentWidget(doc)
+            self.pending_activation = (self.generation, doc.document_id, key)
+            return
+        self._activate_result(doc, key)
+
+    def document_loaded(self, doc):
+        pending = self.pending_activation
+        if pending is not None and pending[:2] == (self.generation, doc.document_id):
+            self.pending_activation = None
+            if self.owner.current_document() is doc:
+                self._activate_result(doc, pending[2])
+
+    def _activate_result(self, doc, key):
+        document_id, page, paragraph_id = key
+        if not self._target_unchanged(document_id):
+            return
+        if not 0 <= page < doc.page_count:
+            self.panel.status.setText(tr('檔案頁面已變更，請重新搜尋'))
             return
         results = self.results.get(document_id, {}).get(page, [])
         result = next((p for p in results if p['paragraph_id'] == paragraph_id), None)
@@ -558,11 +658,17 @@ class SearchController(QObject):
         doc.jump_to_search_result(page, result['rects'][0])
 
     def remove_document(self, document_id):
+        if self.pending_activation is not None and self.pending_activation[1] == document_id:
+            self.pending_activation = None
         if document_id not in self.order:
+            return
+        if self.folder_search:
+            self.targets[document_id].password = None
             return
         was_pending = document_id in self.pending
         self.pending.discard(document_id)
         self.results.pop(document_id, None)
+        self.targets.pop(document_id, None)
         self.failures.pop(document_id, None)
         self.page_orders.pop(document_id, None)
         self.zero_width = {key: value for key, value in self.zero_width.items() if key[0] != document_id}

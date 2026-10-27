@@ -24,6 +24,8 @@ def main() -> None:
         raise SystemExit("Build Windows on Windows or macOS on macOS.")
     version = tomllib.loads((ROOT / "pyproject.toml").read_text(encoding="utf-8"))["project"]["version"]
     OUT.mkdir(parents=True, exist_ok=True)
+    from collect_licenses import collect
+    collect(OUT / 'licenses')
     from repdf.icon_layout import fitted_icon
     image=fitted_icon(ROOT / 'src/repdf/assets/repdf.png')
     if sys.platform == 'darwin':
@@ -53,10 +55,14 @@ def main() -> None:
         raise RuntimeError(f"Packaged smoke test failed: {smoke}")
     release = OUT / "release"
     release.mkdir(exist_ok=True)
+    for name in ("LICENSE", "NOTICE"):
+        shutil.copy2(ROOT / name, release / f"{name}.txt")
     arch = {"AMD64": "x86_64", "aarch64": "arm64"}.get(platform.machine(), platform.machine())
     system = "macos" if sys.platform == "darwin" else "windows"
     suffix = "dmg" if sys.platform == "darwin" else "exe"
     artifact = release / f"repdf-{version}-{system}-{arch}.{suffix}"
+    shutil.make_archive(str(release / f"repdf-{version}-{system}-{arch}-licenses"),
+                        'zip', root_dir=OUT / 'licenses')
     if sys.platform == "darwin":
         with tempfile.TemporaryDirectory(prefix="dmg-", dir=OUT) as staging:
             stage = Path(staging)

@@ -60,12 +60,14 @@ from repdf.preferences import LanguageController, migrate_preferences
 from repdf.renderer import RenderService, start_render_backend
 from repdf.widgets import PageCard, PageGrid, PageGridLayout, PdfPasswordDialog
 from repdf.toolbar import OverflowToolBar
-from repdf.shortcut_hints import ShortcutHints
+from repdf.shortcut_hints import ShortcutHints, native_shortcuts
 from repdf.message_dialogs import unsaved_changes_message
 from repdf.preview import FullscreenPreview
 from repdf.floating_tools import FloatingAnnotationTools
 from repdf.workers import ExportPdfTask, LoadPdfTask
 from repdf.search_panel import SearchController
+from repdf.document_text import DocumentTextCopy
+from repdf.png_export import PngExportController, png_output_paths
 from repdf.page_view import PageViewport, PreviewCache
 from repdf.navigation import NavigationController
 from repdf.printing import PrintController
@@ -73,6 +75,8 @@ from repdf.ocr_languages import OcrLanguageController
 from repdf.saving import SaveController
 from repdf.annotation_store import AnnotationStore
 from repdf.annotation_editor import AnnotationEditor
+from repdf.about import AboutDialog
+from repdf.system_menu import WindowsSystemMenu
 
 
 class DocumentView(QWidget):
@@ -446,11 +450,50 @@ class MainWindow(QMainWindow):
         self._build_page_navigation()
         self.print_controller = PrintController(self)
         self.saving = SaveController(self)
+        self.document_text = DocumentTextCopy(self)
+        self.png_export = PngExportController(self)
         self.language_controller.changed.connect(self._retranslate)
         self._update_preference_actions()
 
         QApplication.instance().installEventFilter(self)
         self._sync_controls()
+
+        self._about_dialog = None
+        self.about_action = QAction(tr('關於 RePDF'), self)
+        self.about_action.setMenuRole(QAction.MenuRole.AboutRole)
+        self.about_action.triggered.connect(self.show_about)
+        self.addAction(self.about_action)
+        if sys.platform != 'win32':
+            self.menuBar().setNativeMenuBar(True)
+            self.menuBar().addMenu(tr('說明')).addAction(self.about_action)
+        self._windows_system_menu = WindowsSystemMenu(self)
+
+    def show_about(self):
+        if self._about_dialog is None or not isValid(self._about_dialog):
+            self._about_dialog = AboutDialog(self._fullscreen_preview or self)
+        self._about_dialog.show()
+        self._about_dialog.raise_()
+        self._about_dialog.activateWindow()
+
+    def showEvent(self, event):
+        super().showEvent(event)
+        menu = getattr(self, '_windows_system_menu', None)
+        if menu is not None:
+            menu.refresh()
+
+    def event(self, event):
+        result = super().event(event)
+        if event.type() == QEvent.Type.WinIdChange:
+            menu = getattr(self, '_windows_system_menu', None)
+            if menu is not None and menu.api is not None:
+                QTimer.singleShot(0, menu.refresh)
+        return result
+
+    def nativeEvent(self, event_type, message):
+        menu = getattr(self, '_windows_system_menu', None)
+        if menu is not None and menu.native_event(event_type, message):
+            return True, 0
+        return super().nativeEvent(event_type, message)
 
     def _build_page_navigation(self):
         self._page_edit_dirty = False
@@ -583,6 +626,9 @@ class MainWindow(QMainWindow):
         if navigation is not None and isinstance(watched, QWidget) and (
                 watched is navigation.panel or navigation.panel.isAncestorOf(watched)):
             return super().eventFilter(watched, event)
+        copier = getattr(self, 'document_text', None)
+        if copier is not None and copier.handle_event(watched, event, self):
+            return True
         if (not self._closing and isinstance(watched, QWidget) and watched.window() is self
                 and event.type() in (QEvent.Type.ShortcutOverride, QEvent.Type.KeyPress)):
             control = Qt.KeyboardModifier.MetaModifier if sys.platform == 'darwin' else Qt.KeyboardModifier.ControlModifier
@@ -732,19 +778,19 @@ class MainWindow(QMainWindow):
         self.print_action.setEnabled(False)
         self.print_action.triggered.connect(lambda: self.print_controller.open())
         self.toolbar.addAction(self.print_action)
-        self.export_action = QAction(tr('輸出選取頁面'), self)
-        self.export_action.setToolTip(tr('輸出選取頁面為新 PDF'))
+        self.export_action = QAction(tr('重組輸出'), self)
+        self.export_action.setToolTip(tr('合併選取頁面為單一 PDF；未勾選時輸出目前檢視頁面'))
         self.export_action.setEnabled(False)
         self.export_action.triggered.connect(self.choose_output)
         self.split_action = QAction(tr('拆分選取頁面'), self)
-        self.split_action.setToolTip(tr('拆分選取頁面：依目前順序存成單頁 PDF，檔名附加補零序號'))
+        self.split_action.setToolTip(tr('拆分頁面為獨立 PDF 或 PNG；未勾選時輸出目前檢視頁面'))
         self.split_action.setEnabled(False)
         self.split_action.triggered.connect(self.choose_split_output)
         self.toolbar.addSeparator()
 
         self.copy_text_action = QAction(tr('複製文字'), self)
         self.copy_text_action.setCheckable(True)
-        self.copy_text_action.setToolTip(tr('複製文字：點擊切換；啟用後在頁面拖曳選取文字並複製到剪貼簿，停用後恢復拖放排序。掃描影像中的文字需先經過 OCR。'))
+        self.copy_text_action.setToolTip(tr('複製文字：拖曳選字並複製；{keys} 全選整份 PDF 的文字並複製。掃描影像需使用 OCR。', keys=native_shortcuts(QKeySequence.keyBindings(QKeySequence.StandardKey.SelectAll))))
         self.copy_text_action.toggled.connect(self._set_copy_text_mode)
         self.region_ocr_action = QAction(tr('區域 OCR'), self)
         self.region_ocr_action.setCheckable(True)
@@ -770,7 +816,7 @@ class MainWindow(QMainWindow):
         self.toolbar.widgetForAction(self.annotation_action).setObjectName('annotationsTool')
         self.search_action = QAction(tr('搜尋文字'), self)
         self.search_action.setShortcuts(QKeySequence.keyBindings(QKeySequence.StandardKey.Find))
-        self.search_action.setToolTip(tr('搜尋文字：在右側窗格搜尋目前、勾選或所有標籤頁'))
+        self.search_action.setToolTip(tr('搜尋文字：搜尋目前、勾選、所有標籤頁或目前標籤所在資料夾'))
         self.search_action.triggered.connect(lambda: self.search_controller.open())
         self.toolbar.insertAction(self.bookmark_action,self.search_action)
         self.toolbar.addAction(self.annotation_tools_action)
@@ -991,6 +1037,9 @@ class MainWindow(QMainWindow):
         self.annotation_editor.callout_menu.refresh()
         self.annotation_editor.draw_menu.refresh()
         self.annotation_floating.refresh_icons()
+        if self._about_dialog is not None and isValid(self._about_dialog):
+            self._about_dialog.retranslate()
+        self._windows_system_menu.refresh()
         if self._fullscreen_preview is not None:
             self._fullscreen_preview.floating_tools.refresh_icons()
 
@@ -1047,6 +1096,8 @@ class MainWindow(QMainWindow):
         self._select_mode(self.region_ocr_action, enabled)
 
     def _sync_selection_modes(self) -> None:
+        if hasattr(self, 'document_text'):
+            self.document_text.cancel()
         enabled = self._selection_active()
         region = self.region_ocr_action.isChecked()
         image = self.extract_image_action.isChecked()
@@ -1062,6 +1113,7 @@ class MainWindow(QMainWindow):
         self._image_requests.clear()
 
     def _copy_text_selection(self, doc, page_index, label, start, end, *, copy=True) -> None:
+        self.document_text.cancel()
         if not self._selection_active() or doc.document_id not in self.documents:
             return
         if label.pixmap().isNull() or label.width() < 1 or label.height() < 1:
@@ -1195,16 +1247,25 @@ class MainWindow(QMainWindow):
     def ordered_documents(self):
         return [self.tabs.widget(i) for i in range(self.tabs.count())]
 
-    def output_selection(self) -> list[DocumentSelection]:
+    def output_selection(self, *, fallback_current=False) -> list[DocumentSelection]:
         documents = self.ordered_documents()
         included = [doc for doc in documents if doc.include_checkbox.isChecked()]
         if not included:
             current = self.current_document()
             included = [current] if current is not None else []
-        return [DocumentSelection(doc.source_path, tuple(page for page in doc.page_order if page in doc.selected_pages), doc.password, tuple(doc.annotation_store.changes()))
-                for doc in included if doc.ready and doc.selected_pages]
+        selections = [DocumentSelection(doc.source_path, tuple(page for page in doc.page_order if page in doc.selected_pages), doc.password, tuple(doc.annotation_store.changes()))
+                      for doc in included if doc.ready and doc.selected_pages]
+        if not selections and fallback_current:
+            doc = self.current_document()
+            if doc is not None and doc.ready and doc.page_count:
+                viewer = self._fullscreen_preview
+                page = viewer.page_index if viewer is not None and viewer.document is doc else doc.preview_page_index()
+                selections = [DocumentSelection(doc.source_path, (page,), doc.password, tuple(doc.annotation_store.changes()))]
+        return selections
 
     def _tab_changed(self, _index: int) -> None:
+        if hasattr(self, 'document_text'):
+            self.document_text.cancel()
         self.annotation_editor.finish_text(True)
         self.annotation_editor.clear()
         if self._closing:
@@ -1273,13 +1334,14 @@ class MainWindow(QMainWindow):
         self.extract_image_action.setEnabled(available)
         self.zoom_out_action.setEnabled(zoom > 25)
         self.zoom_in_action.setEnabled(zoom < 200)
-        enabled = bool(self.output_selection()) and not self._export_running
+        enabled = bool(self.output_selection(fallback_current=True)) and not self._export_running
         self.export_action.setEnabled(enabled)
         self.split_action.setEnabled(enabled)
         if not self._export_running:
             count = sum(len(item.pages) for item in self.output_selection())
             self.statusBar().showMessage(
-                tr('目前檔案：已選取 {p0} / {p1} 頁；輸出合計 {p2} 頁', p0=len(doc.selected_pages), p1=doc.page_count, p2=count)
+                (tr('目前檔案：已選取 {p0} / {p1} 頁；輸出合計 {p2} 頁', p0=len(doc.selected_pages), p1=doc.page_count, p2=count)
+                 if count else tr('目前檔案：已選取 {selected} / {total} 頁；預設輸出目前檢視頁面', selected=len(doc.selected_pages), total=doc.page_count))
                 if ready else (tr('正在讀取 PDF…') if doc is not None else tr('就緒')))
 
     def _toggle_parity(self, odd: bool, checked: bool) -> None:
@@ -1431,6 +1493,8 @@ class MainWindow(QMainWindow):
                 self._tab_changed(self.tabs.currentIndex())
             self._sync_controls()
         self._finish_load(document_id)
+        if doc is not None and doc.ready:
+            self.search_controller.document_loaded(doc)
 
     @Slot(int, str)
     def _pdf_load_failed(self, document_id: int, message: str) -> None:
@@ -1595,46 +1659,51 @@ class MainWindow(QMainWindow):
 
     def _choose_output(self, *, split: bool) -> None:
         self.annotation_editor.finish_text(True)
-        selections = self.output_selection()
+        selections = self.output_selection(fallback_current=True)
         if not selections or self._export_running:
             return
         suggested = default_output_path(selections[0].source)
-        filename, _ = QFileDialog.getSaveFileName(
-            self, tr('拆分選取頁面（新 PDF 不加密；檔名自動附加序號）') if split else tr('輸出選取頁面（新 PDF 不加密）'),
-            str(suggested), tr('PDF 檔案 (*.pdf)'), "",
-            QFileDialog.Option.DontUseNativeDialog | (QFileDialog.Option.DontConfirmOverwrite if split else QFileDialog.Option(0)),
+        filename, selected_filter = QFileDialog.getSaveFileName(
+            self._fullscreen_preview or self,
+            tr('拆分頁面（PDF／PNG）') if split else tr('重組輸出（單一 PDF）'),
+            str(suggested), tr('PDF 檔案 (*.pdf)') + (';;' + tr('PNG 圖檔 (*.png)') if split else ''), '',
+            QFileDialog.Option.DontUseNativeDialog | QFileDialog.Option.DontConfirmOverwrite,
         )
         if not filename:
             return
-        destination = Path(filename)
-        if destination.suffix.lower() != ".pdf":
-            destination = destination.with_suffix(".pdf")
-        outputs = split_output_paths(destination, sum(len(item.pages) for item in selections)) if split else [destination]
+        image = split and ('*.png' in selected_filter or Path(filename).suffix.lower() == '.png')
+        destination = Path(filename).with_suffix('.png' if image else '.pdf')
+        count = sum(len(item.pages) for item in selections)
+        outputs = (png_output_paths(destination, count) if image else
+                   split_output_paths(destination, count) if split else [destination])
         if {doc.source_path for doc in self.documents.values()}.intersection(path.resolve() for path in outputs):
-            QMessageBox.warning(self, tr('無法輸出'), tr('輸出檔案不可覆蓋來源 PDF。'))
+            QMessageBox.warning(self._fullscreen_preview or self, tr('無法輸出'), tr('輸出檔案不可覆蓋來源 PDF。'))
             return
+        existing = [path for path in outputs if path.exists()]
         overwrite = False
-        if split:
-            existing = [path for path in outputs if path.exists()]
-            if existing:
-                answer = QMessageBox.question(
-                    self, tr('覆蓋單頁檔案'),
-                    tr('已有 {p0} 個同名單頁檔案，例如：\n{p1}\n\n是否覆蓋？', p0=len(existing), p1=existing[0]),
-                    QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
-                    QMessageBox.StandardButton.No,
-                )
-                if answer != QMessageBox.StandardButton.Yes:
-                    return
-                overwrite = True
-        self._start_export(destination, split=split, overwrite=overwrite)
+        if existing:
+            answer = QMessageBox.question(
+                self._fullscreen_preview or self, tr('覆蓋輸出檔案'),
+                tr('已有 {p0} 個同名輸出檔案，例如：\n{p1}\n\n是否覆蓋？', p0=len(existing), p1=existing[0]),
+                QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No, QMessageBox.StandardButton.No)
+            if answer != QMessageBox.StandardButton.Yes:
+                return
+            overwrite = True
+        self._start_export(destination, split=split, overwrite=overwrite, image=image, selections=selections)
 
-    def _start_export(self, destination: Path, *, split: bool = False, overwrite: bool = False) -> None:
-        selections = self.output_selection()
+    def _start_export(self, destination: Path, *, split: bool = False, overwrite: bool = False,
+                      image: bool = False, selections=None) -> None:
+        selections = selections if selections is not None else self.output_selection(fallback_current=True)
         if not selections or self._export_running:
             return
         self._export_id += 1
         self._set_export_running(True)
         self._export_split = split
+        self._export_png = image
+        if image:
+            self.statusBar().showMessage(tr('正在輸出 PNG…'))
+            self.png_export.start(selections, destination, self._export_id, overwrite)
+            return
         self.statusBar().showMessage(tr('正在拆分單頁 PDF…') if split else tr('正在輸出 PDF…'))
         task = ExportPdfTask(
             selections,
@@ -1656,6 +1725,13 @@ class MainWindow(QMainWindow):
             return
         self._set_export_running(False)
         self.statusBar().showMessage(tr('輸出完成：{p0}', p0=destination))
+        if self._export_png:
+            outputs = png_output_paths(destination, count)
+            message = tr('已輸出 {count} 張 PNG：\n{path}', count=count, path=outputs[0])
+            if count > 1:
+                message += f'\n…\n{outputs[-1]}'
+            QMessageBox.information(self._fullscreen_preview or self, tr('輸出完成'), message)
+            return
         if self._export_split:
             outputs = split_output_paths(destination, count)
             message = tr('已拆分為 {p0} 個單頁 PDF：\n{p1}', p0=count, p1=outputs[0])
@@ -1664,7 +1740,7 @@ class MainWindow(QMainWindow):
         else:
             message = tr('已輸出 {p0} 頁至：\n{p1}', p0=count, p1=destination)
         message += '\n' + tr('新 PDF 不加密，原始檔案保持不變。')
-        QMessageBox.information(self, tr('輸出完成'), message)
+        QMessageBox.information(self._fullscreen_preview or self, tr('輸出完成'), message)
 
     @Slot(int, str)
     def _export_failed(self, session: int, message: str) -> None:
@@ -1672,9 +1748,10 @@ class MainWindow(QMainWindow):
             return
         self._set_export_running(False)
         self.statusBar().showMessage(tr('輸出失敗'))
-        QMessageBox.critical(self, tr('輸出失敗'), localize_text(message))
+        QMessageBox.critical(self._fullscreen_preview or self, tr('輸出失敗'), localize_text(message))
 
     def closeEvent(self, event: QCloseEvent) -> None:
+        self.png_export.cancel()
         if self.saving.task is not None:
             event.ignore()
             self.statusBar().showMessage(tr('正在儲存 PDF…'))
@@ -1688,6 +1765,7 @@ class MainWindow(QMainWindow):
                 self._discard_on_close.add(doc.document_id)
         self._closing = True
         self.annotation_editor.finish_text(True)
+        self.document_text.cancel()
         self.navigation.shutdown()
         self.ocr_languages.close()
         self.print_controller.close()

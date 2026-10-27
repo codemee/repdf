@@ -1,0 +1,60 @@
+{
+  "verified_on": "2026-10-27",
+  "sources": [
+    {
+      "name": "qt-src",
+      "url": "https://download.qt.io/archive/qt/6.11/6.11.2/single/qt-everywhere-src-6.11.2.tar.xz",
+      "http_status": 200
+    },
+    {
+      "name": "pyside-src",
+      "url": "https://download.qt.io/official_releases/QtForPython/pyside6/PySide6-6.11.2-src/pyside-setup-everywhere-src-6.11.2.tar.xz",
+      "http_status": 200
+    },
+    {
+      "name": "ort-src",
+      "url": "https://github.com/microsoft/onnxruntime/archive/refs/tags/v1.31.0.tar.gz",
+      "http_status": 200
+    },
+    {
+      "name": "geos-src",
+      "url": "https://download.osgeo.org/geos/geos-3.14.1.tar.bz2",
+      "http_status": 200
+    },
+    {
+      "name": "openssl-src",
+      "url": "https://github.com/openssl/openssl/releases/download/openssl-4.0.3/openssl-4.0.3.tar.gz",
+      "http_status": 200
+    },
+    {
+      "name": "flatbuffers-src",
+      "url": "https://github.com/google/flatbuffers/archive/refs/tags/v25.12.19.tar.gz",
+      "type": "source/build provenance; see audit for release obligations"
+    },
+    {
+      "name": "rapidocr-src",
+      "url": "https://github.com/RapidAI/RapidOCR",
+      "type": "source/build provenance; see audit for release obligations"
+    },
+    {
+      "name": "pdfium-build-source",
+      "url": "https://github.com/bblanchon/pdfium-binaries/releases/tag/chromium/7999",
+      "type": "source/build provenance; see audit for release obligations"
+    },
+    {
+      "name": "pdfium-source",
+      "url": "https://pdfium.googlesource.com/pdfium/+/refs/heads/chromium/7999",
+      "type": "source/build provenance; see audit for release obligations"
+    },
+    {
+      "name": "opencv-ffmpeg-source",
+      "url": "https://github.com/opencv/opencv_3rdparty/tree/ffmpeg/4.x",
+      "type": "source/build provenance; see audit for release obligations"
+    },
+    {
+      "name": "geos-build-source",
+      "url": "https://github.com/shapely/shapely/tree/2.2.0",
+      "type": "source/build provenance; see audit for release obligations"
+    }
+  ]
+}

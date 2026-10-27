@@ -158,6 +158,8 @@ class PageViewport:
         if card.page_index in self.highlights:
             card.preview.set_search_highlights(*self.highlights[card.page_index])
         card.preview.set_annotation_highlight(self.annotation_highlights.get(card.page_index))
+        if hasattr(d.owner, 'document_text'):
+            d.owner.document_text.apply_label(card.preview, d, card.page_index)
 
     def reflow(self):
         d = self.doc

@@ -1,0 +1,23 @@
+RePDF (Read the PDF)
+Copyright (C) 2026 Shin-Wei Hwang
+
+RePDF is free software: you can redistribute it and/or modify it under
+the terms of the GNU General Public License as published by the Free
+Software Foundation, version 3 of the License only.
+
+RePDF is distributed in the hope that it will be useful, but WITHOUT ANY
+WARRANTY; without even the implied warranty of MERCHANTABILITY or
+FITNESS FOR A PARTICULAR PURPOSE. See LICENSE for the full terms.
+
+Source code: https://github.com/codemee/repdf
+Release sources: https://github.com/codemee/repdf/tags
+Use the tag matching the executable's version for its corresponding
+RePDF source code and build instructions in docs/IMPLEMENTATION.en.md.
+
+Third-party libraries, models, assets, and incorporated code retain
+their respective copyright notices and licenses. This GPL declaration
+does not replace their licenses or grant rights beyond those held by
+the RePDF contributors.
+
+See THIRD_PARTY_NOTICES.md for the dependency and OCR model review,
+attribution, full-notice locations and corresponding-source requirements.
