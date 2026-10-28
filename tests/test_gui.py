@@ -106,7 +106,7 @@ def test_toolbar_overflow_popup_and_resize(qtbot, monkeypatch):
     qtbot.waitUntil(lambda: not toolbar.overflow_button.isVisible())
     assert window.toolbar.widgetForAction(window.export_action).isVisible()
     assert window.toolbar.widgetForAction(window.split_action).isVisible()
-    assert window.odd_checkbox.isVisible() and window.even_checkbox.isVisible()
+    assert not window.odd_checkbox.isVisible() and not window.even_checkbox.isVisible()
     assert window.theme_action in window.toolbar.tool_actions()
     window.resize(520, 600)
     qtbot.waitUntil(toolbar.overflow_button.isVisible)
@@ -138,9 +138,8 @@ def test_overflow_controls_share_toolbar_state(qtbot, monkeypatch):
     window.zoom_slider.setValue(75)
     assert slider.value() == 75
     checkboxes = toolbar.overflow_menu.findChildren(QCheckBox)
-    assert len(checkboxes) == 2
-    checkboxes[0].click()
-    assert checkboxes[0].checkState() == window.odd_checkbox.checkState()
+    assert not checkboxes
+    doc.page_cards[0].parity_button.click()
     assert window.odd_checkbox.isChecked()
 
 
@@ -267,7 +266,7 @@ def test_toolbar_shortcuts_and_zoom_limits(qtbot, monkeypatch) -> None:
     window.activateWindow()
     qtbot.wait(50)
     assert window.open_action in window.toolbar.tool_actions()
-    assert window.export_action in window.toolbar.tool_actions()
+    assert window.toolbar.widgetForAction(window.export_action) is not None
     for action in (window.open_action,window.export_action):
         assert not action.icon().isNull()
     assert window.zoom_reset_action.icon().isNull()
@@ -747,7 +746,7 @@ def test_reading_toolbar_layout_and_floating_annotations_persistence(qtbot,monke
     window = MainWindow();qtbot.addWidget(window);window.resize(1600,700);window.show()
     assert window.toolbar.height() == 42 and not window.annotation_floating.isVisible()
     assert window.copy_text_action in window.toolbar.tool_actions()
-    assert window.export_action in window.toolbar.tool_actions()
+    assert window.toolbar.widgetForAction(window.export_action) is not None
     assert window.language_action in window.toolbar.tool_actions()
     assert window.theme_action in window.toolbar.tool_actions()
     assert window.save_as_action in window.toolbar.tool_actions()
@@ -792,14 +791,13 @@ def test_page_output_group_does_not_clip_labels_when_resized(qtbot, monkeypatch)
             (window.language_action, window.theme_action),
         )
     ]
-    groups[3].append(controls)
     groups[4].append(window.zoom_slider)
     actions = window.toolbar.tool_actions()
-    group_action = next(action for action in actions if window.toolbar.widgetForAction(action) is controls)
+    group_action = next(action for action in actions if window.toolbar._action_groups.get(action, (None,))[0] is window.export_action)
     index = actions.index(group_action)
     assert actions[index - 1].isSeparator()
-    assert actions[index + 1:index + 3] == [window.export_action, window.split_action]
-    assert actions[index + 3].isSeparator()
+    assert [window.toolbar._action_groups[action][0] for action in actions[index:index + 2]] == [window.export_action, window.split_action]
+    assert actions[index + 2].isSeparator()
     for language in ('zh', 'en'):
         window.language_controller.set_mode(language)
         for width in (320, 520, 600, 710, 760, 850, 1150, 1600):
@@ -816,7 +814,7 @@ def test_page_output_group_does_not_clip_labels_when_resized(qtbot, monkeypatch)
             else:
                 window.toolbar._populate_overflow()
                 checkboxes = window.toolbar.overflow_menu.findChildren(QCheckBox)
-                assert [checkbox.text() for checkbox in checkboxes] == [window.odd_checkbox.text(), window.even_checkbox.text()]
+                assert not checkboxes
 
 
 def test_shortcut_tooltips_follow_bindings_and_language(qtbot, monkeypatch):

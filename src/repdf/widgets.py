@@ -8,7 +8,28 @@ from PySide6.QtCore import QEasingCurve, QMimeData, QPoint, QPropertyAnimation, 
 from PySide6.QtGui import QColor, QDrag, QDragEnterEvent, QDragLeaveEvent, QDragMoveEvent, QDropEvent, QImage, QMouseEvent, QPainter, QPainterPath, QPixmap
 from PySide6.QtWidgets import (QApplication, QCheckBox, QDialog, QDialogButtonBox, QFrame,
                               QGridLayout, QHBoxLayout, QLabel, QLineEdit, QVBoxLayout, QWidget)
+from repdf.core import SelectionState
 
+
+class ParityCheckBox(QCheckBox):
+    def __init__(self, page_index, parent=None):
+        super().__init__(parent)
+        self.odd = page_index % 2 == 0
+        self.setTristate(True)
+        self.setFocusPolicy(Qt.FocusPolicy.NoFocus)
+        self.set_selection_state(SelectionState.NONE)
+
+    def set_selection_state(self, state):
+        self.selection_state = state
+        self.setCheckState({SelectionState.NONE: Qt.CheckState.Unchecked,
+                            SelectionState.PARTIAL: Qt.CheckState.PartiallyChecked,
+                            SelectionState.ALL: Qt.CheckState.Checked}[state])
+        self.setText(tr('單數頁') if self.odd else tr('雙數頁'))
+        self.adjustSize()
+        text = (tr('取消選取本檔所有單數頁') if self.odd else tr('取消選取本檔所有雙數頁')) if state == SelectionState.ALL else (
+            tr('選取本檔所有單數頁') if self.odd else tr('選取本檔所有雙數頁'))
+        self.setToolTip(text)
+        self.setAccessibleName(text)
 
 class PdfPasswordDialog(QDialog):
     def __init__(self, source, *, incorrect=False, parent=None):
@@ -250,6 +271,7 @@ class PagePreviewLabel(DragLabel):
         self.region_mode = False
         self.image_mode = False
         self._search_rects = []
+        self._trim_mask = None
         self._annotation_rect = None
         self._active_search_rects = []
         self._search_color = QColor('#ffe13c')
@@ -415,6 +437,7 @@ class PagePreviewLabel(DragLabel):
                 painter.fillPath(path, color)
             painter.end()
         if not self.text_mode or self.image_mode:
+            self._paint_trim_mask()
             return
         painter = QPainter(self)
         highlight = self.palette().highlight().color()
@@ -432,6 +455,25 @@ class PagePreviewLabel(DragLabel):
             if self.region_mode:
                 painter.setPen(self.palette().highlight().color())
                 painter.drawRect(rectangle.adjusted(0, 0, -1, -1))
+        painter.end()
+        self._paint_trim_mask()
+
+    def set_trim_mask(self, rect):
+        self._trim_mask = rect
+        self.update()
+
+    def _paint_trim_mask(self):
+        if self._trim_mask is None:
+            return
+        left, top, right, bottom = self._trim_mask
+        x0, x1 = round(left * self.width()), round(right * self.width())
+        y0, y1 = round(top * self.height()), round(bottom * self.height())
+        painter = QPainter(self)
+        white = Qt.GlobalColor.white
+        painter.fillRect(QRect(0, 0, x0, self.height()), white)
+        painter.fillRect(QRect(x1, 0, self.width() - x1, self.height()), white)
+        painter.fillRect(QRect(x0, 0, x1 - x0, y0), white)
+        painter.fillRect(QRect(x0, y1, x1 - x0, self.height() - y1), white)
         painter.end()
 
 
@@ -461,6 +503,8 @@ class PageCard(QFrame):
         header = QHBoxLayout()
         header.setContentsMargins(0, 0, 0, 0)
         header.addWidget(self.checkbox)
+        self.parity_button = ParityCheckBox(page_index)
+        header.addWidget(self.parity_button)
         header.addStretch()
         header.addWidget(self.drag_handle)
 

@@ -367,6 +367,7 @@ Packaged smoke tests must stop render backends holding cached PDFs before removi
 - A dedicated PDF backend starts lazily for the first search, reusing source/frozen communication without sharing the preview/OCR/image queue.
 - `RenderService.request_search()` sends one file at a time with `type=search`, document ID, generation, source, original page indices, query, regex/case/whole-word flags, and any password.
 - `search_page` results carry original page index, progress, paragraph IDs/text, match ranges, normalized glyph rectangles, and counts. `done`/`error` also carry document IDs.
+- `match_rects` keeps glyph rectangles separate for each occurrence. Rows use document, page, paragraph, and match indices as identity: repeated matches get separate rows, while a single match spanning lines stays one row. Mouse or keyboard selection highlights only that occurrence and centers it vertically where possible; background list rebuilds preserve selection without navigating.
 - `search.py` reads Unicode and positions by PDFium glyph index and maps text back to glyphs. Extracted-string offsets are not assumed to equal glyph indices. OCR is not invoked.
 - Geometric text lines form paragraphs. Empty lines, columns, page boundaries, and gaps over 1.5 line heights split paragraphs. Continued lines need horizontal overlap of at least 50% of the shorter line's width. Chinese/Japanese continuations join directly; others receive a space with no corresponding glyph rectangle.
 - The `regex` package escapes literal input in ordinary mode and uses Python-compatible syntax in regex mode. Matching is limited to one second per paragraph; zero-length matches are skipped.
@@ -375,6 +376,9 @@ Packaged smoke tests must stop render backends holding cached PDFs before removi
 - Stop, a new query, or closing the pane terminates the search backend and invalidates old generations. Closing a searched file removes it and reschedules remaining unfinished files. Single-file failures preserve other results; timeouts stop the whole search and mark it incomplete.
 - `PagePreviewLabel` stores search rectangles independently of selection highlights using normalized coordinates. `DocumentView.jump_to_search_result()` locates stable page indices and preserves zoom/Fit. Before an image is available, it scrolls using placeholder geometry to trigger on-demand rendering. Actual dimensions from the target and neighboring pages refine the still-visible match position; neighboring updates do not pull users back after they scroll away.
 - The search pane starts at width 320px with resizable width and list divider. Below width 640px it shares a single pane with the PDF; below height 360px scope/flags move into a menu, preserving the 320 × 240 minimum window.
+- The main window checks loaded PDF modification time and size every two seconds, prompting once per changed version. Reload loads a replacement asynchronously and swaps tabs only after success, restoring tab position, page, and zoom; failures keep the old tab. Unsaved edits can be saved as a copy before opening the changed source.
+- TrimBox view uses PDFium's explicit TrimBox without CropBox fallback, intersected with the visible page; identical or invalid boxes disable the tool. The preview backend supplies a normalized box per page. Fit scales to that area and scrolls to its center without modifying source PDFs or exports.
+- Without TrimBox, `trim_view.crop_mark_box()` examines open, stroked, unfilled vector paths with object and parent Form transforms. It requires paired horizontal/vertical short marks at all four page-edge corners, choosing the inner rectangle for double marks. Path and candidate budgets bound work; incomplete marks, ordinary rectangles, and raster images leave the page whole.
 - Opening search from toolbar overflow reactivates the main window on the next event-loop turn before focusing input, avoiding a lingering active menu window on macOS.
 - Passwords travel only through local communication. No decrypted PDF, disk text index, or password log is created. Search history and results last only for the current session.
 
@@ -488,7 +492,7 @@ Packaged smoke tests must stop render backends holding cached PDFs before removi
 
 - `message_dialogs.py` creates the Qt unsaved-changes prompt with a separate heading, filename and discard explanation. Save is the default and Cancel handles Escape; all three choices retain the existing save/close flow.
 
-- Search results retain a vertical split: the upper Files table shows Filename/Count, where Count means matching paragraphs. The lower Matches table shows Page/Paragraph; clicking either column navigates to the result. Numbers align right and paragraphs retain single-line ellipsis and full tooltips.
+- Search results retain a vertical split: the upper Files table shows Filename/Count, where Count means individual matches. The lower Matches table shows Page/Paragraph; clicking either column navigates to the result. Numbers align right and paragraphs retain single-line ellipsis and full tooltips.
 
 ## Folder search and whole-document text copying
 
@@ -508,3 +512,10 @@ Packaged smoke tests must stop render backends holding cached PDFs before removi
 - On Windows, `system_menu.py` uses Win32 `GetSystemMenu` to append a separator and custom command. `nativeEvent` handles only its own `WM_SYSCOMMAND` ID and delegates all other messages to Qt. Refresh updates one entry across language changes and reinstalls it after native handle changes through a separate QObject event filter, without overriding the main window’s general event() or consuming other Qt events. On macOS, Qt places `QAction.AboutRole` from a native QMenuBar into the standard application menu. Windows gains no extra menu bar.
 
 - Packaging excludes unused QtPdf/QtPdfWidgets, the QImage qpdf plugin, and the Qt virtual keyboard with its QML/Quick native modules. Native OS input methods are retained; PDF reading and output continue to use pypdfium2. Python license discovery supports both the Windows install prefix and macOS/Unix stdlib locations.
+
+## Selection and cropped exports
+
+- `drag_selection.py` tracks cross-page text drags and scrolls at reading-area edges; fullscreen advances page groups. `copy_document` accepts boundary coordinates and reads only pages in the selected range. Reverse drags retain display order; previews do not change the clipboard.
+- `ParityCheckBox` uses standard three-state checkboxes for each page's parity group. Normal and fullscreen headers share document selection state; fullscreen headers use a horizontal layout for alignment.
+- `export_crop_actions` stores independent `export/export_remove_trimbox` and `export/split_remove_trimbox` preferences and updates each crop-badge icon. `ExportPdfTask` snapshots the output option.
+- `_crop_to_trimbox()` restricts output MediaBox and CropBox to the intersection of a valid TrimBox and existing visible boxes, then removes TrimBox. Coordinates and rotation stay intact, so content and annotations require no translation. Pages without TrimBox, source files, and PNG output are unchanged.

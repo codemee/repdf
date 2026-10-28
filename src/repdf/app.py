@@ -10,7 +10,7 @@ from importlib.resources import files
 from pathlib import Path
 from shiboken6 import isValid
 
-from PySide6.QtCore import QEvent, QPointF, QSettings, QSize, Qt, QThreadPool, QTimer, Slot
+from PySide6.QtCore import QEvent, QPoint, QPointF, QSettings, QSize, Qt, QThreadPool, QTimer, Slot
 from PySide6.QtGui import (
     QCloseEvent,
     QAction,
@@ -99,6 +99,8 @@ class DocumentView(QWidget):
         self._fit_navigation_pending = False
         self.focused_page = None
         self.page_sizes = {}
+        self.trim_boxes = {}
+        self.trim_view = False
         self.page_links = {}
         self.page_annotations = {}
         self.page_labels = {}
@@ -108,6 +110,7 @@ class DocumentView(QWidget):
         self.annotation_store.changed.connect(lambda: self.owner.annotation_editor.changed(self))
         self.ready = False
         self._search_navigation = None
+        self._center_search_vertically = False
         self.password: str | None = None
         self.render_generation = -1
         self._render_received = set()
@@ -189,6 +192,11 @@ class DocumentView(QWidget):
         card.set_text_copy_mode(self.owner._selection_active(), region=self.owner.region_ocr_action.isChecked(),
                                 image=self.owner.extract_image_action.isChecked())
         card.checkbox.setEnabled(not self.owner._export_running)
+        odd = page_index % 2 == 0
+        card.parity_button.set_selection_state(parity_state(self.selected_pages, self.page_count, odd))
+        card.parity_button.clicked.connect(lambda _checked, odd=odd:
+            self._toggle_parity(odd, parity_state(self.selected_pages, self.page_count, odd) != SelectionState.ALL)
+            if not self.owner._export_running else None)
         card.selection_changed.connect(self._page_selection_changed)
         card.reorder_requested.connect(self._move_page)
         card.focused.connect(self._focus_page)
@@ -308,6 +316,10 @@ class DocumentView(QWidget):
         card = self.page_cards[self.fit_page_index]
         points = self.pages.page_size(self.fit_page_index)
         width, height = points
+        trim = self.trim_boxes.get(self.fit_page_index) if self.trim_view else None
+        if trim is not None:
+            width *= trim[2] - trim[0]
+            height *= trim[3] - trim[1]
         margins = self.grid.contentsMargins()
         chrome = max(0, card.sizeHint().height() - card.preview.height())
         available_width = max(1, self.scroll_area.viewport().width() - margins.left() - margins.right() - 26)
@@ -329,18 +341,27 @@ class DocumentView(QWidget):
             self._scroll_to_search_result()
             return
         card = self.pages.rect(self.fit_page_index)
+        trim = self.trim_boxes.get(self.fit_page_index) if self.trim_view else None
         viewport = self.scroll_area.viewport()
-        self.scroll_area.verticalScrollBar().setValue(
-            card.y() + (card.height() - viewport.height()) // 2)
-        self.scroll_area.horizontalScrollBar().setValue(
-            card.x() + (card.width() - viewport.width()) // 2)
+        if trim is not None:
+            label = self.pages.ensure_page(self.fit_page_index).preview
+            center = label.mapTo(self.grid_host, QPoint(round((trim[0] + trim[2]) * label.width() / 2),
+                                                       round((trim[1] + trim[3]) * label.height() / 2)))
+            self.scroll_area.verticalScrollBar().setValue(center.y() - viewport.height() // 2)
+            self.scroll_area.horizontalScrollBar().setValue(center.x() - viewport.width() // 2)
+        else:
+            self.scroll_area.verticalScrollBar().setValue(
+                card.y() + (card.height() - viewport.height()) // 2)
+            self.scroll_area.horizontalScrollBar().setValue(
+                card.x() + (card.width() - viewport.width()) // 2)
         self._fit_navigation_pending = False
 
         self.owner._update_page_indicator()
 
-    def jump_to_search_result(self, page, rect):
+    def jump_to_search_result(self, page, rect, *, center_vertically=True):
         self.focused_page = page
         self._search_navigation = (page, rect)
+        self._center_search_vertically = center_vertically
         if self.fit_mode:
             self.fit_page_index = page
             self._fit_navigation_pending = True
@@ -350,7 +371,7 @@ class DocumentView(QWidget):
 
     def jump_to_page(self, page, point=(0, 0)):
         x, y = point
-        self.jump_to_search_result(page, [x, y, x, y])
+        self.jump_to_search_result(page, [x, y, x, y], center_vertically=False)
 
     def _scroll_to_search_result(self):
         if self.owner._closing or self._search_navigation is None:
@@ -364,6 +385,9 @@ class DocumentView(QWidget):
         point = label.mapTo(self.grid_host, QPoint(round((rect[0] + rect[2]) / 2 * label.width()),
                                                    round((rect[1] + rect[3]) / 2 * label.height())))
         self.scroll_area.ensureVisible(point.x(), point.y(), 40, 40)
+        if self._center_search_vertically:
+            self.scroll_area.verticalScrollBar().setValue(
+                point.y() - self.scroll_area.viewport().height() // 2)
         self._fit_navigation_pending = False
         self.owner._update_page_indicator()
 
@@ -422,6 +446,12 @@ class MainWindow(QMainWindow):
         self._syncing_bulk = False
         self._closing = False
         self._discard_on_close = set()
+        self._source_stamps = {}
+        self._reload_context = {}
+        self._source_check = QTimer(self)
+        self._source_check.setInterval(2000)
+        self._source_check.timeout.connect(self._check_source_files)
+        self._source_check.start()
         self._fullscreen_preview = None
         self._build_toolbar()
         central = QWidget()
@@ -536,6 +566,12 @@ class MainWindow(QMainWindow):
             tr('目前原始頁碼；輸入 1–{p0} 後按 Enter 跳頁，Esc 取消', p0=total)
             if ready else tr('請先開啟 PDF 檔案'))
         current = doc.preview_page_index() if ready else None
+        if hasattr(self, 'trim_view_action'):
+            viewer = self._fullscreen_preview
+            pages = viewer.visible_pages if viewer is not None and viewer.document is doc else [current]
+            has_trim = bool(ready and any(page in doc.trim_boxes for page in pages))
+            self.trim_view_action.setEnabled(has_trim)
+            self.trim_view_action.setChecked(bool(has_trim and doc.trim_view))
         label = doc.page_labels.get(current) if ready else None
         self.book_page_label.setVisible(bool(label))
         self.page_number_caption.setText('PDF' if label else tr('頁碼'))
@@ -647,6 +683,12 @@ class MainWindow(QMainWindow):
         if (not self._closing and isinstance(watched, QWidget) and watched.window() is self
                 and event.type() == QEvent.Type.KeyPress and not event.modifiers()
                 and event.key() in keys):
+            # An ignored key at a list boundary can bubble to the splitter or
+            # main window. Its focus still belongs to search, not the PDF.
+            focus = self.focusWidget()
+            if controller is not None and focus is not None and (
+                    focus is controller.panel or controller.panel.isAncestorOf(focus)):
+                return super().eventFilter(watched, event)
             self._navigate_preview(event.key())
             return True
         return super().eventFilter(watched, event)
@@ -839,9 +881,25 @@ class MainWindow(QMainWindow):
         self.even_checkbox.setToolTip(tr('選取或取消原始頁碼的雙數頁'))
         self.odd_checkbox.clicked.connect(lambda checked: self._toggle_parity(True, checked))
         self.even_checkbox.clicked.connect(lambda checked: self._toggle_parity(False, checked))
-        self.toolbar.add_overflow_controls(selection_controls, (self.odd_checkbox, self.even_checkbox))
-        self.toolbar.addAction(self.export_action)
-        self.toolbar.addAction(self.split_action)
+        # Retain the shared selection-state controls internally; page headers
+        # provide the visible parity selection tools.
+        selection_controls.hide()
+        self.export_crop_actions = {}
+        self.export_options_menus = []
+        previous_crop = self.settings.value('export/remove_trimbox', False, type=bool)
+        for kind, action in (('export', self.export_action), ('split', self.split_action)):
+            crop_action = QAction(tr('依 TrimBox 裁切（隱藏裁切線）'), self)
+            crop_action.setCheckable(True)
+            crop_action.setToolTip(tr('將輸出頁面裁切至 TrimBox，隱藏框外裁切線並移除 TrimBox 設定；無 TrimBox 時保留原頁面'))
+            key = f'export/{kind}_remove_trimbox'
+            crop_action.setChecked(self.settings.value(key, previous_crop, type=bool))
+            crop_action.toggled.connect(lambda checked, key=key: self.settings.setValue(key, checked))
+            crop_action.toggled.connect(lambda _checked: self._refresh_toolbar_icons())
+            self.export_crop_actions[kind] = crop_action
+            menu = QMenu(tr('PDF 輸出選項'), self)
+            menu.addAction(crop_action)
+            self.export_options_menus.append(menu)
+            self.toolbar.add_action_menu_group(action, menu, arrow_name='pdfExportOptions')
         self.toolbar.addSeparator()
 
         spacer = QWidget()
@@ -882,6 +940,11 @@ class MainWindow(QMainWindow):
         self.fit_action.setToolTip(tr("Fit：將目前單頁等比例縮放至預覽區，視窗調整時自動適應"))
         self.fit_action.triggered.connect(self._fit_page)
         self.toolbar.addAction(self.fit_action)
+        self.trim_view_action = QAction(tr('裁切檢視'), self)
+        self.trim_view_action.setCheckable(True)
+        self.trim_view_action.setToolTip(tr('優先依 TrimBox，否則依可辨識的四角裁切線檢視（不修改原檔）'))
+        self.trim_view_action.triggered.connect(self._toggle_trim_view)
+        self.toolbar.addAction(self.trim_view_action)
         self.fullscreen_mode = 'single'
         self.fullscreen_action = QAction(tr('全螢幕'), self)
         self.fullscreen_action.setShortcut(QKeySequence("F11"))
@@ -962,11 +1025,13 @@ class MainWindow(QMainWindow):
                              (self.print_action, "print"),
                              (self.bookmark_action, "bookmarks"),
                              (self.annotation_action, "annotations"),
-                             (self.fit_action, "fit"),
+                             (self.fit_action, "fit"), (self.trim_view_action, "trim_view"),
                              (self.fullscreen_action, {'single': 'fullscreen', 'spread': 'fullscreen_spread', 'cover': 'fullscreen_cover'}[self.fullscreen_mode]),
                              (self.single_action, 'fullscreen'),
                              (self.spread_action, "fullscreen_spread"),
                              (self.cover_action, "fullscreen_cover")):
+            if kind in ('export', 'split') and self.export_crop_actions[kind].isChecked():
+                kind += '_trim'
             action.setIcon(toolbar_icon(kind))
         if hasattr(self, "language_action"):
             self._update_preference_actions()
@@ -1061,6 +1126,19 @@ class MainWindow(QMainWindow):
         doc = self.current_document()
         if doc is not None and doc.ready:
             doc.fit_page()
+
+    def _toggle_trim_view(self, checked):
+        doc = self.current_document()
+        if doc is None or not doc.ready:
+            return
+        doc.trim_view = checked
+        for card in doc.page_cards:
+            card.preview.set_trim_mask(doc.trim_boxes.get(card.page_index) if checked else None)
+        doc.fit_page()
+        self._sync_controls()
+        if self._fullscreen_preview is not None:
+            self._fullscreen_preview.update_image()
+            self._fullscreen_preview.timer.start()
 
     def _selection_active(self) -> bool:
         return any(action.isChecked() for action in
@@ -1295,6 +1373,20 @@ class MainWindow(QMainWindow):
             self.tabs.setTabText(index, document.source_path.stem + (' *' if document.modified else ''))
         self.close_tab_action.setEnabled(self.tabs.count() > 0 and not self._export_running)
         self._syncing_bulk = True
+        for document in self.documents.values():
+            states = {odd: parity_state(document.selected_pages, document.page_count, odd) for odd in (True, False)}
+            for card in document.page_cards:
+                card.parity_button.set_selection_state(states[card.parity_button.odd])
+                card.parity_button.setEnabled(not self._export_running)
+            viewer = self._fullscreen_preview
+            if viewer is not None and viewer.document is document:
+                for button in viewer.parity_buttons.values():
+                    button.set_selection_state(states[button.odd])
+                    button.setEnabled(not self._export_running)
+                for page, checkbox in viewer.checkboxes.items():
+                    checkbox.blockSignals(True)
+                    checkbox.setChecked(page in document.selected_pages)
+                    checkbox.blockSignals(False)
         for checkbox, odd in ((self.odd_checkbox, True), (self.even_checkbox, False)):
             checkbox.blockSignals(True)
             state = parity_state(doc.selected_pages, doc.page_count, odd) if ready else SelectionState.NONE
@@ -1379,10 +1471,69 @@ class MainWindow(QMainWindow):
         if filenames:
             self.load_pdfs([Path(filename) for filename in filenames])
 
+    @staticmethod
+    def _source_stamp(path):
+        try:
+            stat = path.stat()
+            return stat.st_mtime_ns, stat.st_size
+        except OSError:
+            return None
+
+    def _check_source_files(self):
+        if self._closing or self._export_running or self._reload_context:
+            return
+        for doc in list(self.documents.values()):
+            if not doc.ready:
+                continue
+            stamp = self._source_stamp(doc.source_path)
+            if stamp == self._source_stamps.get(doc.document_id):
+                continue
+            # Remember dismissed versions; another external edit prompts again.
+            self._source_stamps[doc.document_id] = stamp
+            self._prompt_source_change(doc)
+            break
+
+    def _prompt_source_change(self, doc):
+        if doc.document_id not in self.documents:
+            return
+        self.annotation_editor.finish_text(True)
+        dialog = QMessageBox(self)
+        dialog.setWindowTitle(tr('PDF 檔案已更新'))
+        dialog.setText(tr('「{name}」在磁碟上已更新。', name=doc.source_path.name))
+        if doc.modified:
+            dialog.setInformativeText(tr('此標籤有尚未儲存的變更。重新載入會捨棄這些變更；也可以先另存新檔。'))
+            save_as = dialog.addButton(tr('另存新檔'), QMessageBox.ButtonRole.ActionRole)
+        else:
+            save_as = None
+        reload_button = dialog.addButton(tr('重新載入'), QMessageBox.ButtonRole.AcceptRole)
+        dialog.addButton(tr('保留目前內容'), QMessageBox.ButtonRole.RejectRole)
+        dialog.setDefaultButton(reload_button if not doc.modified else save_as)
+        dialog.exec()
+        if self._closing or doc.document_id not in self.documents:
+            return
+        if dialog.clickedButton() is save_as and save_as is not None:
+            source = doc.source_path
+            self.tabs.setCurrentWidget(doc)
+            self.saving.choose(save_as=True, on_saved=lambda _saved: self.load_pdf(source))
+        elif dialog.clickedButton() is reload_button:
+            self._reload_document(doc)
+
+    def _reload_document(self, old_doc):
+        if self._export_running or old_doc.document_id not in self.documents:
+            return
+        tab_index = self.tabs.indexOf(old_doc)
+        page = old_doc.preview_page_index()
+        new_doc = self._new_document(old_doc.source_path)
+        new_doc.password = old_doc.password
+        self._reload_context[new_doc.document_id] = (old_doc.document_id, tab_index, page,
+                                                      old_doc.zoom, old_doc.fit_mode)
+        self._start_load(new_doc)
+
     def _new_document(self, path: Path):
         self._next_document_id += 1
         doc = DocumentView(self, self._next_document_id, path)
         self.documents[doc.document_id] = doc
+        self._source_stamps[doc.document_id] = self._source_stamp(doc.source_path)
         self.empty_label.hide()
         self.tabs.show()
         index = self.tabs.addTab(doc, path.stem)
@@ -1479,8 +1630,19 @@ class MainWindow(QMainWindow):
     def _pdf_loaded(self, document_id: int, path: Path, page_count: int) -> None:
         doc = self.documents.get(document_id)
         if doc is not None and not self._closing:
+            context = self._reload_context.pop(document_id, None)
             doc.fit_mode = True
+            if context is not None:
+                _old_id, _tab_index, _page, doc.zoom, doc.fit_mode = context
             doc.loaded(page_count)
+            self._source_stamps[document_id] = self._source_stamp(doc.source_path)
+            if context is not None:
+                old_id, tab_index, page, _zoom, _fit = context
+                old_doc = self.documents.get(old_id)
+                if old_doc is not None:
+                    self.close_tab(self.tabs.indexOf(old_doc), force=True)
+                self.tabs.tabBar().moveTab(self.tabs.indexOf(doc), min(tab_index, self.tabs.count() - 1))
+                doc.jump_to_page(min(page, page_count - 1))
             if self.current_document() is doc:
                 self._tab_changed(self.tabs.currentIndex())
             self._sync_controls()
@@ -1491,9 +1653,14 @@ class MainWindow(QMainWindow):
     @Slot(int, str)
     def _pdf_load_failed(self, document_id: int, message: str) -> None:
         doc = self.documents.get(document_id)
+        context = self._reload_context.pop(document_id, None)
         error = f"{doc.source_path}\n{message}" if doc is not None else None
         if doc is not None:
             self.close_tab(self.tabs.indexOf(doc), force=True)
+        if context is not None:
+            old_doc = self.documents.get(context[0])
+            if old_doc is not None:
+                self.tabs.setCurrentWidget(old_doc)
         self._finish_load(document_id, error)
 
     def _confirm_close(self, doc, on_saved=None):
@@ -1520,7 +1687,9 @@ class MainWindow(QMainWindow):
             self.annotation_editor.finish_text(True)
             if not self._confirm_close(doc, lambda saved: self.close_tab(self.tabs.indexOf(saved), force=True)):
                 return
+        self._reload_context.pop(doc.document_id, None)
         doc.password = None
+        self._source_stamps.pop(doc.document_id, None)
         if self._password_document_id == doc.document_id and self._password_dialog is not None:
             self._password_dialog.reject()
         self._password_queue = [item for item in self._password_queue if item[0] != doc.document_id]
@@ -1702,6 +1871,7 @@ class MainWindow(QMainWindow):
             destination,
             self._export_id,
             split=split, overwrite=overwrite,
+            remove_trimbox=self.export_crop_actions['split' if split else 'export'].isChecked(),
             protected_sources=tuple(doc.source_path for doc in self.documents.values()),
         )
         self._active_tasks.add(task)
@@ -1756,6 +1926,8 @@ class MainWindow(QMainWindow):
                     return
                 self._discard_on_close.add(doc.document_id)
         self._closing = True
+        QApplication.instance().removeEventFilter(self)
+        QApplication.instance().removeEventFilter(self.annotation_editor)
         self.annotation_editor.finish_text(True)
         self.document_text.cancel()
         self.navigation.shutdown()

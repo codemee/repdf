@@ -83,7 +83,7 @@ class FloatingAnnotationTools(QFrame):
             self.mode_toolbar.setObjectName('floatingAnnotationBar')
             self.mode_toolbar.setMovable(False)
             self.mode_toolbar.setFloatable(False)
-            self.mode_toolbar.setFixedSize(60, 42)
+            self.mode_toolbar.setFixedSize(96, 42)
             self.mode_toolbar.setIconSize(QSize(20, 20))
             self.mode_toolbar.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonIconOnly)
             layout.addWidget(self.mode_toolbar)
@@ -93,6 +93,14 @@ class FloatingAnnotationTools(QFrame):
             mode_button.setIconSize(QSize(20, 20))
             mode_button.setFocusPolicy(Qt.FocusPolicy.NoFocus)
             self.buttons[self.owner.fullscreen_action] = mode_button
+            self.mode_toolbar.addAction(self.owner.trim_view_action)
+            trim_button = self.mode_toolbar.widgetForAction(self.owner.trim_view_action)
+            trim_button.setFixedSize(34, 34)
+            trim_button.setIconSize(QSize(20, 20))
+            trim_button.setProperty('stateButton', True)
+            trim_button.setFocusPolicy(Qt.FocusPolicy.NoFocus)
+            trim_button.setAttribute(Qt.WidgetAttribute.WA_Hover, True)
+            self.buttons[self.owner.trim_view_action] = trim_button
         else:
             self.toggle.hide()
         self.toolbar.group_sections()

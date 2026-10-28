@@ -35,7 +35,7 @@ The main layout contains the toolbar, document tabs, scrollable reading area, an
 
 Fullscreen uses a 34 × 34 main button with a 14 × 34 right-hand dropdown arrow, spacing 2 and 20 × 20 icons. Its menu offers single page, spread and cover plus spread; the main button and <kbd>F11</kbd> reuse the last mode selected in this session.
 
-The main row places Open, Save, Save As, Print, Search, Bookmarks, Annotations, the annotation-tools toggle, copy text, OCR, image extraction, odd/even selection, export and split on the left. An expanding spacer keeps zoom, Fit, the fullscreen mode dropdown, language and theme on the right. Markup, text annotations and drawings use a draggable horizontal floating toolbar with remembered visibility.
+The main row places Open, Save, Save As, Print, Search, Bookmarks, Annotations, the annotation-tools toggle, copy text, OCR, image extraction, export and split on the left. An expanding spacer keeps zoom, Fit, the fullscreen mode dropdown, language and theme on the right. Markup, text annotations and drawings use a draggable horizontal floating toolbar with remembered visibility.
 
 | Item | Current specification |
 | --- | --- |
@@ -309,9 +309,9 @@ A color swatch on the same row configures match highlighting, using a 34 × 34 b
 
 - Buttons with keyboard shortcuts list their actual bindings in tooltips, using native platform key names and updating with the UI language.
 
-- Separators surround the page-output group. Odd/even checkboxes retain their full text width and move into overflow together with export and split when space is insufficient.
+- Separators surround the page-output group. Odd/even tools sit beside each page checkbox: standard three-state checkboxes labeled Odd pages or Even pages. They act on original page numbers in that PDF and synchronize between normal and fullscreen views.
 
-- Search results retain a vertical split: the upper Files table shows Filename/Count, where Count means matching paragraphs. The lower Matches table shows Page/Paragraph; clicking either column navigates to the result. Numbers align right and paragraphs retain single-line ellipsis and full tooltips.
+- Search results retain a vertical split: the upper Files table shows Filename/Count, where Count means individual matches. The lower Matches table shows Page/Paragraph; clicking either column navigates to the result. Numbers align right and paragraphs retain single-line ellipsis and full tooltips.
 
 - The export icon uses a closed document outline with a downward arrow inside, retaining a 20 × 20 display area and 1 px design stroke so the small-size outline has no gaps.
 

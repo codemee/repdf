@@ -12,17 +12,20 @@ from PySide6.QtWidgets import QApplication, QCheckBox, QHBoxLayout, QLabel, QSli
 from repdf.app import configure_application
 from repdf.icons import toolbar_icon
 from repdf.theme import ThemeController
+from repdf.widgets import ParityCheckBox
+from repdf.core import SelectionState
 
 
 OUTPUT = Path(__file__).resolve().parents[1] / "docs" / "images"
 SCALE = 2
 ICON_KINDS = {
     "open": "open", "save": "save", "save-as": "save_as", "print": "print", "export": "export", "split": "split",
+    "export-trim": "export_trim", "split-trim": "split_trim",
     "copy-text": "copy_text", "ocr-region": "ocr_region", "extract-image": "extract_image",
     "text-markup": "annotation_underline", "callout": "annotation_callout", "drawing": "rectangle",
     "annotation-tools": "edit_tools", "more": "more",
     "search": "search", "bookmarks": "bookmarks", "annotations": "annotations",
-    "fit": "fit", "fullscreen": "fullscreen", "fullscreen-spread": "fullscreen_spread",
+    "fit": "fit", "trim-view": "trim_view", "fullscreen": "fullscreen", "fullscreen-spread": "fullscreen_spread",
     "fullscreen-cover": "fullscreen_cover", "language-system": "language_system",
     "language-zh": "language_zh", "language-en": "language_en",
     "theme-system": "theme_system", "theme-light": "theme_light", "theme-dark": "theme_dark",
@@ -62,9 +65,8 @@ def render_theme(mode):
         painter.end()
         save(pixmap, name, mode)
     for name, label in (("odd", "單數頁"), ("even", "雙數頁")):
-        checkbox = QCheckBox(label)
-        checkbox.setTristate(True)
-        checkbox.setCheckState(Qt.CheckState.Unchecked if name == "odd" else Qt.CheckState.PartiallyChecked)
+        checkbox = ParityCheckBox(0 if name == 'odd' else 1)
+        checkbox.set_selection_state(SelectionState.NONE if name == 'odd' else SelectionState.PARTIAL)
         save_widget(checkbox, name, mode)
     zoom = QWidget()
     layout = QHBoxLayout(zoom)

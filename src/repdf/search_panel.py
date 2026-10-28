@@ -4,7 +4,7 @@ from html import escape
 from dataclasses import dataclass, field
 from pathlib import Path
 
-from PySide6.QtCore import QEvent, QObject, QSize, Qt, QTimer, Signal
+from PySide6.QtCore import QEvent, QObject, QSignalBlocker, QSize, Qt, QTimer, Signal
 from PySide6.QtGui import QAction, QActionGroup, QColor, QIcon, QPainter, QPixmap
 from PySide6.QtWidgets import (
     QAbstractItemView, QColorDialog, QComboBox, QGroupBox, QHeaderView, QHBoxLayout, QLabel, QLayout, QLineEdit,
@@ -184,6 +184,7 @@ class SearchPanel(QWidget):
         self.files.header().setSectionResizeMode(1, QHeaderView.ResizeMode.ResizeToContents)
         self.files.setTextElideMode(Qt.TextElideMode.ElideMiddle)
         self.files.setItemDelegate(ResultRowDelegate(self.files))
+        self.files.setAlternatingRowColors(True)
         self.paragraphs = QTreeWidget()
         self.paragraphs.setAccessibleName(tr('命中段落'))
         self.paragraphs.setHeaderLabels([tr('頁碼'), tr('段落')])
@@ -326,6 +327,7 @@ class SearchController(QObject):
         p.files.currentItemChanged.connect(self._activate_file)
         p.files.itemClicked.connect(self._activate_file)
         p.files.itemActivated.connect(self._activate_file)
+        p.paragraphs.currentItemChanged.connect(self._activate_item)
         p.paragraphs.itemClicked.connect(self._activate_item)
         p.paragraphs.itemActivated.connect(self._activate_item)
 
@@ -547,7 +549,7 @@ class SearchController(QObject):
             if not paragraphs:
                 continue
             doc = self.targets[document_id]
-            item = QTreeWidgetItem([doc.source_path.name, str(len(paragraphs))])
+            item = QTreeWidgetItem([doc.source_path.name, str(sum(p['count'] for p in paragraphs))])
             item.setData(0, Qt.ItemDataRole.UserRole, document_id)
             item.setTextAlignment(1, Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
             item.setToolTip(0, str(doc.source_path))
@@ -561,6 +563,11 @@ class SearchController(QObject):
         self._show_paragraphs()
 
     def _show_paragraphs(self, *_args):
+        # Restoring selection during a background refresh must not navigate.
+        with QSignalBlocker(self.panel.paragraphs):
+            self._populate_paragraphs()
+
+    def _populate_paragraphs(self):
         p = self.panel
         selected = p.paragraphs.currentItem()
         previous = selected.data(0, Qt.ItemDataRole.UserRole) if selected else None
@@ -576,16 +583,21 @@ class SearchController(QObject):
         pages = doc.page_order if doc is not None and doc.ready else (target.page_order or sorted(self.results.get(document_id, {})))
         for page in pages:
             for result in self.results.get(document_id, {}).get(page, []):
-                key = (document_id, page, result['paragraph_id'])
-                item = QTreeWidgetItem([str(page + 1), result['text']])
-                item.setTextAlignment(0, Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
-                item.setData(0, Qt.ItemDataRole.UserRole, key)
-                tooltip = '<qt>' + escape(tr('第 {p0} 頁 · {p1} 處命中 · {p2}', p0=page + 1, p1=result['count'], p2=result['text'])).replace('\n', '<br>') + '</qt>'
-                item.setToolTip(0, tooltip)
-                item.setToolTip(1, tooltip)
-                p.paragraphs.addTopLevelItem(item)
-                if key == previous:
-                    p.paragraphs.setCurrentItem(item)
+                for match_index, _rects in enumerate(result['match_rects']):
+                    key = (document_id, page, result['paragraph_id'], match_index)
+                    start, end = result['spans'][match_index]
+                    # Keep the matching occurrence visible in the single-line excerpt.
+                    text = result['text']
+                    excerpt = ('…' if start > 30 else '') + text[max(0, start - 30):end + 80]
+                    item = QTreeWidgetItem([str(page + 1), excerpt])
+                    item.setTextAlignment(0, Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
+                    item.setData(0, Qt.ItemDataRole.UserRole, key)
+                    tooltip = '<qt>' + escape(tr('第 {p0} 頁 · {p1} 處命中 · {p2}', p0=page + 1, p1=1, p2=text)).replace('\n', '<br>') + '</qt>'
+                    item.setToolTip(0, tooltip)
+                    item.setToolTip(1, tooltip)
+                    p.paragraphs.addTopLevelItem(item)
+                    if key == previous:
+                        p.paragraphs.setCurrentItem(item)
 
     def _open_document(self, path):
         return next((doc for doc in self.owner.documents.values() if doc.source_path == path), None)
@@ -612,6 +624,8 @@ class SearchController(QObject):
             self._activate_item(first)
 
     def _activate_item(self, item, _column=0):
+        if item is None:
+            return
         key = tuple(item.data(0, Qt.ItemDataRole.UserRole))
         self.pending_activation = None
         target = self.targets.get(key[0])
@@ -637,7 +651,7 @@ class SearchController(QObject):
                 self._activate_result(doc, pending[2])
 
     def _activate_result(self, doc, key):
-        document_id, page, paragraph_id = key
+        document_id, page, paragraph_id, match_index = key
         if not self._target_unchanged(document_id):
             return
         if not 0 <= page < doc.page_count:
@@ -645,17 +659,17 @@ class SearchController(QObject):
             return
         results = self.results.get(document_id, {}).get(page, [])
         result = next((p for p in results if p['paragraph_id'] == paragraph_id), None)
-        if result is None:
+        if result is None or not 0 <= match_index < len(result['match_rects']):
             return
+        rects = result['match_rects'][match_index]
         self.clear_highlights()
-        self.selected = (document_id, page, paragraph_id)
-        doc.pages.set_highlights(page,
-            [box for p in results for box in p['rects']], result['rects'])
+        self.selected = key
+        doc.pages.set_highlights(page, rects, rects)
         self.owner.tabs.setCurrentWidget(doc)
         if self.owner.width() < 640:
             self.narrow_results = False
             self.layout()
-        doc.jump_to_search_result(page, result['rects'][0])
+        doc.jump_to_search_result(page, rects[0])
 
     def remove_document(self, document_id):
         if self.pending_activation is not None and self.pending_activation[1] == document_id:

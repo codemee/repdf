@@ -41,7 +41,7 @@ repdf
 
 - 複製文字、OCR 與擷取圖片直接位於主工具列。點「註解工具」顯示可拖移的水平懸浮工具列，提供文字畫線、文字註解及繪圖；顯示狀態會保留。
 - 存檔與另存新檔為獨立按鈕；縮放、Fit、全螢幕模式下拉按鈕、語言與配色靠右排列。
-- 單／雙頁勾選、重組與拆分直接顯示在主工具列的同一組，右側以分隔線區分檢視控制。視窗寬度不足時，完整群組收入三點選單，選單內也以分隔線區分。
+- 單／雙頁選取工具位於各頁頁首核取方塊右側；重組與拆分保留在主工具列的同一組，右側以分隔線區分檢視控制。視窗寬度不足時，完整群組收入三點選單，選單內也以分隔線區分。
 - 全螢幕下方提供可展開／收合的水平懸浮註解工具列，可拖曳左側握柄移動；不占用 PDF 的顯示區，退出後保留一般視窗懸浮工具列的顯示狀態，並可從懸浮列右側模式下拉選單切換全螢幕模式。
 
 各工具的圖示與用途如下；將游標停在按鈕上也可查看 tooltip。
@@ -63,12 +63,13 @@ repdf
 | <picture><source media="(prefers-color-scheme: dark)" srcset="docs/images/toolbar-text-markup-dark.png"><img src="docs/images/toolbar-text-markup.png" width="24" alt="文字畫線"></picture> | 文字畫線 | 拖曳選字畫線；下拉設定螢光筆、底線、刪除線、波浪線、顏色與粗細。 | — |
 | <picture><source media="(prefers-color-scheme: dark)" srcset="docs/images/toolbar-callout-dark.png"><img src="docs/images/toolbar-callout.png" width="24" alt="箭頭文字註解"></picture> | 文字註解 | 下拉選擇箭頭文字框或便利貼，點選頁面新增；雙擊可編輯文字。 | — |
 | <picture><source media="(prefers-color-scheme: dark)" srcset="docs/images/toolbar-drawing-dark.png"><img src="docs/images/toolbar-drawing.png" width="24" alt="繪圖註解"></picture> | 繪圖註解 | 下拉選擇直線、箭頭、矩形、橢圓或自由手繪；設定線條與填色後拖曳建立。 | — |
-| <picture><source media="(prefers-color-scheme: dark)" srcset="docs/images/toolbar-odd-dark.png"><img src="docs/images/toolbar-odd.png" height="22" alt="單數頁核取方塊"></picture> | 單數頁 | 選取或取消目前標籤的原始單數頁；部分選取時顯示三態標記。 | — |
-| <picture><source media="(prefers-color-scheme: dark)" srcset="docs/images/toolbar-even-dark.png"><img src="docs/images/toolbar-even.png" height="22" alt="雙數頁核取方塊"></picture> | 雙數頁 | 選取或取消目前標籤的原始雙數頁；部分選取時顯示三態標記。 | — |
+| <picture><source media="(prefers-color-scheme: dark)" srcset="docs/images/toolbar-odd-dark.png"><img src="docs/images/toolbar-odd.png" height="22" alt="單數頁工具"></picture> | 單數頁 | 位於每個單數頁的頁首，選取或取消本檔所有原始單數頁；核取方塊顯示三態。 | — |
+| <picture><source media="(prefers-color-scheme: dark)" srcset="docs/images/toolbar-even-dark.png"><img src="docs/images/toolbar-even.png" height="22" alt="雙數頁工具"></picture> | 雙數頁 | 位於每個雙數頁的頁首，選取或取消本檔所有原始雙數頁；核取方塊顯示三態。 | — |
 | <picture><source media="(prefers-color-scheme: dark)" srcset="docs/images/toolbar-export-dark.png"><img src="docs/images/toolbar-export.png" width="24" alt="重組輸出圖示"></picture> | 重組輸出 | 將選取頁面合併為單一 PDF；未選頁時輸出目前檢視頁面。 | — |
 | <picture><source media="(prefers-color-scheme: dark)" srcset="docs/images/toolbar-split-dark.png"><img src="docs/images/toolbar-split.png" width="24" alt="拆分輸出圖示"></picture> | 拆分輸出 | 將選取頁面逐頁存成獨立 PDF 或 PNG；未選頁時使用目前檢視頁面。 | — |
 | <picture><source media="(prefers-color-scheme: dark)" srcset="docs/images/toolbar-zoom-dark.png"><img src="docs/images/toolbar-zoom.png" width="160" alt="顯示比例與縮放滑桿"></picture> | 顯示比例 | 滑桿調整 25%–200%；點擊比例回到 100%。鍵盤縮放每次調整 25 個百分點。 | 放大：<kbd>Ctrl</kbd>+<kbd>+</kbd>／<kbd>Ctrl</kbd>+<kbd>=</kbd>；縮小：<kbd>Ctrl</kbd>+<kbd>-</kbd>；100%：<kbd>Ctrl</kbd>+<kbd>0</kbd> |
 | <picture><source media="(prefers-color-scheme: dark)" srcset="docs/images/toolbar-fit-dark.png"><img src="docs/images/toolbar-fit.png" width="24" alt="Fit 圖示"></picture> | Fit | 將目前單頁等比例縮放至預覽區；調整視窗大小時自動適應。拖動滑桿或使用縮放快捷鍵會回到手動比例。 | — |
+| <picture><source media="(prefers-color-scheme: dark)" srcset="docs/images/toolbar-trim-view-dark.png"><img src="docs/images/toolbar-trim-view.png" width="24" alt="裁切檢視圖示"></picture> | 裁切檢視 | 依 TrimBox 或可辨識的四角向量裁切線顯示裁切範圍；不修改 PDF。 | — |
 | <picture><source media="(prefers-color-scheme: dark)" srcset="docs/images/toolbar-fullscreen-dark.png"><img src="docs/images/toolbar-fullscreen.png" width="24" alt="全螢幕"></picture> | 全螢幕 | 主按鈕開啟上次選擇的模式，右側下拉箭頭選擇單頁、對頁或封面＋對頁。 | <kbd>F11</kbd> 開啟／返回；<kbd>Esc</kbd> 返回 |
 | <picture><source media="(prefers-color-scheme: dark)" srcset="docs/images/toolbar-language-system-dark.png"><img src="docs/images/toolbar-language-system.png" width="24" alt="跟隨系統語言"></picture> <picture><source media="(prefers-color-scheme: dark)" srcset="docs/images/toolbar-language-zh-dark.png"><img src="docs/images/toolbar-language-zh.png" width="24" alt="繁體中文"></picture> <picture><source media="(prefers-color-scheme: dark)" srcset="docs/images/toolbar-language-en-dark.png"><img src="docs/images/toolbar-language-en.png" width="24" alt="English"></picture> | 介面語言 | 點擊依序切換「跟隨系統 → 繁體中文 → English」，選擇會記住。 | — |
 | <picture><source media="(prefers-color-scheme: dark)" srcset="docs/images/toolbar-theme-system-dark.png"><img src="docs/images/toolbar-theme-system.png" width="24" alt="跟隨系統配色：左白右黑圓形"></picture> <picture><source media="(prefers-color-scheme: dark)" srcset="docs/images/toolbar-theme-light-dark.png"><img src="docs/images/toolbar-theme-light.png" width="24" alt="淺色：太陽"></picture> <picture><source media="(prefers-color-scheme: dark)" srcset="docs/images/toolbar-theme-dark-dark.png"><img src="docs/images/toolbar-theme-dark.png" width="24" alt="深色：月亮"></picture> | 介面配色 | 點擊依序切換「跟隨系統 → 淺色 → 深色」，選擇會記住。 | — |
@@ -131,11 +132,16 @@ repdf
 ### 存檔與另存新檔
 
 - 新開啟的 PDF 預設使用 Fit 模式，自動適應閱讀區；調整比例可切換為手動縮放。
+- 「裁切檢視」優先使用有效 TrimBox；沒有 TrimBox 時辨識頁邊完整的四角向量裁切線。兩者都沒有或記號不完整時維持完整頁面，工具停用；影像中的裁切線目前不辨識。此模式只調整預覽，不修改 PDF。
+- 全螢幕的單頁、雙頁與封面模式也支援裁切檢視，可在懸浮工具列用裁切圖示切換；顯示組合中有可確認的裁切範圍時工具才會啟用。
 - 拖曳調整頁面順序後，標籤名稱會顯示 `*`；點「存檔」或按 <kbd>Ctrl</kbd>+<kbd>S</kbd> 儲存原 PDF。
 - 點「另存新檔」或按 <kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>S</kbd>，選擇另一個檔名；儲存完成後，標籤改為新檔案。macOS 使用 <kbd>⌘</kbd> 取代 <kbd>Ctrl</kbd>。
 - 存檔包含目前標籤的所有頁面，與頁面及標籤核取方塊無關；「重組輸出／拆分」使用勾選內容，沒有可輸出的勾選頁面時使用目前檢視頁面。
+- 重組與拆分按鈕旁的下拉選單可勾選「依 TrimBox 裁切（隱藏裁切線）」，套用於輸出的 PDF，兩個工具各自設定、各自記住；預設關閉。輸出頁面的 MediaBox 與 CropBox 限縮至有效 TrimBox，隱藏框外裁切線，再移除 TrimBox 設定；沒有 TrimBox 的頁面保留原樣。原始檔與 PNG 輸出不受影響。
+- 啟用時，重組與拆分圖示右上角會加上裁切標記，方便辨識目前輸出設定；關閉後恢復原圖示。
 - 保留書籤、內部連結、註解、文件資料與頁碼標籤。密碼 PDF 以開啟時使用的密碼重新進行 AES-256 加密。
 - 儲存失敗時保留原檔與目前頁序，可修正問題後重試；另存目的檔案若已在其他標籤開啟，請選擇其他檔名。
+- 已開啟的 PDF 在磁碟上更新時會提示重新載入；重新載入保留標籤位置、頁碼與縮放。若有未儲存變更，可先另存新檔，或選擇保留目前內容。重新載入失敗時保留原標籤。
 
 ### 列印
 
@@ -201,17 +207,18 @@ repdf
 1. 點「搜尋文字」或按 <kbd>Ctrl</kbd>+<kbd>F</kbd>（macOS：<kbd>⌘</kbd>+<kbd>F</kbd>），開啟右側窗格。
 2. 輸入搜尋內容，選擇「目前標籤頁」、「勾選的標籤頁」、「所有標籤頁」或「目前標籤所在的資料夾」；同一列的 `.*`、`Aa` 與底線 `ab` 狀態按鈕分別切換「規則表達式」、「區分大小寫」與「僅限單字」，亮起表示啟用。
 3. 按 <kbd>Enter</kbd> 或「搜尋」執行；修改條件後再次執行才會更新結果。
-4. 上方「檔案」表格列出檔名與命中段落筆數；選取檔案後，下方「命中項目」表格以「頁碼／段落」分欄顯示，段落採交錯底色單行呈現，命中次數保留在提示文字中；內容過長時以 `...` 結尾，滑鼠停留可查看完整段落。
-5. 單擊段落，切換到對應標籤與頁面，捲至命中位置；尚未載入的頁面會自動載入。命中預設以黃色螢光筆標示，選取段落以較深的同色系突出。
+4. 上方「檔案」表格列出檔名與命中筆數；選取檔案後，下方「命中項目」表格以「頁碼／段落」分欄顯示，每次命中各自一列，以交錯底色單行呈現命中附近的摘要；內容過長時以 `...` 結尾，滑鼠停留可查看完整段落。
+5. 單擊段落，或在命中項目清單中按 <kbd>↑</kbd>／<kbd>↓</kbd> 切換項目，會切換到對應標籤與頁面，讓命中處盡量顯示在預覽窗格的縱向中央；尚未載入的頁面會自動載入。只以螢光筆標示目前選取項目的命中文字，切換項目時會移除上一筆標示。
 
 - 預設搜尋目前標籤頁、不區分大小寫、不使用規則表達式；四種範圍互斥。
+- 焦點在搜尋窗格時，方向鍵只操作搜尋控制項；命中清單到達首尾後再按上下鍵，不會捲動 PDF 預覽。
 - 「僅限單字」預設關閉；啟用後，命中內容兩側不能緊接 Unicode 字母、數字、底線或組合標記，例如 `cat` 不會命中 `catalog`。可與規則表達式併用；此選項不會替連續中文斷詞。
 - 「勾選的標籤頁」沿用標籤左側的核取方塊；沒有勾選時會提示，不自動改搜目前檔案。
 - 搜尋涵蓋範圍內已成功載入檔案的全部頁面，不受頁面勾選限制；密碼文件需先解鎖。
 - 「目前標籤所在的資料夾」搜尋該 PDF 所在資料夾這一層的所有 PDF，包含尚未開啟的檔案，不包含子資料夾；搜尋本身不會替所有檔案開啟標籤。
 - 在結果中選取檔案或命中段落時，尚未開啟的 PDF 會自動開為新標籤；已開啟的檔案沿用原標籤，並跳到命中位置。密碼保護檔案請先開啟並輸入密碼，再進行資料夾搜尋；無法讀取的檔案會列入失敗提示，其餘結果仍可使用。
 - 只搜尋既有文字層，不啟動 OCR；掃描圖片或損壞的文字層可能搜尋不到。
-- 同段落內的多次命中合併為一筆；段落依文字行與版面位置推估，不跨頁搜尋，分欄及複雜版面可能有段落差異。
+- 同段落內的多次命中各自列為一筆，可逐筆跳轉與標示。段落依文字行與版面位置推估，不跨頁搜尋，分欄及複雜版面可能有段落差異。
 - 支援同一段落內的跨行搜尋：視覺換行會合併，中日文字之間不補空格，其餘續行以空格銜接；跨行命中會標示對應各行的文字。
 - 規則表達式採 Python 相容語法；無效規則會顯示錯誤，零長度位置不列為可高亮的命中。
 - 每段正則匹配最多 1 秒；逾時會停止搜尋並標示結果不完整。也可按「停止」保留目前已找到的結果。
@@ -247,6 +254,8 @@ repdf
 - PNG 以 300 DPI 輸出，不受閱讀縮放比例影響；超大頁面會降低解析度，使單張不超過 3,000 萬像素。輸出期間可取消，取消時不發布本次產生的圖檔。
 
 ### 複製文字、區域 OCR 與擷取圖片
+
+- 在複製文字模式持續拖曳到頁面上下邊緣，可延伸到前後頁；拖到閱讀區邊緣會自動捲動，全螢幕會切換前後頁組。放開滑鼠後依畫面頁序複製整段選取文字。
 
 - 啟用「複製文字」後，在 PDF 閱讀區按 <kbd>Ctrl</kbd>+<kbd>A</kbd>（macOS：<kbd>⌘</kbd>+<kbd>A</kbd>），可選取整份 PDF 的文字並複製到剪貼簿，一般與全螢幕皆可使用。
 - 全文複製依目前頁面排列順序處理全部頁面，不受頁面核取方塊影響；背景擷取期間顯示進度，完成前不改動剪貼簿。切換標籤、離開選字模式或關閉文件會取消進行中的擷取。

@@ -44,6 +44,7 @@ class ExportPdfTask(QRunnable):
     def __init__(
         self, documents: list[DocumentSelection], destination: Path, session_id: int,
         *, split: bool = False, overwrite: bool = False, protected_sources: tuple[Path, ...] = (),
+        remove_trimbox: bool = False,
     ) -> None:
         super().__init__()
         self.documents = tuple(DocumentSelection(item.source, tuple(item.pages), item.password, item.annotation_changes) for item in documents)
@@ -51,6 +52,7 @@ class ExportPdfTask(QRunnable):
         self.session_id = session_id
         self.signals = ExportSignals()
         self.split = split
+        self.remove_trimbox = remove_trimbox
         self.overwrite = overwrite
         self.protected_sources = protected_sources
 
@@ -59,10 +61,11 @@ class ExportPdfTask(QRunnable):
         try:
             if self.split:
                 count = len(split_documents(self.documents, self.destination,
-                                            overwrite=self.overwrite, protected_sources=self.protected_sources))
+                                            overwrite=self.overwrite, protected_sources=self.protected_sources,
+                                            remove_trimbox=self.remove_trimbox))
             else:
                 count = export_documents(self.documents, self.destination,
-                                         protected_sources=self.protected_sources)
+                                         protected_sources=self.protected_sources, remove_trimbox=self.remove_trimbox)
             self.signals.completed.emit(self.session_id, self.destination, count)
         except Exception as exc:
             self.signals.failed.emit(self.session_id, str(exc))

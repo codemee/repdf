@@ -93,6 +93,10 @@ def render_document(
             page = document[page_index]
             try:
                 width_points, height_points = page.get_size()
+                from repdf.trim_view import viewing_box
+                from repdf.search import normalized_box
+                trim = viewing_box(page)
+                trim_rect = normalized_box(page, trim) if trim else None
                 links = read_page_links(document, page)
                 annotation_hits = [
                     {'rect': annotation['destination']['annotation_rect'],
@@ -145,6 +149,7 @@ def render_document(
                 "type": "page", "generation": generation,
                 "page": page_index, "path": str(output),
                 "width_points": width_points, "height_points": height_points,
+                "trim_rect": trim_rect,
                 "links": links,
                 "annotation_hits": annotation_hits,
                 "editable_annotations": editable, "annotation_readonly": readonly, "geometry": geometry,

@@ -138,7 +138,7 @@ def search_page(page, pattern):
                 entries.append((' ', None))
             entries.extend(line['entries'])
         text = ''.join(char for char, _ in entries)
-        spans, rects = [], []
+        spans, rects, match_rects = [], [], []
         # Finish timed matching before geometry conversion, so PDFium work does
         # not consume the regular-expression budget between iterator steps.
         matches = [match.span() for match in pattern.finditer(text, timeout=1)]
@@ -151,9 +151,10 @@ def search_page(page, pattern):
             if boxes:
                 spans.append([start, end])
                 rects.extend(boxes)
+                match_rects.append(boxes)
         if spans:
             results.append({'paragraph_id': paragraph_id, 'text': text, 'spans': spans,
-                            'rects': rects, 'count': len(spans)})
+                            'rects': rects, 'match_rects': match_rects, 'count': len(spans)})
     return results, zero_width
 
 

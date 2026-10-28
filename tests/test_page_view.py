@@ -113,6 +113,10 @@ def test_search_jump_to_unrendered_page_scrolls_then_loads(qtbot, tmp_path, page
     assert label._active_search_rects == boxes
     point = label.mapTo(doc.grid_host, QPoint(round(label.width() * 0.3), round(label.height() * 0.575)))
     assert doc.pages.visible_rect().contains(point)
+    scrollbar = doc.scroll_area.verticalScrollBar()
+    expected = max(scrollbar.minimum(), min(scrollbar.maximum(),
+                   point.y() - doc.scroll_area.viewport().height() // 2))
+    assert abs(scrollbar.value() - expected) <= 1
     assert doc.preview_page_index() == target
     assert doc.fit_mode == fit
     if not fit:

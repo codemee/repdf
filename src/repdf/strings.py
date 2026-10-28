@@ -5,6 +5,20 @@ from string import Formatter
 
 LANGUAGE = "zh"
 ENGLISH = {
+    '選取本檔所有單數頁': 'Select all odd pages in this PDF',
+    '取消選取本檔所有單數頁': 'Deselect all odd pages in this PDF',
+    '選取本檔所有雙數頁': 'Select all even pages in this PDF',
+    '取消選取本檔所有雙數頁': 'Deselect all even pages in this PDF',
+    '依 TrimBox 裁切（隱藏裁切線）': 'Crop to TrimBox (hide crop marks)',
+    'PDF 輸出選項': 'PDF export options',
+    '將輸出頁面裁切至 TrimBox，隱藏框外裁切線並移除 TrimBox 設定；無 TrimBox 時保留原頁面': 'Crop exported pages to TrimBox, hide marks outside it and remove the TrimBox setting; keep pages without TrimBox unchanged',
+    '裁切檢視': 'Cropped view',
+    '優先依 TrimBox，否則依可辨識的四角裁切線檢視（不修改原檔）': 'View the TrimBox, or recognized corner crop marks when no TrimBox exists (does not change the file)',
+    'PDF 檔案已更新': 'PDF file changed',
+    '「{name}」在磁碟上已更新。': '“{name}” has changed on disk.',
+    '此標籤有尚未儲存的變更。重新載入會捨棄這些變更；也可以先另存新檔。': 'This tab has unsaved changes. Reloading discards them; you can save a copy first.',
+    '重新載入': 'Reload',
+    '保留目前內容': 'Keep current content',
     '關於 RePDF': 'About RePDF',
     '關於': 'About',
     '完整授權': 'Full license',

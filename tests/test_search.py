@@ -135,6 +135,8 @@ def test_literal_case_regex_and_paragraph_grouping(tmp_path):
     hits, _ = results(path, 'copy')
     assert len(hits) == 2
     assert hits[0]['count'] == 2
+    assert len(hits[0]['match_rects']) == 2
+    assert not any(box in hits[0]['match_rects'][1] for box in hits[0]['match_rects'][0])
     assert hits[1]['count'] == 1
     assert 'and this line' in hits[0]['text']
     assert sum(hit['count'] for hit in results(path, 'Copy', case=True)[0]) == 1
@@ -142,7 +144,11 @@ def test_literal_case_regex_and_paragraph_grouping(tmp_path):
     assert results(path, 'c.py')[0] == []
     assert results(path, r'^', regex=True)[0] == []
     assert results(path, r'^', regex=True)[1] == 2
-    assert results(path, 'copy and this')[0]
+    multiline = results(path, 'copy and this')[0]
+    assert len(multiline) == 1
+    assert len(multiline[0]['match_rects']) == 1
+    assert multiline[0]['match_rects'][0] == multiline[0]['rects']
+    assert len({round(box[1], 2) for box in multiline[0]['rects']}) > 1
     assert not results(path, 'line Another')[0]
     with pytest.raises(Exception):
         compile_query('(', True)
@@ -245,17 +251,27 @@ def test_scope_results_navigation_highlights_and_narrow_layout(qtbot, tmp_path, 
     c.start()
     wait_search(qtbot, c)
     assert c.panel.files.topLevelItemCount() == 1
-    assert c.panel.paragraphs.topLevelItemCount() == 2
+    assert c.panel.paragraphs.topLevelItemCount() == 3
     assert c.panel.files.topLevelItem(0).text(0) == doc_a.source_path.name
-    assert c.panel.files.topLevelItem(0).text(1) == '2'
+    assert c.panel.files.topLevelItem(0).text(1) == '3'
     assert c.panel.paragraphs.topLevelItem(0).text(0) == '1'
     assert c.panel.files.topLevelItem(0).data(0, Qt.ItemDataRole.UserRole) == doc_a.document_id
     item = c.panel.paragraphs.topLevelItem(0)
     c._activate_item(item)
     assert window.current_document() is doc_a
     label = doc_a.page_cards[0].preview
-    assert len(label._search_rects) > len(label._active_search_rects)
+    assert label._search_rects == label._active_search_rects
     assert label._active_search_rects
+    first_rects = list(label._search_rects)
+    c.panel.paragraphs.setCurrentItem(item)
+    qtbot.keyClick(c.panel.paragraphs, Qt.Key.Key_Down)
+    assert label._search_rects == label._active_search_rects
+    assert label._search_rects != first_rects
+    assert not any(rect in label._search_rects for rect in first_rects)
+    assert c.selected[2:] == (0, 1)
+    assert label._active_search_rects == c.results[doc_a.document_id][0][0]['match_rects'][1]
+    c._refresh_files()
+    assert c.panel.paragraphs.currentItem().data(0, Qt.ItemDataRole.UserRole) == c.selected
     window.region_ocr_action.setChecked(True)
     assert label._active_search_rects
     c.panel.scope.setCurrentIndex(2)
@@ -416,6 +432,78 @@ def test_click_search_result_loads_offscreen_page(qtbot, tmp_path):
     point = label.mapTo(doc.grid_host, QPoint(round((rect[0] + rect[2]) * label.width() / 2),
                                             round((rect[1] + rect[3]) * label.height() / 2)))
     assert doc.pages.visible_rect().contains(point)
+
+
+def test_keyboard_search_result_navigation_and_refresh(qtbot, tmp_path, monkeypatch):
+    from test_page_view import settled
+
+    path = tmp_path / 'keyboard-hits.pdf'
+    search_pdf(path, [[(40, 220, 'target' if index in (0, 9) else 'other')]
+                      for index in range(12)])
+    window = MainWindow()
+    qtbot.addWidget(window)
+    window.resize(1000, 800)
+    window.show()
+    window.activateWindow()
+    qtbot.waitUntil(window.isActiveWindow)
+    window.load_pdf(path)
+    qtbot.waitUntil(lambda: window.current_document().ready, timeout=10000)
+    doc = window.current_document()
+    c = window.search_controller
+    c.open()
+    c.panel.query.setText('target')
+    c.start()
+    wait_search(qtbot, c)
+    items = c.panel.paragraphs
+    assert items.topLevelItemCount() == 2
+    items.setFocus()
+    items.setCurrentItem(items.topLevelItem(0))
+    qtbot.waitUntil(lambda: doc.preview_page_index() == 0 and settled(doc), timeout=15000)
+    qtbot.keyClick(items, Qt.Key.Key_Down)
+    qtbot.waitUntil(lambda: doc.preview_page_index() == 9 and settled(doc), timeout=15000)
+    assert doc.page_cards[9].preview._active_search_rects
+    scroll_position = doc.scroll_area.verticalScrollBar().value()
+    for _ in range(3):
+        qtbot.keyClick(items, Qt.Key.Key_Down)
+    qtbot.wait(100)
+    assert items.currentItem() is items.topLevelItem(1)
+    assert doc.scroll_area.verticalScrollBar().value() == scroll_position
+    assert c.selected[1] == 9
+    qtbot.keyClick(items, Qt.Key.Key_Up)
+    qtbot.waitUntil(lambda: doc.preview_page_index() == 0 and settled(doc), timeout=15000)
+    assert c.selected[1] == 0
+    scroll_position = doc.scroll_area.verticalScrollBar().value()
+    qtbot.keyClick(items, Qt.Key.Key_Up)
+    qtbot.wait(100)
+    assert doc.scroll_area.verticalScrollBar().value() == scroll_position
+    assert c.selected[1] == 0
+
+    c.panel.query.setFocus()
+    qtbot.keyClick(c.panel.query, Qt.Key.Key_Down)
+    qtbot.wait(100)
+    assert doc.scroll_area.verticalScrollBar().value() == scroll_position
+
+    # A periodic refresh preserves selection without overriding manual scrolling.
+    doc.jump_to_page(4)
+    qtbot.waitUntil(lambda: doc.preview_page_index() == 4 and settled(doc), timeout=15000)
+    c._refresh_files()
+    assert items.currentItem() is items.topLevelItem(0)
+    qtbot.wait(100)
+    assert doc.preview_page_index() == 4
+    items.clear()
+    assert doc.preview_page_index() == 4
+    doc.scroll_area.setFocus()
+    assert doc.scroll_area.hasFocus()
+    navigated = []
+    navigate = window._navigate_preview
+
+    def record_navigation(key):
+        navigated.append(key)
+        navigate(key)
+
+    monkeypatch.setattr(window, '_navigate_preview', record_navigation)
+    qtbot.keyClick(doc.scroll_area, Qt.Key.Key_Down)
+    assert navigated == [Qt.Key.Key_Down]
 
 
 def test_search_highlight_is_independent_and_persists_through_zoom(qtbot, tmp_path, monkeypatch):

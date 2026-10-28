@@ -75,7 +75,7 @@ class PageViewport:
         self.failed = set()
         self.highlights = {}
         self.annotation_highlights = {}
-        self.chrome = 48
+        self.chrome = 54
         self._in_layout = False
         self.scroll_timer = QTimer(document)
         self.scroll_timer.setSingleShot(True)
@@ -158,6 +158,7 @@ class PageViewport:
         if card.page_index in self.highlights:
             card.preview.set_search_highlights(*self.highlights[card.page_index])
         card.preview.set_annotation_highlight(self.annotation_highlights.get(card.page_index))
+        card.preview.set_trim_mask(d.trim_boxes.get(card.page_index) if d.trim_view else None)
         if hasattr(d.owner, 'document_text'):
             d.owner.document_text.apply_label(card.preview, d, card.page_index)
 
@@ -321,10 +322,15 @@ class PageViewport:
         d.page_labels[page] = payload.get('page_label')
         d.page_sizes[page] = (float(payload.get('width_points', image.width() / scale)),
                               float(payload.get('height_points', image.height() / scale)))
+        if payload.get('trim_rect') is not None:
+            d.trim_boxes[page] = payload['trim_rect']
+        else:
+            d.trim_boxes.pop(page, None)
         d.owner.preview_cache.put(self.key(page, scale), image)
         card = d.page_cards.realized.get(page)
         if card is not None:
             card.set_image(image)
+            card.preview.set_trim_mask(d.trim_boxes.get(page) if d.trim_view else None)
             card.preview.set_links(d.page_links[page])
             card.preview.set_annotations(d.page_annotations[page])
             card.render_scale = scale

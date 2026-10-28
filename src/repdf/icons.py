@@ -6,6 +6,9 @@ from PySide6.QtWidgets import QApplication
 
 
 def toolbar_icon(kind: str) -> QIcon:
+    crop_badge = kind in ('export_trim', 'split_trim')
+    if crop_badge:
+        kind = kind.removesuffix('_trim')
     icon = QIcon()
     for mode, group, state, role in (
             (QIcon.Mode.Normal, QPalette.ColorGroup.Active, QIcon.State.Off, QPalette.ColorRole.ButtonText),
@@ -139,6 +142,9 @@ def toolbar_icon(kind: str) -> QIcon:
                            ((21, 16), (21, 21), (16, 21)), ((8, 21), (3, 21), (3, 16))):
                 painter.drawPolyline(QPolygonF([QPointF(x, y) for x, y in points]))
             painter.drawRect(QRectF(8, 6, 8, 12))
+        elif kind == "trim_view":
+            painter.drawPolyline(QPolygonF([QPointF(6, 2), QPointF(6, 18), QPointF(22, 18)]))
+            painter.drawPolyline(QPolygonF([QPointF(2, 6), QPointF(18, 6), QPointF(18, 22)]))
         elif kind == "whole_word":
             font = QFont(QApplication.font())
             font.setPixelSize(14)
@@ -220,14 +226,24 @@ def toolbar_icon(kind: str) -> QIcon:
                                             QPointF(12, 8), QPointF(20, 8), QPointF(20, 10)]))
             painter.drawPolygon(QPolygonF([QPointF(3, 19), QPointF(7, 11), QPointF(22, 11),
                                            QPointF(18, 19)]))
-        elif kind in ('save', 'save_as'):
+        elif kind == 'save_as':
+            # Two overlapping disks distinguish Save As from Save at toolbar size.
+            painter.drawRect(QRectF(2, 2, 14, 16))
+            painter.drawRect(QRectF(5, 2, 8, 5))
+            painter.drawRect(QRectF(5, 12, 8, 6))
+            painter.fillRect(QRectF(7, 6, 2, 2), painter.pen().color())
+            painter.save()
+            painter.setCompositionMode(QPainter.CompositionMode.CompositionMode_Clear)
+            painter.fillRect(QRectF(8, 8, 15, 15), Qt.GlobalColor.transparent)
+            painter.restore()
+            painter.drawRect(QRectF(8, 8, 14, 14))
+            painter.drawRect(QRectF(11, 8, 8, 5))
+            painter.drawRect(QRectF(11, 16, 8, 6))
+        elif kind == 'save':
             painter.drawPolyline(QPolygonF([QPointF(3, 3), QPointF(17, 3), QPointF(21, 7),
                                             QPointF(21, 21), QPointF(3, 21), QPointF(3, 3)]))
             painter.drawRect(QRectF(7, 3, 9, 6))
             painter.drawRect(QRectF(7, 14, 10, 7))
-            if kind == 'save_as':
-                painter.drawLine(13, 18, 22, 9)
-                painter.drawLine(20, 8, 23, 11)
         elif kind == "export":
             painter.drawPolygon(QPolygonF([QPointF(4, 2), QPointF(14, 2), QPointF(20, 8),
                                            QPointF(20, 22), QPointF(4, 22)]))
@@ -245,6 +261,13 @@ def toolbar_icon(kind: str) -> QIcon:
             painter.drawLine(6, 9, 13, 9)
             if kind == "zoom_in":
                 painter.drawLine(9, 6, 9, 13)
+        if crop_badge:
+            painter.save()
+            painter.setCompositionMode(QPainter.CompositionMode.CompositionMode_Clear)
+            painter.fillRect(QRectF(13, 0, 11, 12), Qt.GlobalColor.transparent)
+            painter.restore()
+            painter.drawPolyline(QPolygonF([QPointF(16, 1), QPointF(16, 8), QPointF(23, 8)]))
+            painter.drawPolyline(QPolygonF([QPointF(13, 4), QPointF(20, 4), QPointF(20, 11)]))
         painter.end()
         icon.addPixmap(pixmap, mode, state)
         if mode == QIcon.Mode.Normal:

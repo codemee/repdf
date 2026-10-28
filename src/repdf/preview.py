@@ -2,10 +2,11 @@ from pathlib import Path
 
 from PySide6.QtCore import QEvent, Qt, QTimer
 from PySide6.QtGui import QImage, QKeySequence, QPixmap
-from PySide6.QtWidgets import QApplication, QCheckBox, QWidget
+from PySide6.QtWidgets import QApplication, QCheckBox, QHBoxLayout, QWidget
 
 from repdf.strings import tr
-from repdf.widgets import PagePreviewLabel
+from repdf.widgets import PagePreviewLabel, ParityCheckBox
+from repdf.core import parity_state, SelectionState
 from repdf.floating_tools import FloatingAnnotationTools
 
 
@@ -24,7 +25,10 @@ class FullscreenPreview(QWidget):
         self.render_generation = -1
         self.images = {}
         self.labels = {}
+        self.page_frames = {}
         self.checkboxes = {}
+        self.parity_buttons = {}
+        self.page_headers = {}
         self.closed = False
         self.setWindowModality(Qt.WindowModality.ApplicationModal)
         self.setObjectName('fullscreenPreview')
@@ -78,17 +82,23 @@ class FullscreenPreview(QWidget):
         self.group_index = next(i for i, group in enumerate(self.groups) if page_index in group)
         self.visible_pages = self.groups[self.group_index]
         self.page_index = self.visible_pages[0]
-        for widget in list(self.labels.values()) + list(self.checkboxes.values()):
+        for widget in list(self.labels.values()) + list(self.page_frames.values()) + list(self.page_headers.values()):
             widget.hide()
             widget.deleteLater()
         self.images = {}
         self.labels = {}
+        self.page_frames = {}
         self.checkboxes = {}
+        self.parity_buttons = {}
+        self.page_headers = {}
         for index in self.visible_pages:
             self.images[index] = self.document.page_cards[index].preview.pixmap().toImage()
             label = PagePreviewLabel('', draggable=False)
+            frame = QWidget(self)
+            self.page_frames[index] = frame
+            frame.show()
             label.set_search_highlight_color(self.owner.search_controller.highlight_color)
-            label.setParent(self)
+            label.setParent(frame)
             self.owner.annotation_editor.attach(label,self.document,index)
             source_label = self.document.page_cards[index].preview
             label.set_links(self.document.page_links.get(index, []))
@@ -111,12 +121,28 @@ class FullscreenPreview(QWidget):
                 label.setText(tr("正在產生頁面預覽…"))
             label.show()
             self.labels[index] = label
-            checkbox = QCheckBox(tr("第 {p0} 頁", p0=index + 1), self)
+            header = QWidget(self)
+            header_layout = QHBoxLayout(header)
+            header_layout.setContentsMargins(0, 0, 0, 0)
+            header_layout.setSpacing(6)
+            self.page_headers[index] = header
+            checkbox = QCheckBox(tr("第 {p0} 頁", p0=index + 1), header)
+            header_layout.addWidget(checkbox, 0, Qt.AlignmentFlag.AlignVCenter)
             checkbox.setChecked(index in self.document.selected_pages)
             checkbox.setEnabled(not self.owner._export_running)
             checkbox.toggled.connect(lambda checked, page=index: self._select_page(page, checked))
             checkbox.show()
             self.checkboxes[index] = checkbox
+            parity = ParityCheckBox(index, header)
+            header_layout.addWidget(parity, 0, Qt.AlignmentFlag.AlignVCenter)
+            parity.set_selection_state(parity_state(self.document.selected_pages, self.document.page_count, parity.odd))
+            parity.setEnabled(not self.owner._export_running)
+            parity.clicked.connect(lambda _checked, odd=parity.odd:
+                self.document._toggle_parity(odd, parity_state(self.document.selected_pages, self.document.page_count, odd) != SelectionState.ALL)
+                if not self.owner._export_running else None)
+            parity.show()
+            self.parity_buttons[index] = parity
+            header.show()
         self.update_image()
         self.timer.start()
 
@@ -131,7 +157,8 @@ class FullscreenPreview(QWidget):
             if size is None:
                 image = self.images[index]
                 size = (image.width(), image.height()) if not image.isNull() else (595, 842)
-            result[index] = size
+            trim = self.document.trim_boxes.get(index) if self.document.trim_view else None
+            result[index] = (size[0] * (trim[2] - trim[0]), size[1] * (trim[3] - trim[1])) if trim else size
         return result
 
     def _fit_scale(self, sizes):
@@ -146,7 +173,8 @@ class FullscreenPreview(QWidget):
             return
         sizes = self._page_sizes()
         scale = self._fit_scale(sizes) * self.devicePixelRatioF()
-        area = sum(width * height for width, height in sizes.values())
+        area = sum(self.document.page_sizes.get(index, size)[0] *
+                   self.document.page_sizes.get(index, size)[1] for index, size in sizes.items())
         scale = min(scale, (30_000_000 / area) ** .5)
         self.owner._next_generation += 1
         self.render_generation = self.owner._next_generation
@@ -172,6 +200,10 @@ class FullscreenPreview(QWidget):
             self.labels[index].set_links(self.document.page_links[index])
             self.labels[index].set_annotations(self.document.page_annotations[index])
             unknown_size = index not in self.document.page_sizes
+            if payload.get('trim_rect') is not None:
+                self.document.trim_boxes[index] = payload['trim_rect']
+            else:
+                self.document.trim_boxes.pop(index, None)
             self.document.page_sizes[index] = (
                 float(payload["width_points"]), float(payload["height_points"]))
             self.update_image()
@@ -192,10 +224,23 @@ class FullscreenPreview(QWidget):
         ratio = self.devicePixelRatioF()
         for index, (width, height) in sizes.items():
             label = self.labels[index]
-            label.setGeometry(round(x), round(y), max(1, round(width * scale)), max(1, round(height * scale)))
-            checkbox = self.checkboxes[index]
-            checkbox.adjustSize()
-            checkbox.move(round(x) + 6, round(y) - self.HEADER_HEIGHT + 4)
+            trim = self.document.trim_boxes.get(index) if self.document.trim_view else None
+            frame = self.page_frames[index]
+            frame.setGeometry(round(x), round(y), max(1, round(width * scale)), max(1, round(height * scale)))
+            parent = frame if trim else self
+            if label.parentWidget() is not parent:
+                label.setParent(parent)
+                label.show()
+            frame.setVisible(trim is not None)
+            full_width = width / (trim[2] - trim[0]) if trim else width
+            full_height = height / (trim[3] - trim[1]) if trim else height
+            label.setGeometry(-round(trim[0] * full_width * scale) if trim else round(x),
+                              -round(trim[1] * full_height * scale) if trim else round(y),
+                              max(1, round(full_width * scale)), max(1, round(full_height * scale)))
+            header = self.page_headers[index]
+            header.adjustSize()
+            header.move(round(x) + 6, round(y) - self.HEADER_HEIGHT +
+                        (self.HEADER_HEIGHT - header.height()) // 2)
             image = self.images[index]
             if not image.isNull():
                 pixmap = QPixmap.fromImage(image).scaled(
@@ -206,6 +251,7 @@ class FullscreenPreview(QWidget):
             x += width * scale + self.PAGE_GAP
         if hasattr(self,'floating_tools'):
             self.floating_tools.reposition()
+        self.owner._update_page_indicator()
 
     def resizeEvent(self, event):
         super().resizeEvent(event)

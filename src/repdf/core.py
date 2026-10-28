@@ -8,9 +8,10 @@ from dataclasses import dataclass, field
 from enum import Enum
 from pathlib import Path
 from typing import Iterable
+from math import isfinite
 
 from pypdf import PdfReader, PdfWriter
-from pypdf.generic import ArrayObject, DictionaryObject, NameObject, NumberObject, TextStringObject
+from pypdf.generic import ArrayObject, DictionaryObject, NameObject, NumberObject, TextStringObject, RectangleObject
 
 
 class RepdfError(Exception):
@@ -148,9 +149,26 @@ def split_selected_pages(
                            overwrite=overwrite)
 
 
+def _crop_to_trimbox(page):
+    """Hide printer marks outside the explicit TrimBox, without moving content."""
+    trim = page.get('/TrimBox')
+    if trim is not None:
+        try:
+            boxes = [list(map(float, box)) for box in (trim, page.mediabox, page.cropbox)]
+            if all(len(box) == 4 and all(isfinite(value) for value in box) for box in boxes):
+                rect = [max(box[0] for box in boxes), max(box[1] for box in boxes),
+                        min(box[2] for box in boxes), min(box[3] for box in boxes)]
+                if rect[2] > rect[0] and rect[3] > rect[1]:
+                    page.mediabox = RectangleObject(rect)
+                    page.cropbox = RectangleObject(rect)
+        except (TypeError, ValueError):
+            pass
+    page.pop(NameObject('/TrimBox'), None)
+
+
 def split_documents(
     documents: Iterable[DocumentSelection], destination: str | Path, *,
-    overwrite: bool = False, protected_sources: Iterable[Path] = (),
+    overwrite: bool = False, protected_sources: Iterable[Path] = (), remove_trimbox: bool = False,
 ) -> list[Path]:
     prepared = _prepare_documents(documents)
     outputs = split_output_paths(Path(destination).resolve(), sum(len(pages) for _, _, pages in prepared))
@@ -167,6 +185,8 @@ def split_documents(
         for (reader, page), output in zip(ordered, outputs):
             writer = PdfWriter()
             writer.add_page(reader.pages[page])
+            if remove_trimbox:
+                _crop_to_trimbox(writer.pages[-1])
             _copy_metadata(reader, writer)
             pending = Path(staging) / output.name
             with pending.open("wb") as stream:
@@ -222,7 +242,7 @@ def export_selected_pages(
 
 def export_documents(
     documents: Iterable[DocumentSelection], destination: str | Path, *,
-    protected_sources: Iterable[Path] = (),
+    protected_sources: Iterable[Path] = (), remove_trimbox: bool = False,
 ) -> int:
     prepared = _prepare_documents(documents)
     destination_path = Path(destination).resolve()
@@ -237,6 +257,8 @@ def export_documents(
         for _, reader, pages in prepared:
             for page_index in pages:
                 writer.add_page(reader.pages[page_index])
+                if remove_trimbox:
+                    _crop_to_trimbox(writer.pages[-1])
         _copy_metadata(prepared[0][1], writer)
 
         with tempfile.NamedTemporaryFile(
