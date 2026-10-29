@@ -6,6 +6,17 @@ from PySide6.QtWidgets import QWidget, QToolButton
 from repdf.tabs import DocumentTabs
 
 
+def test_pending_alignment_is_cancelled_when_tabs_are_deleted(qtbot, qapp):
+    from PySide6.QtCore import QCoreApplication, QEvent
+    from shiboken6 import isValid
+    tabs = DocumentTabs()
+    tabs._layout_timer.start(0)
+    tabs.deleteLater()
+    QCoreApplication.sendPostedEvents(None, QEvent.Type.DeferredDelete)
+    assert not isValid(tabs)
+    qapp.processEvents()
+
+
 def test_native_scroll_arrows_and_document_dropdown(qtbot):
     tabs = DocumentTabs()
     qtbot.addWidget(tabs)

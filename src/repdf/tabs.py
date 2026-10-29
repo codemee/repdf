@@ -16,6 +16,9 @@ class DocumentTabs(QTabWidget):
         self._native_scroll = {}
         self._arrow_buttons = {}
         self._arrow_palettes = {}
+        self._layout_timer = QTimer(self)
+        self._layout_timer.setSingleShot(True)
+        self._layout_timer.timeout.connect(self._align_controls)
         self.tabBar().setStyleSheet('QTabBar::scroller { width: 0px; } '
                                    'QTabBar::tear { width: 0px; border: none; image: none; }')
         self.tabBar().installEventFilter(self)
@@ -57,14 +60,14 @@ class DocumentTabs(QTabWidget):
             if event.type() == QEvent.Type.Paint:
                 return True
             if event.type() in (QEvent.Type.EnabledChange, QEvent.Type.Show, QEvent.Type.Hide):
-                QTimer.singleShot(0, self._align_controls)
+                self._layout_timer.start(0)
         if watched in self._arrow_buttons and event.type() == QEvent.Type.Paint:
             palette = watched.palette().cacheKey()
             if self._arrow_palettes.get(watched) != palette:
                 self._arrow_palettes[watched] = palette
                 watched.setIcon(toolbar_icon(self._arrow_buttons[watched]))
         if watched is self.tabBar() and event.type() in (QEvent.Type.Resize, QEvent.Type.Move, QEvent.Type.LayoutRequest):
-            QTimer.singleShot(0, self._align_controls)
+            self._layout_timer.start(0)
         return super().eventFilter(watched, event)
 
     def _align_controls(self):
