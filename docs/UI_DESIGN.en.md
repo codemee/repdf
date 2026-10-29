@@ -318,3 +318,9 @@ A color swatch on the same row configures match highlighting, using a 34 × 34 b
 - Search scope includes the current tab’s folder in both standard and compact controls, with the full selected name in its tooltip. Copy text tooltips describe Select All; normal and fullscreen reading views support whole-document text selection.
 
 - Merge export produces one PDF. Split offers PDF or PNG in the save dialog, producing one file per page without adding toolbar buttons. With no selected pages, the buttons remain enabled and the status bar and tooltips explain the current-page default. Background PNG export displays page progress and a cancel button.
+
+## Tab strip and search pane
+
+- The left scroll control sits at the left end; the right scroll control and dropdown sit at the right end. All three use 16 × 16 outline icons in 26px-wide slots, matching the tab-bar height. Qt tear indicators are suppressed to avoid extra arrows.
+- The dropdown lists full filenames in current tab order, checks the active tab, and shows complete paths in tooltips.
+- Search uses the existing toggle-button appearance: highlighted while the pane is visible, and clicking again closes it. Closing the pane, switching sidebars, or changing narrow-window visibility updates the state. Find shortcuts continue to open and focus search.

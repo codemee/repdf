@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from repdf.strings import tr, localize_text
+from repdf.tabs import DocumentTabs
 
 import sys
 import shutil
@@ -38,7 +39,6 @@ from PySide6.QtWidgets import (
     QScrollArea,
     QSizePolicy,
     QSlider,
-    QTabWidget,
     QTabBar,
     QToolButton,
     QVBoxLayout,
@@ -461,7 +461,7 @@ class MainWindow(QMainWindow):
         self.empty_label.setWordWrap(True)
         self.empty_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         root.addWidget(self.empty_label)
-        self.tabs = QTabWidget()
+        self.tabs = DocumentTabs()
         self.tabs.setDocumentMode(True)
         self.tabs.setMovable(True)
         self.tabs.setElideMode(Qt.TextElideMode.ElideRight)
@@ -849,9 +849,11 @@ class MainWindow(QMainWindow):
         self.toolbar.addAction(self.annotation_action)
         self.toolbar.widgetForAction(self.annotation_action).setObjectName('annotationsTool')
         self.search_action = QAction(tr('搜尋文字'), self)
+        self.search_action.setCheckable(True)
         self.search_action.setShortcuts(QKeySequence.keyBindings(QKeySequence.StandardKey.Find))
         self.search_action.setToolTip(tr('搜尋文字：搜尋目前、勾選、所有標籤頁或目前標籤所在資料夾'))
-        self.search_action.triggered.connect(lambda: self.search_controller.open())
+        self.search_action.triggered.connect(lambda checked:
+            self.search_controller.open() if checked else self.search_controller.close())
         self.toolbar.insertAction(self.bookmark_action,self.search_action)
         self.toolbar.addAction(self.annotation_tools_action)
         self.toolbar.addSeparator()

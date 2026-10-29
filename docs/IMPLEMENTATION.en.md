@@ -515,6 +515,8 @@ Packaged smoke tests must stop render backends holding cached PDFs before removi
 
 ## Selection and cropped exports
 
+- `tabs.DocumentTabs` places outline scroll controls at opposite ends of the tab strip, with a full-filename dropdown on the right. Scrolling delegates to Qt native buttons, which have zero size and are not painted; QTabBar::tear indicators are suppressed. Reserved end strips are reapplied after painting. The menu follows tab order and binds document identity to avoid stale indices after reorder or close.
+
 - `drag_selection.py` tracks cross-page text drags and scrolls at reading-area edges; fullscreen advances page groups. `copy_document` accepts boundary coordinates and reads only pages in the selected range. Reverse drags retain display order; previews do not change the clipboard.
 - `ParityCheckBox` uses standard three-state checkboxes for each page's parity group. Normal and fullscreen headers share document selection state; fullscreen headers use a horizontal layout for alignment.
 - `export_crop_actions` stores independent `export/export_remove_trimbox` and `export/split_remove_trimbox` preferences and updates each crop-badge icon. `ExportPdfTask` snapshots the output option.

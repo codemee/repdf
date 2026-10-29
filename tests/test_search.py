@@ -663,6 +663,35 @@ def test_invalid_highlight_color_preference_uses_default(qtbot):
     assert restored.search_controller.highlight_color == '#ffe13c'
 
 
+def test_search_state_button_tracks_panel_visibility(qtbot):
+    window = MainWindow()
+    qtbot.addWidget(window)
+    window.resize(1000, 700)
+    window.show()
+    action = window.search_action
+    controller = window.search_controller
+    assert action.isCheckable() and not action.isChecked()
+    action.trigger()
+    assert controller.panel.isVisible() and action.isChecked()
+    action.trigger()
+    assert not controller.panel.isVisible() and not action.isChecked()
+    controller.open()
+    assert action.isChecked()
+    controller.panel.close_button.click()
+    assert not action.isChecked()
+    controller.open()
+    window.navigation.open()
+    assert not action.isChecked() and not controller.panel.isVisible()
+    window.resize(320, 500)
+    controller.open()
+    assert action.isChecked()
+    controller.narrow_results = False
+    controller.layout()
+    assert not controller.panel.isVisible() and not action.isChecked()
+    action.trigger()
+    assert controller.panel.isVisible() and action.isChecked()
+
+
 def test_search_opens_from_overflow_and_focuses_query(qtbot):
     from PySide6.QtCore import QTimer
     from PySide6.QtWidgets import QApplication

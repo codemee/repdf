@@ -5,6 +5,9 @@ from string import Formatter
 
 LANGUAGE = "zh"
 ENGLISH = {
+    '向左捲動標籤': 'Scroll tabs left',
+    '向右捲動標籤': 'Scroll tabs right',
+    '選擇標籤頁': 'Choose tab',
     '選取本檔所有單數頁': 'Select all odd pages in this PDF',
     '取消選取本檔所有單數頁': 'Deselect all odd pages in this PDF',
     '選取本檔所有雙數頁': 'Select all even pages in this PDF',

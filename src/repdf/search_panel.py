@@ -371,6 +371,7 @@ class SearchController(QObject):
         narrow = self.owner.width() < 640
         self.panel.set_compact(self.owner.height() < 360)
         state = (narrow, self.opened, self.narrow_results)
+        self.owner.search_action.setChecked(self.opened and (not narrow or self.narrow_results))
         if state == self._layout_state:
             return
         self._layout_state = state
