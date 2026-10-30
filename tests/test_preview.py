@@ -38,7 +38,7 @@ def test_long_page_grid_preserves_full_preview_and_reflows(qtbot):
     # rendering hundreds of PDF pages or allocating large pixmaps.
     cards = [PageCard(i, 100) for i in range(70)]
     for i, card in enumerate(cards):
-        card.preview.setFixedSize(100, 8000)
+        card.set_preview_size(100, 8000)
         layout.addWidget(card, i, 0, Qt.AlignmentFlag.AlignHCenter)
     area.setWidget(host)
     area.resize(360, 500)
@@ -63,7 +63,7 @@ def test_long_page_grid_preserves_full_preview_and_reflows(qtbot):
     assert cards[1].y() == cards[0].y()
     # A subsequent smaller zoom must also release the tall scroll range.
     for card in cards:
-        card.preview.setFixedHeight(100)
+        card.set_preview_size(100, 100)
     layout.invalidate()
     layout.activate()
     qtbot.waitUntil(lambda: host.height() < 20000)
