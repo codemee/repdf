@@ -500,8 +500,10 @@ class PageCard(QFrame):
         )
         self.drag_handle = DragLabel(tr('☰ 拖曳排序'))
         self.drag_handle.drag_requested.connect(self._start_drag)
-        header = QHBoxLayout()
-        header.setContentsMargins(0, 0, 0, 0)
+        self.header = QWidget(self)
+        self.header.setObjectName('pageCardHeader')
+        header = QHBoxLayout(self.header)
+        header.setContentsMargins(8, 3, 8, 3)
         header.addWidget(self.checkbox)
         self.parity_button = ParityCheckBox(page_index)
         header.addWidget(self.parity_button)
@@ -520,12 +522,30 @@ class PageCard(QFrame):
         self.preview.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self.preview.setMinimumHeight(max(80, int(target_width * 1.3)))
         self.preview.setFixedWidth(target_width)
+        self.trim_rect = None
+        self.preview_clip = QWidget()
+        self.preview.setParent(self.preview_clip)
+        self.preview_clip.setFixedSize(target_width, max(80, int(target_width * 1.3)))
 
         layout = QVBoxLayout(self)
         layout.setContentsMargins(11, 9, 11, 11)
         layout.setSpacing(8)
-        layout.addLayout(header)
-        layout.addWidget(self.preview, alignment=Qt.AlignmentFlag.AlignHCenter)
+        layout.addWidget(self.header)
+        layout.addWidget(self.preview_clip, alignment=Qt.AlignmentFlag.AlignHCenter)
+
+    def _position_preview(self):
+        width, height = self.preview.width(), self.preview.height()
+        left, top, right, bottom = self.trim_rect or (0, 0, 1, 1)
+        x0, y0 = round(left * width), round(top * height)
+        x1, y1 = round(right * width), round(bottom * height)
+        self.preview_clip.setFixedSize(max(1, x1 - x0), max(1, y1 - y0))
+        self.preview.move(-x0, -y0)
+        self.setFixedWidth(self.preview_clip.width() + 24)
+
+    def set_trim_rect(self, rect):
+        self.trim_rect = rect
+        self.preview.set_trim_mask(rect)
+        self._position_preview()
 
     def _start_drag(self) -> None:
         if self.text_copy_mode or getattr(self.window(), "_export_running", False):
@@ -605,12 +625,14 @@ class PageCard(QFrame):
         self.preview.setMinimumHeight(max(80, int(width * 1.3)))
         self.preview.setText(tr('載入中…'))
         self.preview.setPixmap(QPixmap())
+        self._position_preview()
 
     def set_preview_size(self, width, height):
         self.target_width = width
         self.setFixedWidth(width + 24)
         self.preview.setFixedSize(width, height)
         self.preview.setScaledContents(True)
+        self._position_preview()
 
     def set_image(self, image: QImage) -> None:
         pixmap = QPixmap.fromImage(image)
@@ -619,6 +641,7 @@ class PageCard(QFrame):
         self.preview.setMinimumHeight(0)
         self.preview.setFixedSize(pixmap.size())
         self.preview.setPixmap(pixmap)
+        self._position_preview()
 
     def set_render_error(self) -> None:
         self.preview.setMinimumHeight(max(80, int(self.target_width * 1.3)))

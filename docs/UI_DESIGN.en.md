@@ -151,7 +151,7 @@ Text buttons, whole checkboxes, and the tab bar do not have a single fixed heigh
 | Card padding | Left 11, top 9, right 11, bottom 11 |
 | Header/preview spacing | 8 |
 | Card width | Preview image width + 24 |
-| Card header | Page checkbox on the left, drag handle on the right |
+| Card header | Page and odd/even checkboxes on the left, drag handle on the right; hover-color background, 1px bottom divider, 8px gap before PDF content |
 | Reorder animation | 180 ms, `OutCubic` |
 | Insertion indicator | 2px dashed accent border, radius 8 |
 | Text highlight | Accent color, alpha 90/255, approximately 35% opacity |

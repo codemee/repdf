@@ -122,6 +122,7 @@ class FullscreenPreview(QWidget):
             label.show()
             self.labels[index] = label
             header = QWidget(self)
+            header.setObjectName('fullscreenPageHeader')
             header_layout = QHBoxLayout(header)
             header_layout.setContentsMargins(0, 0, 0, 0)
             header_layout.setSpacing(6)

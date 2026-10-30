@@ -65,16 +65,32 @@ def test_trimbox_tool_only_available_when_page_has_trim(qtbot, tmp_path):
     window.trim_view_action.trigger()
     qtbot.waitUntil(lambda: settled(doc), timeout=15000)
     assert doc.trim_view and doc.fit_mode
+    card_rect = doc.pages.rect(0)
+    viewport_height = doc.scroll_area.viewport().height()
+    if card_rect.height() <= viewport_height:
+        top = card_rect.y() - doc.scroll_area.verticalScrollBar().value()
+        assert top >= -1
+        assert top + card_rect.height() <= viewport_height + 1
     assert doc.zoom > normal_zoom
     assert doc.trim_boxes[0][0] > 0
     label = doc.page_cards[0].preview
     assert label._trim_mask == doc.trim_boxes[0]
+    card = doc.page_cards[0]
+    clip = card.preview_clip
+    assert clip.width() == round(doc.trim_boxes[0][2] * label.width()) - round(doc.trim_boxes[0][0] * label.width())
+    assert clip.height() == round(doc.trim_boxes[0][3] * label.height()) - round(doc.trim_boxes[0][1] * label.height())
+    assert card.width() == clip.width() + 24
+    assert label.x() == -round(doc.trim_boxes[0][0] * label.width())
+    assert label.y() == -round(doc.trim_boxes[0][1] * label.height())
+    assert clip.grab().toImage().pixelColor(2, 2).red() < 30
     image = label.grab().toImage()
     assert image.pixelColor(2, 2).red() > 245
     assert image.pixelColor(label.width() // 2, label.height() // 2).red() < 30
     window.trim_view_action.trigger()
     assert not doc.trim_view
     assert label._trim_mask is None
+    assert clip.size() == label.size()
+    assert label.pos().isNull()
     assert label.grab().toImage().pixelColor(2, 2).red() < 30
     window.trim_view_action.trigger()
     window.fullscreen_action.trigger()

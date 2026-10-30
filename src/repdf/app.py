@@ -209,7 +209,7 @@ class DocumentView(QWidget):
         card.preview.set_links(self.page_links.get(page_index, []))
         card.preview.set_annotations(self.page_annotations.get(page_index, []))
         card.preview.link_activated.connect(lambda destination: self.owner.navigation.activate(self, destination))
-        self.pages.chrome = max(1, card.sizeHint().height() - card.preview.height())
+        self.pages.chrome = max(1, card.sizeHint().height() - card.preview_clip.height())
         return card
 
     def _target_preview_width(self) -> int:
@@ -321,7 +321,7 @@ class DocumentView(QWidget):
             width *= trim[2] - trim[0]
             height *= trim[3] - trim[1]
         margins = self.grid.contentsMargins()
-        chrome = max(0, card.sizeHint().height() - card.preview.height())
+        chrome = max(0, card.sizeHint().height() - card.preview_clip.height())
         available_width = max(1, self.scroll_area.viewport().width() - margins.left() - margins.right() - 26)
         # Grid margins surround the entire document, not each fitted page.
         # Fit the card to the viewport and scroll it into alignment separately.
@@ -344,9 +344,7 @@ class DocumentView(QWidget):
         trim = self.trim_boxes.get(self.fit_page_index) if self.trim_view else None
         viewport = self.scroll_area.viewport()
         if trim is not None:
-            label = self.pages.ensure_page(self.fit_page_index).preview
-            center = label.mapTo(self.grid_host, QPoint(round((trim[0] + trim[2]) * label.width() / 2),
-                                                       round((trim[1] + trim[3]) * label.height() / 2)))
+            center = card.center()
             self.scroll_area.verticalScrollBar().setValue(center.y() - viewport.height() // 2)
             self.scroll_area.horizontalScrollBar().setValue(center.x() - viewport.width() // 2)
         else:
@@ -1146,7 +1144,7 @@ class MainWindow(QMainWindow):
             return
         doc.trim_view = checked
         for card in doc.page_cards:
-            card.preview.set_trim_mask(doc.trim_boxes.get(card.page_index) if checked else None)
+            card.set_trim_rect(doc.trim_boxes.get(card.page_index) if checked else None)
         doc.fit_page()
         self._sync_controls()
         if self._fullscreen_preview is not None:

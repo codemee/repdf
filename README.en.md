@@ -142,7 +142,7 @@ The controls are described below. Hover over a control to see its tooltip, inclu
 ### Save and Save As
 
 - Newly opened PDFs use Fit mode and adapt to the reading area. Changing zoom switches to manual scaling.
-- Cropped view prefers a valid TrimBox. If no TrimBox exists, it recognizes complete vector corner crop marks near page edges. Missing or incomplete marks leave the page whole and disable the tool. Raster crop marks are not detected. This changes the preview only, without modifying the PDF.
+- Cropped view prefers a valid TrimBox. If no TrimBox exists, it recognizes complete vector corner crop marks near page edges. Missing or incomplete marks leave the page whole and disable the tool. Raster crop marks are not detected. The page card shrinks to the crop area so outside margins take no viewing space; the PDF is not modified.
 - Fullscreen single-page, spread, and cover modes also support cropped view. Toggle the crop icon on the floating toolbar; it is enabled when any displayed page has a recognized crop area.
 - Reordering pages adds `*` to the tab name. Click Save or press <kbd>Ctrl</kbd>+<kbd>S</kbd> to save the original PDF.
 - Click Save As or press <kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>S</kbd> to choose another filename. The tab switches to the saved file. On macOS use <kbd>⌘</kbd> instead of <kbd>Ctrl</kbd>.

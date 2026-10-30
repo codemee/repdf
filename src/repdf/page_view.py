@@ -111,6 +111,14 @@ class PageViewport:
         width, height = self.page_size(page)
         return max(1, ceil(width * self.scale())), max(1, ceil(height * self.scale()))
 
+    def display_dimensions(self, page):
+        width, height = self.dimensions(page)
+        trim = self.doc.trim_boxes.get(page) if self.doc.trim_view else None
+        if trim is None:
+            return width, height
+        return (max(1, round(trim[2] * width) - round(trim[0] * width)),
+                max(1, round(trim[3] * height) - round(trim[1] * height)))
+
     def schedule(self, *_args):
         if not self.doc.owner._closing and self.doc.ready:
             self.scroll_timer.start()
@@ -158,7 +166,7 @@ class PageViewport:
         if card.page_index in self.highlights:
             card.preview.set_search_highlights(*self.highlights[card.page_index])
         card.preview.set_annotation_highlight(self.annotation_highlights.get(card.page_index))
-        card.preview.set_trim_mask(d.trim_boxes.get(card.page_index) if d.trim_view else None)
+        card.set_trim_rect(d.trim_boxes.get(card.page_index) if d.trim_view else None)
         if hasattr(d.owner, 'document_text'):
             d.owner.document_text.apply_label(card.preview, d, card.page_index)
 
@@ -177,6 +185,7 @@ class PageViewport:
                 for card in d.page_cards:
                     if card.page_index in d.page_sizes or card.preview.pixmap().isNull():
                         card.set_preview_size(*self.dimensions(card.page_index))
+                    card.set_trim_rect(d.trim_boxes.get(card.page_index) if d.trim_view else None)
                 width = max(card.width() for card in d.page_cards)
                 available = max(1, d.scroll_area.viewport().width() - 24)
                 columns = 1 if d.fit_mode else max(1, (available + 12) // (width + 12))
@@ -193,7 +202,7 @@ class PageViewport:
         anchor = self.current_page(False) if self.rects else None
         old_y = self.rects[anchor].y() if anchor is not None else 0
         old_scroll = d.scroll_area.verticalScrollBar().value()
-        widths = [self.dimensions(page)[0] + 24 for page in d.page_order]
+        widths = [self.display_dimensions(page)[0] + 24 for page in d.page_order]
         column_width = max(widths)
         available = max(1, d.scroll_area.viewport().width() - 24)
         columns = 1 if d.fit_mode else max(1, (available + 12) // (column_width + 12))
@@ -203,9 +212,9 @@ class PageViewport:
         y = 12
         for offset in range(0, d.page_count, columns):
             pages = d.page_order[offset:offset + columns]
-            row_height = max(self.dimensions(page)[1] + self.chrome for page in pages)
+            row_height = max(self.display_dimensions(page)[1] + self.chrome for page in pages)
             for column, page in enumerate(pages):
-                width, height = self.dimensions(page)
+                width, height = self.display_dimensions(page)
                 x = left + column * (column_width + 12) + (column_width - width - 24) // 2
                 rects[page] = QRect(x, y, width + 24, height + self.chrome)
             y += row_height + 12
@@ -216,6 +225,7 @@ class PageViewport:
         d.grid_host.resize(content_width, max(y, d.scroll_area.viewport().height()))
         for page, card in d.page_cards.realized.items():
             card.set_preview_size(*self.dimensions(page))
+            card.set_trim_rect(d.trim_boxes.get(page) if d.trim_view else None)
             card.setGeometry(rects[page])
         if anchor is not None and not d._fit_navigation_pending:
             d.scroll_area.verticalScrollBar().setValue(old_scroll + rects[anchor].y() - old_y)
@@ -330,7 +340,7 @@ class PageViewport:
         card = d.page_cards.realized.get(page)
         if card is not None:
             card.set_image(image)
-            card.preview.set_trim_mask(d.trim_boxes.get(page) if d.trim_view else None)
+            card.set_trim_rect(d.trim_boxes.get(page) if d.trim_view else None)
             card.preview.set_links(d.page_links[page])
             card.preview.set_annotations(d.page_annotations[page])
             card.render_scale = scale

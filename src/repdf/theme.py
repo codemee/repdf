@@ -85,6 +85,10 @@ class ThemeController(QObject):
             QToolBar#floatingAnnotationBar {{ background: transparent; border: none; padding: 4px; }}
             QFrame#pageCard {{ background: {card}; border: 1px solid {border};
                                border-radius: 8px; }}
+            QWidget#pageCardHeader, QWidget#fullscreenPageHeader {{
+                background: {hover}; border: none; border-bottom: 1px solid {border};
+                border-radius: 4px;
+            }}
             QFrame#pageCard QLabel, QFrame#pageCard QCheckBox {{ border: none; }}
             QToolBar {{ background: palette(window); border: none;
                         border-bottom: 1px solid {border}; padding: 4px; spacing: 4px; }}
