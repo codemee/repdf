@@ -5,6 +5,15 @@ from string import Formatter
 
 LANGUAGE = "zh"
 ENGLISH = {
+    '設定頁會顯示目前的 PDF 預設程式；點選 .pdf 那一列，再選 RePDF。': 'Settings shows the current default PDF application. Click the .pdf row, then choose RePDF.',
+    '系統整合': 'System integration',
+    '註冊 PDF 開啟功能': 'Register PDF opening',
+    '取消註冊': 'Unregister',
+    '開啟預設應用程式設定': 'Open default app settings',
+    '無法完成系統整合設定：': 'Could not configure system integration: ',
+    '將 RePDF 加入 PDF 的「開啟方式」與快顯選單。預設應用程式仍由您在 Windows 設定中選擇。免安裝版會複製至目前使用者的 Programs/RePDF 固定位置；更新後請再次註冊。': 'Add RePDF to PDF Open with and context menus. Choose the default application in Windows Settings. Portable builds are copied to the current user’s Programs/RePDF directory; register again after updating.',
+    '將 RePDF.app 放入「應用程式」。在 Finder 選取 PDF，開啟「取得資訊」，於「打開檔案的應用程式」選擇 RePDF，再按「全部更改」。': 'Move RePDF.app to Applications. Select a PDF in Finder, open Get Info, choose RePDF under Open with, and click Change All.',
+    '設定已完成。取消註冊不會刪除程式或 PDF；如需更換預設程式，請使用系統設定。': 'Settings updated. Unregistering does not delete the application or PDFs. Use system settings to choose another default application.',
     '向左捲動標籤': 'Scroll tabs left',
     '向右捲動標籤': 'Scroll tabs right',
     '選擇標籤頁': 'Choose tab',

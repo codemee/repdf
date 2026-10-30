@@ -77,6 +77,14 @@ The controls are described below. Hover over a control to see its tooltip, inclu
 
 ### Open and switch files
 
+- On RePDF’s default app settings page, the `.pdf` row shows the current default application. Click that row, then choose RePDF. System integration installs a dedicated multi-resolution icon for both Python and packaged builds.
+
+- Run `repdf "document.pdf" "another.pdf"` to open multiple files in the existing RePDF window. Files already open select their existing tab.
+- **Windows:** click the application icon in the main window’s upper-left corner and select **System integration → Register PDF opening**. This adds RePDF to PDF **Open with** and a dedicated **Open with RePDF** command (under **Show more options** in Windows 11). Use **Open default app settings** to choose RePDF for `.pdf` yourself.
+- Registering a portable executable copies it to `%LOCALAPPDATA%\Programs\RePDF\repdf.exe`. After updating, run the new version and register again. Close any copy running at that destination before updating it. Python installations register the current Python environment; register again after moving or replacing it.
+- **Unregister** removes RePDF’s registration without deleting PDFs or the copied executable. Choose a different default application in Windows Settings.
+- **macOS:** move `RePDF.app` to Applications. Select a PDF in Finder, press <kbd>⌘</kbd>+<kbd>I</kbd>, choose RePDF under **Open with**, and click **Change All**. **System integration** in the application menu also provides these instructions.
+
 - Each tab shows the filename without its extension. Hover over a tab to see the full path.
 - The window title shows `RePDF` and its version.
 - Opening the same path again switches to its existing tab.

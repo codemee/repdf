@@ -6,6 +6,16 @@
 
 ## 1. 專案概觀
 
+### 系統開檔與檔案關聯
+
+- 註冊時將 `assets/repdf.png` 依共用圖示比例產生多尺寸 `%LOCALAPPDATA%/Programs/RePDF/repdf.ico`，提供 ProgID DefaultIcon、ApplicationIcon、Capabilities ApplicationIcon 與快顯命令使用。圖示不依賴 Python 執行檔或 PyInstaller 暫存路徑。
+
+- `desktop_open.py` 解析多檔路徑；`DesktopApplication` 接收 macOS `QFileOpenEvent`。主視窗尚未就緒或正在輸出時暫存開檔要求，再交由 `load_pdfs()` 處理。
+- `DesktopInstance` 使用每位使用者固定名稱的 `QLocalServer` / `QLocalSocket`，以 UTF-8 JSON 加換行傳送絕對路徑。`QLockFile` 保護啟動與殘留 socket 清理；後續程序僅送出要求，不啟動 PDF 後端。socket 限目前使用者存取，訊息上限 1 MiB。
+- `desktop_integration.py` 僅在使用者按下註冊時寫入 HKCU 的 RePDF ProgID、OpenWithProgids、Capabilities、RegisteredApplications 與 PDF 專用 shell 命令。不寫入 UserChoice 或強制覆蓋預設程式。免安裝版複製到 `%LOCALAPPDATA%/Programs/RePDF/repdf.exe`，Python 版指向目前環境的 `pythonw -m repdf`。
+- 系統整合入口位於 Windows 系統功能表及 macOS PreferencesRole。macOS 封裝在 `packaging/repdf.spec` 宣告 `com.adobe.pdf`、Editor 與 Alternate；透過 Qt 開檔事件處理，不使用 argv emulation。
+- 取消註冊只刪除 RePDF 專屬鍵與命名值，不刪除 `.pdf` 共用鍵、其他程式的關聯或執行檔。Windows 11 第一層 IExplorerCommand 擴充不在目前實作範圍。
+
 RePDF 是支援 Windows 與 macOS 的 Python 桌面程式，主要功能包括：
 
 1. 以可勾選、拖曳排序及關閉的標籤頁開啟多個 PDF。

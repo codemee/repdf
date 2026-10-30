@@ -8,6 +8,7 @@ from shiboken6 import isValid
 from repdf.strings import tr
 
 ABOUT_COMMAND = 0x1F00  # Below SC_SIZE; low four bits reserved by WM_SYSCOMMAND.
+INTEGRATION_COMMAND = 0x1F10
 WM_SYSCOMMAND = 0x0112
 
 
@@ -52,6 +53,10 @@ class WindowsSystemMenu(QObject):
             self.api.AppendMenuW(menu, 0, ABOUT_COMMAND, tr('關於 RePDF'))
         else:
             self.api.ModifyMenuW(menu, ABOUT_COMMAND, 0, ABOUT_COMMAND, tr('關於 RePDF'))
+        if self.api.GetMenuState(menu, INTEGRATION_COMMAND, 0) == 0xFFFFFFFF:
+            self.api.AppendMenuW(menu, 0, INTEGRATION_COMMAND, tr('系統整合'))
+        else:
+            self.api.ModifyMenuW(menu, INTEGRATION_COMMAND, 0, INTEGRATION_COMMAND, tr('系統整合'))
 
     def native_event(self, event_type, address):
         if self.api is None or bytes(event_type) not in (b'windows_generic_MSG', b'windows_dispatcher_MSG'):
@@ -59,6 +64,9 @@ class WindowsSystemMenu(QObject):
         import ctypes
         from ctypes import wintypes
         message = ctypes.cast(int(address), ctypes.POINTER(wintypes.MSG)).contents
+        if message.message == WM_SYSCOMMAND and message.wParam & 0xFFF0 == INTEGRATION_COMMAND:
+            QTimer.singleShot(0, self.owner.integration_action.trigger)
+            return True
         if is_about_command(message.message, message.wParam):
             QTimer.singleShot(0, self.owner.about_action.trigger)
             return True

@@ -493,10 +493,20 @@ class MainWindow(QMainWindow):
         self.about_action.setMenuRole(QAction.MenuRole.AboutRole)
         self.about_action.triggered.connect(self.show_about)
         self.addAction(self.about_action)
+        self.integration_action = QAction(tr('系統整合'), self)
+        self.integration_action.setMenuRole(QAction.MenuRole.PreferencesRole)
+        self.integration_action.triggered.connect(self.show_integration)
+        self.addAction(self.integration_action)
         if sys.platform != 'win32':
             self.menuBar().setNativeMenuBar(True)
-            self.menuBar().addMenu(tr('說明')).addAction(self.about_action)
+            help_menu = self.menuBar().addMenu(tr('說明'))
+            help_menu.addAction(self.about_action)
+            help_menu.addAction(self.integration_action)
         self._windows_system_menu = WindowsSystemMenu(self)
+
+    def show_integration(self):
+        from repdf.desktop_integration import DesktopIntegrationDialog
+        DesktopIntegrationDialog(self).exec()
 
     def show_about(self):
         if self._about_dialog is None or not isValid(self._about_dialog):
@@ -1099,6 +1109,7 @@ class MainWindow(QMainWindow):
         if self._about_dialog is not None and isValid(self._about_dialog):
             self._about_dialog.retranslate()
         self._windows_system_menu.refresh()
+        self.integration_action.setText(tr('系統整合'))
         if self._fullscreen_preview is not None:
             self._fullscreen_preview.floating_tools.refresh_icons()
 
@@ -1983,9 +1994,26 @@ def configure_application(app: QApplication) -> None:
 
 
 def main() -> int:
-    render_backend = start_render_backend()
-    app = QApplication(sys.argv)
+    from repdf.desktop_open import DesktopApplication, DesktopInstance, file_arguments
+    paths = file_arguments(sys.argv[1:])
+    app = DesktopApplication(sys.argv)
     configure_application(app)
+    instance = DesktopInstance(app)
+    try:
+        if not instance.start(paths):
+            return 0
+    except RuntimeError as error:
+        message = QMessageBox()
+        message.setOption(QMessageBox.Option.DontUseNativeDialog, True)
+        message.setWindowTitle('RePDF')
+        message.setText(str(error))
+        message.exec()
+        return 1
+    render_backend = start_render_backend()
     window = MainWindow(render_backend)
     window.show()
-    return app.exec()
+    app.attach_window(window)
+    try:
+        return app.exec()
+    finally:
+        instance.close()

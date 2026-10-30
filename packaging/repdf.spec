@@ -48,6 +48,12 @@ if sys.platform == "darwin":
                  info_plist={"CFBundleShortVersionString": version,
                              "CFBundleName": "RePDF",
                              "CFBundleDisplayName": "RePDF",
+                             "CFBundleDocumentTypes": [{
+                                 "CFBundleTypeName": "PDF document",
+                                 "CFBundleTypeRole": "Editor",
+                                 "LSHandlerRank": "Alternate",
+                                 "LSItemContentTypes": ["com.adobe.pdf"],
+                             }],
                              "NSHighResolutionCapable": True})
 else:
     exe = EXE(pyz, a.scripts, a.binaries, a.datas, name="repdf",
