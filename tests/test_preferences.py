@@ -119,6 +119,7 @@ def test_locale_change_only_affects_system_mode(qtbot, monkeypatch):
 
 @pytest.mark.parametrize("locale,expected", [("zh_TW", "zh"), ("zh_CN", "zh"), ("en_US", "en"), ("fr_FR", "en")])
 def test_system_locale_resolution(monkeypatch, locale, expected):
+    monkeypatch.setattr("repdf.preferences.sys.platform", "linux")
     original_locale = QLocale(locale)
     monkeypatch.setattr("repdf.preferences.QLocale", SimpleNamespace(system=lambda: original_locale, Language=QLocale.Language))
     assert system_language() == expected
@@ -139,9 +140,36 @@ def test_dialog_translations_and_unknown_text_fallback(qtbot):
 
 
 def test_system_language_uses_display_language_before_region(monkeypatch):
+    monkeypatch.setattr("repdf.preferences.sys.platform", "linux")
     locale = SimpleNamespace(uiLanguages=lambda: ["en-US"], language=lambda: QLocale.Language.Chinese)
     monkeypatch.setattr("repdf.preferences.QLocale", SimpleNamespace(system=lambda: locale, Language=QLocale.Language))
     assert system_language() == "en"
+
+
+@pytest.mark.parametrize("preferred,expected", [
+    (["zh-Hant-TW", "en-US"], "zh"),
+    (["zh_Hans_CN"], "zh"),
+    (["en-US", "zh-Hant-TW"], "en"),
+    (["ja-JP", "zh-Hant-TW"], "en"),
+])
+def test_macos_uses_native_display_language_over_qt(monkeypatch, preferred, expected):
+    monkeypatch.setattr("repdf.preferences.sys.platform", "darwin")
+    monkeypatch.setattr("repdf.macos_locale.preferred_languages", lambda: preferred)
+    locale = QLocale("en_US" if expected == "zh" else "zh_TW")
+    monkeypatch.setattr("repdf.preferences.QLocale", SimpleNamespace(system=lambda: locale))
+    assert system_language() == expected
+
+
+@pytest.mark.parametrize("failure", [False, True])
+def test_macos_falls_back_to_qt_when_native_preferences_unavailable(monkeypatch, failure):
+    monkeypatch.setattr("repdf.preferences.sys.platform", "darwin")
+    def native():
+        if failure:
+            raise OSError("unavailable")
+        return []
+    monkeypatch.setattr("repdf.macos_locale.preferred_languages", native)
+    monkeypatch.setattr("repdf.preferences.QLocale", SimpleNamespace(system=lambda: QLocale("zh_TW")))
+    assert system_language() == "zh"
 
 
 def test_rename_migrates_preferences_without_overwriting_current_choices(tmp_path):

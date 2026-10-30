@@ -1,4 +1,5 @@
 from importlib.resources import files
+import sys
 
 from PySide6.QtCore import QLibraryInfo, QLocale, QObject, QTranslator, Signal
 from PySide6.QtWidgets import QApplication
@@ -18,7 +19,15 @@ def migrate_preferences(settings, legacy) -> None:
 
 def system_language() -> str:
     locale = QLocale.system()
-    preferred = locale.uiLanguages()
+    preferred = []
+    if sys.platform == "darwin":
+        from repdf.macos_locale import preferred_languages
+        try:
+            preferred = preferred_languages()
+        except OSError:
+            pass  # Keep Qt's fallback if the native API cannot be loaded.
+    if not preferred:
+        preferred = locale.uiLanguages()
     if preferred:
         language = preferred[0].lower().replace("_", "-").split("-")[0]
         return "zh" if language == "zh" else "en"

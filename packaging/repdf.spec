@@ -48,6 +48,8 @@ if sys.platform == "darwin":
                  info_plist={"CFBundleShortVersionString": version,
                              "CFBundleName": "RePDF",
                              "CFBundleDisplayName": "RePDF",
+                             "CFBundleDevelopmentRegion": "en",
+                             "CFBundleLocalizations": ["en", "zh-Hant", "zh-Hans"],
                              "CFBundleDocumentTypes": [{
                                  "CFBundleTypeName": "PDF document",
                                  "CFBundleTypeRole": "Editor",
