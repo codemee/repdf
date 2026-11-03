@@ -6,6 +6,8 @@
 
 ## 1. 專案概觀
 
+主視窗拖放接受本機 PDF 與資料夾。PDF 直接交給 `load_pdfs()`；資料夾透過共用 `_choose_pdfs_in()` 以該路徑開啟 Qt 多檔 PDF 選檔框。內部頁面重排的拖放 MIME 仍由 `PageGrid` 與 `PageCard` 單獨處理。
+
 ### 系統開檔與檔案關聯
 
 - 註冊時將 `assets/repdf.png` 依共用圖示比例產生多尺寸 `%LOCALAPPDATA%/Programs/RePDF/repdf.ico`，提供 ProgID DefaultIcon、ApplicationIcon、Capabilities ApplicationIcon 與快顯命令使用。圖示不依賴 Python 執行檔或 PyInstaller 暫存路徑。
@@ -105,7 +107,9 @@ tests/
 - `close_tab_action` 採 `QKeySequence.StandardKey.Close` 的平台標準按鍵，快捷鍵作用於目前視窗，並呼叫既有 `close_tab()` 清理文件。關閉期間或沒有標籤時停用，關閉按鈕 tooltip 顯示本機可用按鍵。
 - 下方狀態列：載入、選取及輸出進度。
 
-`MainWindow` 管理共享工具列、`QTabWidget`、固定文件 ID 與輸出工作 ID；`DocumentView` 各自持有來源、頁數、`selected_pages`、`page_order`、`page_cards`、縮放比例、渲染世代與捲動區。切換標籤時同步工具列與奇偶頁三態，不重建文件內容。標籤核取方塊與關閉按鈕綁定文件物件，不以易變的標籤索引保存狀態。
+`MainWindow` 管理共享工具列、`PaneWorkspace` 的巢狀 `QSplitter` 與每窗格獨立的 `PaneTabs`、固定文件 ID 與輸出工作 ID；`DocumentView` 各自持有來源、頁數、`selected_pages`、`page_order`、`page_cards`、縮放比例、渲染世代與捲動區。作用中窗格決定共享工具列的文件；每個窗格目前顯示的文件都可持續按需渲染。標籤核取方塊與關閉按鈕綁定文件物件，不以易變的標籤索引保存狀態。
+
+標籤拖出標籤列時以文件 ID 傳送，放到窗格左、右、下側會以巢狀分隔器平分目標窗格，不改變其他窗格的尺寸；中央則移入既有標籤列。`PaneFrame` 的圓角外框包住整個標籤列與捲軸，分隔線留在外框之間；目前作用中的窗格以 2 px 淺藍或柔紫圓角框線標示，滑鼠與鍵盤焦點切換都會更新。非作用中窗格維持淡色框線；作用中標籤底線、縮放滑桿與各面板捲軸滑塊共用相同強調色。標籤列與 PDF 區域以細線分隔，主工具列下方不另畫分隔線。移動標籤時重新建立核取方塊與關閉按鈕並保留選取狀態，避免 Qt 刪除舊標籤按鈕後留下失效參照。空窗格立即移除。窗格樹、分隔比例、每窗格標籤順序與目前標籤寫入 `ui/workspace` 設定；重開時只載入仍存在的檔案，並折疊空的分隔器。
 
 `_active_tasks` 保留 `QRunnable` 的 Python 參考，完成或失敗後才移除。背景載入以文件 ID 回傳；輸出完成以 `_export_id` 回傳，不受目前標籤影響。
 
@@ -222,9 +226,9 @@ Fit 使用最近點擊且仍可見的頁面，或距預覽區中央最近的頁�
 
 圖片到達後，卡片會依縮圖實際寬高調整固定尺寸。`DocumentView._reflow_grid()` 以目前最寬卡片和預覽區可用寬度計算欄數；視窗改變大小或新縮圖到達時都會重新排列，但不重新解析 PDF。
 
-超過 64 頁時使用虛擬化配置：只保留可見頁與附近範圍的卡片，整份文件只儲存頁面順序、選頁、已知尺寸與幾何位置。`PageCards` 的索引仍是原始頁碼，迭代只走訪現存卡片；不可用迭代結果的位置當作頁碼。尚未讀取尺寸的頁面暫用 A4 比例估算，尺寸到達後重排並保留可見頁的捲動位置。搜尋高亮獨立保存，卡片重建後還原；拖放將附近卡片位置換算成整份文件的插入位置。
+超過 24 頁時使用虛擬化配置：只保留可見頁與附近範圍的卡片，整份文件只儲存頁面順序、選頁、已知尺寸與幾何位置。`PageCards` 的索引仍是原始頁碼，迭代只走訪現存卡片；不可用迭代結果的位置當作頁碼。尚未讀取尺寸的頁面暫用 A4 比例估算，尺寸到達後重排並保留可見頁的捲動位置。搜尋高亮獨立保存，卡片重建後還原；拖放將附近卡片位置換算成整份文件的插入位置。
 
-64 頁以內保留一般卡片網格，但影像同樣按需載入。網格使用 `PageGridLayout`，在 Qt 彙總尺寸約 524287px 的上限之外按實際列高計算，避免非常高的頁面被壓矮。虛擬配置直接使用頁面幾何位置，不受此配置器的彙總尺寸上限影響。
+24 頁以內保留一般卡片網格，但影像同樣按需載入。網格使用 `PageGridLayout`，在 Qt 彙總尺寸約 524287px 的上限之外按實際列高計算，避免非常高的頁面被壓矮。虛擬配置直接使用頁面幾何位置，不受此配置器的彙總尺寸上限影響。
 
 `PageGrid` 管理拖曳預覽：開始時固定原始網格位置、暫停 layout 並隱藏來源卡片；`QDrag` 使用含頁碼的卡片縮圖（最大 180×240px）。滑鼠以原始格位的左／右半部決定前／後插入，避免移動中的卡片反覆改變命中位置。其餘卡片使用 180ms OutCubic 位置動畫讓出虛線空位，跨列時依網格順序換列。預覽不修改 `page_order`；放開才透過 `_insert_page()` 提交，取消則恢復原始網格。拖曳結束後重新啟用 layout 並重排，輸出期間禁止開始拖曳。
 
@@ -269,7 +273,7 @@ Fit 使用最近點擊且仍可見的頁面，或距預覽區中央最近的頁�
 
 工具列提供 `language_action`、`theme_action` 三態按鈕，分別循環 `system → zh → en` 與 `system → light → dark`。`QSettings("repdf", "repdf")` 的 `ui/language`、`ui/theme` 保存選擇，預設均為 `system`，無效值回退為系統模式。首次啟動會將舊版 `QSettings("PDFPick", "PDFPick")` 的有效語言與配色選擇複製到尚未設定的新欄位，不覆蓋 repdf 已有設定，也不刪除舊設定。
 
-`preferences.LanguageController` 在 macOS 優先透過 CoreFoundation 的 `CFLocaleCopyPreferredLanguages()` 讀取原生顯示語言，避免 Qt 的程序 locale 將系統語言誤判成英文；App 的 `Info.plist` 同時宣告英文與中文支援。其他平台或原生清單無法取得時，使用 `QLocale.system().uiLanguages()`，沒有顯示語言時才回退至 locale 語言。以第一個顯示語言為準，中文使用繁體中文，其餘使用英文。主視窗收到 `LocaleChange` 時僅在系統模式重新判斷。`strings.py` 集中翻譯表與 `tr()`，由 GUI、核心和背景錯誤共用；`localize_text()` 更新既有介面文字並保留格式化參數。切換時更新文字與提示，不重建文件或重新渲染頁面。
+`preferences.LanguageController` 在 macOS 優先透過 CoreFoundation 的 `CFLocaleCopyPreferredLanguages()` 讀取原生顯示語言，避免 Qt 的程序 locale 將系統語言誤判成英文；App 的 `Info.plist` 同時宣告英文與中文支援。其他平台或原生清單無法取得時，使用 `QLocale.system().uiLanguages()`，沒有顯示語言時才回退至 locale 語言。以第一個顯示語言為準，中文使用繁體中文，其餘使用英文。主視窗收到 `LocaleChange` 時僅在系統模式重新判斷。`strings.py` 集中翻譯表與 `tr()`，由 GUI、核心和背景錯誤共用；`localize_text()` 更新既有介面文字並保留格式化參數。切換時更新文字與提示，不重建文件或重新渲染頁面。固定翻譯直接查表，格式化翻譯按語系快取，減少大量頁面卡片的重複比對。
 
 檔案對話框使用 `DontUseNativeDialog`，搭配 Qt `qtbase_zh_TW.qm` 與標準按鈕翻譯。封裝設定透過 `QLibraryInfo.TranslationsPath` 取得各平台的 Qt 翻譯資源路徑，將 qm 放入 `repdf/assets`；來源執行同樣讀取 Qt 的 translations 路徑。未翻譯文字回退原文。`packaging_smoke.py` 驗證 qm 存在與英文翻譯，GUI 測試以獨立設定檔隔離使用者偏好。
 

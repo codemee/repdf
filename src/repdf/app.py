@@ -1,8 +1,6 @@
 from __future__ import annotations
 
-from repdf.strings import tr, localize_text
-from repdf.tabs import DocumentTabs
-
+import json
 import sys
 import shutil
 import tempfile
@@ -37,6 +35,7 @@ from PySide6.QtWidgets import (
     QMenu,
     QMessageBox,
     QScrollArea,
+    QSplitter,
     QSizePolicy,
     QSlider,
     QTabBar,
@@ -54,6 +53,8 @@ from repdf.core import (
     DocumentSelection,
 )
 from repdf import __version__
+from repdf.strings import tr, localize_text
+from repdf.workspace import PaneWorkspace
 from repdf.icons import toolbar_icon
 from repdf.theme import ThemeController
 from repdf.preferences import LanguageController, migrate_preferences
@@ -116,16 +117,7 @@ class DocumentView(QWidget):
         self._render_received = set()
         self._render_pending = 0
         self._render_done_generation = -1
-        self.include_checkbox = QCheckBox()
-        self.include_checkbox.setObjectName('tabIncludeCheckbox')
-        self.include_checkbox.setToolTip(tr('勾選此檔案以加入重組或拆分；未勾選任何標籤時僅輸出目前檔案'))
-        self.include_checkbox.setEnabled(False)
-        self.include_checkbox.toggled.connect(owner._sync_controls)
-        self.close_button = QToolButton()
-        self.close_button.setText("×")
-        self.close_button.setToolTip(tr('關閉此檔案（{p0}）', p0=owner.close_shortcut_text))
-        self.close_button.setFixedSize(22, 22)
-        self.close_button.clicked.connect(lambda: owner.close_tab(owner.tabs.indexOf(self)))
+        self._create_tab_controls()
         root = QVBoxLayout(self)
         root.setContentsMargins(0, 0, 0, 0)
         self.scroll_area = QScrollArea()
@@ -155,6 +147,21 @@ class DocumentView(QWidget):
         self.fit_timer.setInterval(150)
         self.fit_timer.timeout.connect(self._apply_fit)
         self.pages = PageViewport(self)
+
+    def _create_tab_controls(self, *, checked=False):
+        """QTabBar owns and destroys its buttons when a tab is removed."""
+        owner = self.owner
+        self.include_checkbox = QCheckBox()
+        self.include_checkbox.setObjectName('tabIncludeCheckbox')
+        self.include_checkbox.setToolTip(tr('勾選此檔案以加入重組或拆分；未勾選任何標籤時僅輸出目前檔案'))
+        self.include_checkbox.setEnabled(self.ready and not owner._export_running)
+        self.include_checkbox.setChecked(checked)
+        self.include_checkbox.toggled.connect(owner._sync_controls)
+        self.close_button = QToolButton()
+        self.close_button.setText("×")
+        self.close_button.setToolTip(tr('關閉此檔案（{p0}）', p0=owner.close_shortcut_text))
+        self.close_button.setFixedSize(22, 22)
+        self.close_button.clicked.connect(lambda: owner.close_document(self))
 
     def loaded(self, page_count: int) -> None:
         self.page_count = page_count
@@ -299,6 +306,7 @@ class DocumentView(QWidget):
 
     def _focus_page(self, page_index: int) -> None:
         self.focused_page = page_index
+        self.owner.activate_document(self)
         self.owner._update_page_indicator()
 
     def preview_page_index(self, *, prefer_focused=True) -> int:
@@ -454,21 +462,16 @@ class MainWindow(QMainWindow):
         self._build_toolbar()
         central = QWidget()
         root = QVBoxLayout(central)
-        root.setContentsMargins(12, 10, 12, 12)
-        self.empty_label = QLabel(tr('請先開啟 PDF 檔案，或將多個 PDF 拖曳到視窗'))
+        root.setContentsMargins(12, 0, 12, 12)
+        self.empty_label = QLabel(tr('請開啟 PDF，或將 PDF／資料夾拖曳到視窗'))
         self.empty_label.setWordWrap(True)
         self.empty_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         root.addWidget(self.empty_label)
-        self.tabs = DocumentTabs()
-        self.tabs.setDocumentMode(True)
-        self.tabs.setMovable(True)
-        self.tabs.setElideMode(Qt.TextElideMode.ElideRight)
-        self.tabs.tabBar().setExpanding(False)
-        self.tabs.tabBar().setDrawBase(False)
-        self.tabs.currentChanged.connect(self._tab_changed)
-        self.tabs.tabBar().tabMoved.connect(self._sync_controls)
-        self.tabs.hide()
-        root.addWidget(self.tabs)
+        self.pane_root = QSplitter(Qt.Orientation.Horizontal)
+        self.workspace = PaneWorkspace(self, self.pane_root)
+        self.tabs = self.workspace.active
+        self.pane_root.hide()
+        root.addWidget(self.pane_root)
         self.navigation = NavigationController(self, central)
         self.search_controller = SearchController(self, self.navigation.workspace)
         self.setCentralWidget(self.search_controller.workspace)
@@ -501,6 +504,12 @@ class MainWindow(QMainWindow):
             help_menu.addAction(self.about_action)
             help_menu.addAction(self.integration_action)
         self._windows_system_menu = WindowsSystemMenu(self)
+        try:
+            saved = json.loads(self.settings.value('ui/workspace', '{}'))
+            if isinstance(saved, dict) and saved.get('tree'):
+                self.workspace.restore(saved)
+        except (TypeError, ValueError, KeyError):
+            pass
 
     def show_integration(self):
         from repdf.desktop_integration import DesktopIntegrationDialog
@@ -635,6 +644,11 @@ class MainWindow(QMainWindow):
         self._update_page_indicator()
 
     def eventFilter(self, watched, event) -> bool:
+        if event.type() not in (QEvent.Type.FocusIn, QEvent.Type.FocusOut,
+                                QEvent.Type.ShortcutOverride, QEvent.Type.KeyPress,
+                                QEvent.Type.MouseButtonPress, QEvent.Type.MouseMove,
+                                QEvent.Type.MouseButtonRelease):
+            return False
         editor=getattr(self,'annotation_editor',None)
         text_editor=editor.text_edit if editor is not None else None
         if text_editor is not None and isinstance(watched,QWidget) and (watched is text_editor or text_editor.isAncestorOf(watched)):
@@ -1087,9 +1101,15 @@ class MainWindow(QMainWindow):
             if text != widget.text():
                 widget.setText(text)
         for widget in self.findChildren(QWidget) + self.findChildren(QAction):
-            widget.setToolTip(localize_text(widget.toolTip()))
+            tooltip = widget.toolTip()
+            translated = localize_text(tooltip)
+            if translated != tooltip:
+                widget.setToolTip(translated)
             if isinstance(widget, QWidget):
-                widget.setAccessibleName(localize_text(widget.accessibleName()))
+                name = widget.accessibleName()
+                translated = localize_text(name)
+                if translated != name:
+                    widget.setAccessibleName(translated)
         self.toolbar.setWindowTitle(localize_text(self.toolbar.windowTitle()))
         self.annotation_toolbar.setWindowTitle(localize_text(self.annotation_toolbar.windowTitle()))
         self._update_window_title()
@@ -1320,13 +1340,28 @@ class MainWindow(QMainWindow):
     def current_document(self):
         return self.tabs.currentWidget() if hasattr(self, "tabs") else None
 
+    def is_visible_document(self, doc):
+        pane = self.workspace.pane_for(doc)
+        return pane is not None and pane.currentWidget() is doc
+
+    def activate_document(self, doc):
+        pane = self.workspace.pane_for(doc)
+        if pane is not None:
+            self.workspace.activate(pane)
+            pane.setCurrentWidget(doc)
+
+    def close_document(self, doc, *, force=False):
+        pane = self.workspace.pane_for(doc)
+        if pane is not None:
+            self.close_tab(pane.indexOf(doc), force=force, pane=pane)
+
     def _cycle_tab(self, step: int) -> None:
         count = self.tabs.count()
         if count > 1:
             self.tabs.setCurrentIndex((self.tabs.currentIndex() + step) % count)
 
     def ordered_documents(self):
-        return [self.tabs.widget(i) for i in range(self.tabs.count())]
+        return self.workspace.documents()
 
     def output_selection(self, *, fallback_current=False) -> list[DocumentSelection]:
         documents = self.ordered_documents()
@@ -1353,8 +1388,10 @@ class MainWindow(QMainWindow):
             return
         doc = self.current_document()
         for other in self.documents.values():
-            if other is not doc:
+            if not self.is_visible_document(other):
                 other.pages.suspend()
+            elif other is not doc and other.ready and other.render_generation < 0:
+                other._queue_all_renders()
         self._update_window_title()
         if doc is not None:
             self.zoom_slider.blockSignals(True)
@@ -1380,8 +1417,9 @@ class MainWindow(QMainWindow):
         self.save_action.setEnabled(ready and doc.modified and not self._export_running and not self.print_controller.busy)
         self.save_as_action.setEnabled(ready and not self._export_running and not self.print_controller.busy)
         for document in self.documents.values():
-            index = self.tabs.indexOf(document)
-            self.tabs.setTabText(index, document.source_path.stem + (' *' if document.modified else ''))
+            pane = self.workspace.pane_for(document)
+            if pane is not None:
+                pane.setTabText(pane.indexOf(document), document.source_path.stem + (' *' if document.modified else ''))
         self.close_tab_action.setEnabled(self.tabs.count() > 0 and not self._export_running)
         self._syncing_bulk = True
         for document in self.documents.values():
@@ -1450,17 +1488,18 @@ class MainWindow(QMainWindow):
             doc.set_zoom(value)
         self._sync_controls()
 
-    def _dropped_pdfs(self, event) -> list[Path]:
+    def _dropped_paths(self, event) -> list[Path]:
         if self._export_running:
             return []
         urls = event.mimeData().urls()
         if not urls or any(not url.isLocalFile() for url in urls):
             return []
         paths = [Path(url.toLocalFile()) for url in urls]
-        return paths if all(path.suffix.lower() == ".pdf" and path.is_file() for path in paths) else []
+        return paths if all(path.is_dir() or (path.suffix.lower() == ".pdf" and path.is_file())
+                            for path in paths) else []
 
     def dragEnterEvent(self, event) -> None:
-        if self._dropped_pdfs(event):
+        if self._dropped_paths(event):
             event.acceptProposedAction()
         else:
             event.ignore()
@@ -1469,16 +1508,23 @@ class MainWindow(QMainWindow):
         self.dragEnterEvent(event)
 
     def dropEvent(self, event) -> None:
-        paths = self._dropped_pdfs(event)
+        paths = self._dropped_paths(event)
         if not paths:
             event.ignore()
             return
         event.acceptProposedAction()
-        self.load_pdfs(paths)
+        files = [path for path in paths if path.is_file()]
+        if files:
+            self.load_pdfs(files)
+        for directory in (path for path in paths if path.is_dir()):
+            self._choose_pdfs_in(directory)
 
     @Slot()
     def choose_pdf(self) -> None:
-        filenames, _ = QFileDialog.getOpenFileNames(self, tr('開啟 PDF'), str(Path.home()), tr('PDF 檔案 (*.pdf)'), "", QFileDialog.Option.DontUseNativeDialog)
+        self._choose_pdfs_in(Path.home())
+
+    def _choose_pdfs_in(self, directory: Path) -> None:
+        filenames, _ = QFileDialog.getOpenFileNames(self, tr('開啟 PDF'), str(directory), tr('PDF 檔案 (*.pdf)'), "", QFileDialog.Option.DontUseNativeDialog)
         if filenames:
             self.load_pdfs([Path(filename) for filename in filenames])
 
@@ -1524,7 +1570,7 @@ class MainWindow(QMainWindow):
             return
         if dialog.clickedButton() is save_as and save_as is not None:
             source = doc.source_path
-            self.tabs.setCurrentWidget(doc)
+            self.activate_document(doc)
             self.saving.choose(save_as=True, on_saved=lambda _saved: self.load_pdf(source))
         elif dialog.clickedButton() is reload_button:
             self._reload_document(doc)
@@ -1532,8 +1578,10 @@ class MainWindow(QMainWindow):
     def _reload_document(self, old_doc):
         if self._export_running or old_doc.document_id not in self.documents:
             return
-        tab_index = self.tabs.indexOf(old_doc)
+        pane = self.workspace.pane_for(old_doc)
+        tab_index = pane.indexOf(old_doc)
         page = old_doc.preview_page_index()
+        self.workspace.activate(pane)
         new_doc = self._new_document(old_doc.source_path)
         new_doc.password = old_doc.password
         self._reload_context[new_doc.document_id] = (old_doc.document_id, tab_index, page,
@@ -1546,7 +1594,7 @@ class MainWindow(QMainWindow):
         self.documents[doc.document_id] = doc
         self._source_stamps[doc.document_id] = self._source_stamp(doc.source_path)
         self.empty_label.hide()
-        self.tabs.show()
+        self.pane_root.show()
         index = self.tabs.addTab(doc, path.stem)
         self.tabs.setTabToolTip(index, str(doc.source_path))
         self.tabs.tabBar().setTabButton(index, QTabBar.ButtonPosition.LeftSide, doc.include_checkbox)
@@ -1567,7 +1615,7 @@ class MainWindow(QMainWindow):
             path = Path(path).resolve()
             existing = next((doc for doc in self.documents.values() if doc.source_path == path), None)
             if existing is not None:
-                self.tabs.setCurrentWidget(existing)
+                self.activate_document(existing)
                 continue
             doc = self._new_document(path)
             self._document_batches[doc.document_id] = batch
@@ -1615,7 +1663,7 @@ class MainWindow(QMainWindow):
                 doc.password = dialog.password_edit.text()
                 self._start_load(doc)
             else:
-                self.close_tab(self.tabs.indexOf(doc), force=True)
+                self.close_document(doc, force=True)
                 self._finish_load(document_id)
         finally:
             dialog.password_edit.clear()
@@ -1651,8 +1699,9 @@ class MainWindow(QMainWindow):
                 old_id, tab_index, page, _zoom, _fit = context
                 old_doc = self.documents.get(old_id)
                 if old_doc is not None:
-                    self.close_tab(self.tabs.indexOf(old_doc), force=True)
-                self.tabs.tabBar().moveTab(self.tabs.indexOf(doc), min(tab_index, self.tabs.count() - 1))
+                    self.close_document(old_doc, force=True)
+                pane = self.workspace.pane_for(doc)
+                pane.tabBar().moveTab(pane.indexOf(doc), min(tab_index, pane.count() - 1))
                 doc.jump_to_page(min(page, page_count - 1))
             if self.current_document() is doc:
                 self._tab_changed(self.tabs.currentIndex())
@@ -1667,11 +1716,11 @@ class MainWindow(QMainWindow):
         context = self._reload_context.pop(document_id, None)
         error = f"{doc.source_path}\n{message}" if doc is not None else None
         if doc is not None:
-            self.close_tab(self.tabs.indexOf(doc), force=True)
+            self.close_document(doc, force=True)
         if context is not None:
             old_doc = self.documents.get(context[0])
             if old_doc is not None:
-                self.tabs.setCurrentWidget(old_doc)
+                self.activate_document(old_doc)
         self._finish_load(document_id, error)
 
     def _confirm_close(self, doc, on_saved=None):
@@ -1682,21 +1731,22 @@ class MainWindow(QMainWindow):
         if result == QMessageBox.StandardButton.Discard:
             return True
         if result == QMessageBox.StandardButton.Save:
-            self.tabs.setCurrentWidget(doc)
+            self.activate_document(doc)
             self.saving.choose(on_saved=on_saved)
         else:
             self._discard_on_close.clear()
         return False
 
-    def close_tab(self, index: int, *, force: bool = False) -> None:
+    def close_tab(self, index: int, *, force: bool = False, pane=None) -> None:
         if (self._export_running and not force) or index < 0:
             return
-        doc = self.tabs.widget(index)
+        pane = pane or self.tabs
+        doc = pane.widget(index)
         if doc is None:
             return
         if not force:
             self.annotation_editor.finish_text(True)
-            if not self._confirm_close(doc, lambda saved: self.close_tab(self.tabs.indexOf(saved), force=True)):
+            if not self._confirm_close(doc, lambda saved: self.close_document(saved, force=True)):
                 return
         self._reload_context.pop(doc.document_id, None)
         doc.password = None
@@ -1725,10 +1775,11 @@ class MainWindow(QMainWindow):
         self._ocr_generations.pop(doc.document_id, None)
         self.search_controller.remove_document(doc.document_id)
         self.navigation.remove_document(doc)
-        self.tabs.removeTab(index)
+        pane.removeTab(index)
         doc.deleteLater()
-        if not self.tabs.count():
-            self.tabs.hide()
+        self.workspace.remove_empty(pane)
+        if not self.documents:
+            self.pane_root.hide()
             self.empty_label.show()
             self.zoom_slider.blockSignals(True)
             self.zoom_slider.setValue(100)
@@ -1813,7 +1864,8 @@ class MainWindow(QMainWindow):
     def _set_export_running(self, running: bool) -> None:
         self._export_running = running
         self.open_action.setEnabled(not running)
-        self.tabs.setMovable(not running)
+        for pane in self.workspace.panes:
+            pane.setMovable(not running)
         for doc in self.documents.values():
             doc.include_checkbox.setEnabled(doc.ready and not running)
             doc.close_button.setEnabled(not running)
@@ -1937,6 +1989,8 @@ class MainWindow(QMainWindow):
                     return
                 self._discard_on_close.add(doc.document_id)
         self._closing = True
+        self.settings.setValue('ui/workspace', json.dumps(self.workspace.state()))
+        QApplication.instance().removeEventFilter(self.workspace)
         QApplication.instance().removeEventFilter(self)
         QApplication.instance().removeEventFilter(self.annotation_editor)
         self.annotation_editor.finish_text(True)

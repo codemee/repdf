@@ -40,6 +40,7 @@ repdf
 主工具列保留開檔、儲存、列印、搜尋、書籤、註解清單與檢視控制。
 
 - 標籤過多時可使用標籤列兩端的線條箭頭捲動，或點右側向下箭頭，從完整檔名清單直接切換；清單依標籤排列順序顯示，並勾選目前標籤，滑鼠停留可看完整路徑。
+- 將標籤拖出標籤列，放到任一 PDF 窗格的左側、右側或下側，即可分割檢視；拖到窗格中央則移入該窗格的標籤列。拖曳窗格之間的分隔線可調整比例。重新開啟 RePDF 時會還原窗格與檔案，已不存在的檔案會略過，空窗格會自動移除。
 
 - 複製文字、OCR 與擷取圖片直接位於主工具列。點「註解工具」顯示可拖移的水平懸浮工具列，提供文字畫線、文字註解及繪圖；顯示狀態會保留。
 - 存檔與另存新檔為獨立按鈕；縮放、Fit、全螢幕模式下拉按鈕、語言與配色靠右排列。
@@ -77,6 +78,8 @@ repdf
 | <picture><source media="(prefers-color-scheme: dark)" srcset="docs/images/toolbar-theme-system-dark.png"><img src="docs/images/toolbar-theme-system.png" width="24" alt="跟隨系統配色：左白右黑圓形"></picture> <picture><source media="(prefers-color-scheme: dark)" srcset="docs/images/toolbar-theme-light-dark.png"><img src="docs/images/toolbar-theme-light.png" width="24" alt="淺色：太陽"></picture> <picture><source media="(prefers-color-scheme: dark)" srcset="docs/images/toolbar-theme-dark-dark.png"><img src="docs/images/toolbar-theme-dark.png" width="24" alt="深色：月亮"></picture> | 介面配色 | 點擊依序切換「跟隨系統 → 淺色 → 深色」，選擇會記住。 | — |
 
 ### 開啟與切換檔案
+
+- 將 PDF 拖入視窗可直接開啟；將資料夾拖入視窗，會從該資料夾開啟選檔交談窗，可一次選取多份 PDF。
 
 - 預設應用程式的 RePDF 設定頁中，`.pdf` 那一列顯示的是目前預設程式；點選該列，再選 RePDF。系統整合會安裝專用多尺寸圖示，供原始碼版與執行檔版共用。
 

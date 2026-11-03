@@ -1,10 +1,12 @@
 """UI translations shared by the GUI and background error messages."""
 
 import re
+from functools import lru_cache
 from string import Formatter
 
 LANGUAGE = "zh"
 ENGLISH = {
+    '請開啟 PDF，或將 PDF／資料夾拖曳到視窗': 'Open PDFs, or drag PDFs or a folder into this window',
     '設定頁會顯示目前的 PDF 預設程式；點選 .pdf 那一列，再選 RePDF。': 'Settings shows the current default PDF application. Click the .pdf row, then choose RePDF.',
     '系統整合': 'System integration',
     '註冊 PDF 開啟功能': 'Register PDF opening',
@@ -509,13 +511,30 @@ def _pattern(template):
     return re.compile("".join(parts), re.DOTALL)
 
 
-_PATTERNS = [(zh, en, _pattern(zh), _pattern(en)) for zh, en in ENGLISH.items()]
+_LITERAL_TRANSLATIONS = {}
+_PATTERNS = []
+for _zh, _en in ENGLISH.items():
+    if '{' in _zh or '{' in _en:
+        _PATTERNS.append((_zh, _en, _pattern(_zh), _pattern(_en)))
+    else:
+        _LITERAL_TRANSLATIONS[_zh] = (_zh, _en)
+        _LITERAL_TRANSLATIONS[_en] = (_zh, _en)
 
 
 def localize_text(text: str) -> str:
     """Retranslate existing text without changing filenames or user-provided values."""
+    if not text:
+        return text
+    return _localize_cached(LANGUAGE, text)
+
+
+@lru_cache(maxsize=8192)
+def _localize_cached(language: str, text: str) -> str:
+    literal = _LITERAL_TRANSLATIONS.get(text)
+    if literal is not None:
+        return literal[1] if language == "en" else literal[0]
     for zh, en, zh_pattern, en_pattern in _PATTERNS:
         match = zh_pattern.fullmatch(text) or en_pattern.fullmatch(text)
         if match:
-            return (en if LANGUAGE == "en" else zh).format(**match.groupdict())
+            return (en if language == "en" else zh).format(**match.groupdict())
     return text

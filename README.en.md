@@ -39,6 +39,7 @@ repdf
 The main toolbar keeps file, search, navigation-pane and view controls.
 
 - When tabs overflow, use the outline scroll arrows at opposite ends of the tab strip, or the down arrow on the right to choose a full filename. The list follows tab order, checks the current tab, and shows full paths in tooltips.
+- Drag a tab out of its strip and drop it on the left, right, or bottom of any PDF pane to split the view. Drop it in the center to move it into that pane's tab strip. Drag dividers to resize panes. RePDF restores the layout and open files on restart, skips missing files, and removes empty panes.
 
 - Copy text, OCR and image extraction appear directly on the main toolbar. **Annotation tools** shows a draggable horizontal floating toolbar for markup, text annotations and drawings; its visibility is remembered.
 - **Save** and **Save As** have separate buttons. Zoom, Fit, the fullscreen mode dropdown, language and theme stay on the right.
@@ -76,6 +77,8 @@ The controls are described below. Hover over a control to see its tooltip, inclu
 | <picture><source media="(prefers-color-scheme: dark)" srcset="docs/images/toolbar-theme-system-dark.png"><img src="docs/images/toolbar-theme-system.png" width="24" alt="System theme: half-white, half-black circle"></picture> <picture><source media="(prefers-color-scheme: dark)" srcset="docs/images/toolbar-theme-light-dark.png"><img src="docs/images/toolbar-theme-light.png" width="24" alt="Light theme: sun"></picture> <picture><source media="(prefers-color-scheme: dark)" srcset="docs/images/toolbar-theme-dark-dark.png"><img src="docs/images/toolbar-theme-dark.png" width="24" alt="Dark theme: moon"></picture> | Theme | Cycle through System → Light → Dark. Your choice is remembered. | — |
 
 ### Open and switch files
+
+- Drag PDFs into the window to open them directly. Drag a folder to open the PDF file picker at that folder; you can select multiple PDFs.
 
 - On RePDF’s default app settings page, the `.pdf` row shows the current default application. Click that row, then choose RePDF. System integration installs a dedicated multi-resolution icon for both Python and packaged builds.
 

@@ -68,10 +68,15 @@ class ThemeController(QObject):
                 palette.setColor(QPalette.ColorGroup.Disabled, role, QColor(disabled))
         self.app.setPalette(palette)
         border = "#625079" if dark else "#d5d8dc"
+        pane_border = "#625079" if dark else "#e5e5e5"
         card = "#2b2142" if dark else "#ffffff"
-        slider_track = "#695580" if dark else "#c4c7c5"
+        pane_accent = "#a992c4" if dark else "#add6ff"
+        slider_track = "#625079" if dark else "#d7eaff"
+        scrollbar_track = "#34264f" if dark else "#eaf4ff"
+        scrollbar_handle = pane_accent
+        scrollbar_hover = "#c1abd8" if dark else "#81bfff"
         slider_fill = "#a8ed42" if dark else "#0b57d0"
-        slider_handle = "#ff9d45" if dark else "#0b57d0"
+        slider_handle = pane_accent
         hover = "#3b2a56" if dark else "#e7ebf0"
         pressed = "#4d376e" if dark else "#d8e3f3"
         menu_background = hover if dark else card
@@ -85,13 +90,16 @@ class ThemeController(QObject):
             QToolBar#floatingAnnotationBar {{ background: transparent; border: none; padding: 4px; }}
             QFrame#pageCard {{ background: {card}; border: 1px solid {border};
                                border-radius: 8px; }}
+            QFrame#documentPaneFrame {{ background: palette(window); border: 1px solid {pane_border};
+                                        border-radius: 8px; }}
+            QFrame#paneTabSeparator {{ background: {border}; border: none; }}
             QWidget#pageCardHeader, QWidget#fullscreenPageHeader {{
                 background: {hover}; border: none; border-bottom: 1px solid {border};
                 border-radius: 4px;
             }}
             QFrame#pageCard QLabel, QFrame#pageCard QCheckBox {{ border: none; }}
             QToolBar {{ background: palette(window); border: none;
-                        border-bottom: 1px solid {border}; padding: 4px; spacing: 4px; }}
+                        padding: 4px; spacing: 4px; }}
             QToolBar::separator {{ background: {border}; width: 1px; margin: 5px 4px; }}
             QMenu {{ background: {menu_background}; color: palette(window-text);
                      border: 1px solid {border}; padding: 4px; }}
@@ -100,10 +108,13 @@ class ThemeController(QObject):
             QMenu::item:disabled {{ color: {disabled}; }}
             QMenu::separator {{ height: 1px; background: {border}; margin: 4px 6px; }}
             QTabWidget::pane {{ border: none; }}
+            QTabWidget#documentPane {{ background: transparent; border: none; }}
+            QTabWidget#documentPane::pane {{ border: none; }}
+            QTabWidget#documentPane QScrollArea {{ border: none; }}
             QTabBar::tab {{ background: transparent; color: palette(window-text);
                             border: none; border-bottom: 2px solid transparent;
                             padding: 5px 8px; margin-right: 2px; }}
-            QTabBar::tab:selected {{ background: {card}; border-bottom-color: {slider_fill}; }}
+            QTabBar::tab:selected {{ background: {card}; border-bottom-color: {pane_accent}; }}
             QTabBar::tab:!selected:hover {{ background: {hover}; }}
             QToolButton {{ background: transparent; border: 1px solid transparent;
                            border-radius: 4px; padding: 4px; color: palette(button-text); }}
@@ -146,16 +157,16 @@ class ThemeController(QObject):
                 border: 1px solid {border}; border-radius: 6px; padding: 4px; }}
             QStatusBar {{ background: palette(window); border: none; }}
             QStatusBar::item {{ border: none; }}
-            QScrollBar:vertical {{ background: transparent; width: 10px; margin: 2px; }}
-            QScrollBar:horizontal {{ background: transparent; height: 10px; margin: 2px; }}
-            QScrollBar::handle {{ background: {slider_track}; border-radius: 3px;
+            QScrollBar:vertical {{ background: {scrollbar_track}; width: 10px; margin: 2px; }}
+            QScrollBar:horizontal {{ background: {scrollbar_track}; height: 10px; margin: 2px; }}
+            QScrollBar::handle {{ background: {scrollbar_handle}; border-radius: 3px;
                                  min-width: 24px; min-height: 24px; }}
-            QScrollBar::handle:hover {{ background: {slider_fill}; }}
+            QScrollBar::handle:hover, QScrollBar::handle:pressed {{ background: {scrollbar_hover}; }}
             QScrollBar::add-line, QScrollBar::sub-line {{ width: 0; height: 0; border: none; }}
-            QScrollBar::add-page, QScrollBar::sub-page {{ background: transparent; }}
+            QScrollBar::add-page, QScrollBar::sub-page {{ background: {scrollbar_track}; }}
             QSlider::groove:horizontal {{ height: 2px; background: {slider_track};
                                           border-radius: 1px; }}
-            QSlider::sub-page:horizontal {{ background: {slider_fill};
+            QSlider::sub-page:horizontal {{ background: {pane_accent};
                                             border-radius: 1px; }}
             QSlider::add-page:horizontal {{ background: {slider_track};
                                             border-radius: 1px; }}

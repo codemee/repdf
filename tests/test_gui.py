@@ -4,6 +4,7 @@ from PySide6.QtCore import QPoint, Qt, QTimer
 from PySide6.QtGui import QImage, QKeySequence
 from PySide6.QtWidgets import QFileDialog, QMessageBox
 from pypdf import PdfReader, PdfWriter
+from shiboken6 import isValid
 
 from repdf.app import DocumentView, MainWindow, load_app_icon
 from repdf import __version__
@@ -18,6 +19,111 @@ def ready_document(window, path, count, *, zoom=100):
     window.zoom_slider.blockSignals(False)
     window._sync_controls()
     return doc
+
+
+def test_split_workspace_moves_tabs_and_prunes_missing_files(qtbot, tmp_path, monkeypatch):
+    monkeypatch.setattr(DocumentView, '_queue_all_renders', lambda self: None)
+    paths = [tmp_path / f'{name}.pdf' for name in ('one', 'two', 'three')]
+    for path in paths:
+        writer = PdfWriter()
+        writer.add_blank_page(width=300, height=400)
+        with path.open('wb') as stream:
+            writer.write(stream)
+    window = MainWindow()
+    qtbot.addWidget(window)
+    window.resize(1200, 800)
+    window.show()
+    docs = [ready_document(window, path, 1) for path in paths]
+    first = window.tabs
+    docs[1].include_checkbox.setChecked(True)
+    assert window.workspace.transfer(docs[1].document_id, first, 'right')
+    right = window.workspace.pane_for(docs[1])
+    assert right is not first
+    qtbot.wait(50)
+    assert isValid(docs[1].include_checkbox)
+    assert isValid(docs[1].close_button)
+    assert docs[1].include_checkbox.isChecked()
+    assert window.workspace.transfer(docs[2].document_id, right, 'bottom')
+    bottom = window.workspace.pane_for(docs[2])
+    qtbot.wait(50)
+    assert isValid(docs[2].include_checkbox)
+    assert isValid(docs[2].close_button)
+    assert len(window.workspace.panes) == 3
+    assert len(window.ordered_documents()) == 3
+    assert docs[2].include_checkbox.parent() is bottom.tabBar()
+    assert docs[2].close_button.parent() is bottom.tabBar()
+    assert bottom.frame.property('activePane') is True
+    assert first.frame.property('activePane') is False
+    window.workspace.activate(first)
+    assert window.workspace.active is first
+    assert first.frame.property('activePane') is True
+    assert bottom.frame.property('activePane') is False
+    first.setCurrentWidget(docs[0])
+    state = window.workspace.state()
+    assert state['active'] == str(paths[0])
+    window.close()
+
+    paths[1].unlink()
+    restored = MainWindow()
+    qtbot.addWidget(restored)
+    restored.show()
+    qtbot.waitUntil(lambda: len(restored.documents) == 2)
+    assert {doc.source_path for doc in restored.documents.values()} == {paths[0], paths[2]}
+    assert len(restored.workspace.panes) == 2
+    assert restored.current_document().source_path == paths[0]
+    restored.close()
+
+    paths[0].unlink()
+    last = MainWindow()
+    qtbot.addWidget(last)
+    last.show()
+    qtbot.waitUntil(lambda: len(last.documents) == 1)
+    assert last.current_document().source_path == paths[2]
+    assert len(last.workspace.panes) == 1
+    assert last.workspace.drop_marker.parentWidget() is not None
+    last.close()
+
+
+def test_split_only_resizes_target_and_aligns_scrollbar_tracks(qtbot, tmp_path, monkeypatch):
+    monkeypatch.setattr(DocumentView, '_queue_all_renders', lambda self: None)
+    window = MainWindow()
+    qtbot.addWidget(window)
+    window.resize(1200, 800)
+    window.show()
+    try:
+        paths = [tmp_path / f'{index}.pdf' for index in range(4)]
+        for path in paths:
+            writer = PdfWriter()
+            writer.add_blank_page(width=300, height=400)
+            with path.open('wb') as stream:
+                writer.write(stream)
+        docs = [ready_document(window, path, 1) for path in paths]
+        first = window.tabs
+        assert window.workspace.transfer(docs[1].document_id, first, 'right')
+        qtbot.waitUntil(lambda: first.width() > 100)
+        outer = first.frame.parentWidget()
+        outer.setSizes([700, 400])
+        qtbot.waitUntil(lambda: first.width() > 600)
+        original_width = first.width()
+        right = window.workspace.pane_for(docs[1])
+        assert window.workspace.transfer(docs[2].document_id, right, 'right')
+        rightmost = window.workspace.pane_for(docs[2])
+        qtbot.waitUntil(lambda: right.width() > 100 and rightmost.width() > 100)
+        assert abs(first.width() - original_width) <= 2
+        assert abs(right.width() - rightmost.width()) <= 2
+        scroll_tops = [pane.currentWidget().scroll_area.verticalScrollBar().mapToGlobal(QPoint()).y()
+                       for pane in (first, right, rightmost)]
+        assert max(scroll_tops) - min(scroll_tops) <= 1
+
+        original_right_width = right.width()
+        assert window.workspace.transfer(docs[3].document_id, right, 'bottom')
+        bottom = window.workspace.pane_for(docs[3])
+        qtbot.waitUntil(lambda: bottom.height() > 100)
+        assert abs(first.width() - original_width) <= 2
+        assert abs(right.width() - original_right_width) <= 2
+        assert abs(right.height() - bottom.height()) <= 2
+    finally:
+        window.close()
 
 
 def test_all_state_buttons_use_borderless_hover_colors(qtbot, monkeypatch):
@@ -552,9 +658,40 @@ def test_load_batch_preserves_order_and_successes(qtbot, monkeypatch, tmp_path) 
         def acceptProposedAction(self):
             pass
 
-    assert window._dropped_pdfs(Event()) == [a, b]
+    assert window._dropped_paths(Event()) == [a, b]
     window.dropEvent(Event())
     assert window.tabs.count() == 2
+
+
+def test_drop_folder_opens_pdf_picker_at_that_folder(qtbot, monkeypatch, tmp_path):
+    from PySide6.QtCore import QMimeData, QUrl
+
+    directory = tmp_path / 'PDF 文件'
+    directory.mkdir()
+    pdf = directory / 'chapter.pdf'
+    pdf.write_bytes(b'%PDF-1.7')
+    window = MainWindow()
+    qtbot.addWidget(window)
+    picked, loaded = [], []
+    def choose(_parent, _title, initial, _filter, *_args):
+        picked.append(initial)
+        return [str(pdf)], ''
+    monkeypatch.setattr(QFileDialog, 'getOpenFileNames', choose)
+    monkeypatch.setattr(window, 'load_pdfs', lambda paths: loaded.extend(paths))
+    mime = QMimeData()
+    mime.setUrls([QUrl.fromLocalFile(str(directory))])
+    class Event:
+        accepted = False
+        def mimeData(self): return mime
+        def acceptProposedAction(self): self.accepted = True
+        def ignore(self): self.accepted = False
+    event = Event()
+    window.dragEnterEvent(event)
+    assert event.accepted
+    window.dropEvent(event)
+    assert event.accepted
+    assert picked == [str(directory)]
+    assert loaded == [pdf]
 
 
 def test_previews_route_to_origin_and_closed_results_are_cleaned(qtbot, monkeypatch, tmp_path) -> None:

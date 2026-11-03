@@ -62,7 +62,7 @@ class PageCards:
 
 
 class PageViewport:
-    VIRTUAL_THRESHOLD = 64
+    VIRTUAL_THRESHOLD = 24
     BATCH_SIZE = 2
 
     def __init__(self, document):
@@ -235,7 +235,7 @@ class PageViewport:
         if d.owner._closing or not d.ready or d.grid_host.drag_source is not None:
             return
         d.owner._update_page_indicator()
-        if d.owner.current_document() is not d:
+        if not d.owner.is_visible_document(d):
             d.owner.render_service.cancel_pending(d.document_id)
             return
         targets = self.targets()
@@ -258,7 +258,7 @@ class PageViewport:
 
     def request_visible(self):
         d = self.doc
-        if not d.ready or d.owner._closing or d.owner.current_document() is not d:
+        if not d.ready or d.owner._closing or not d.owner.is_visible_document(d):
             return
         targets = self.targets()
         scale = self.scale()

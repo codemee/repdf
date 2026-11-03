@@ -102,10 +102,12 @@ class SaveController(QObject):
         if w._closing:
             return
         self.resume()
-        index = w.tabs.indexOf(old_doc)
+        pane = w.workspace.pane_for(old_doc)
+        w.workspace.activate(pane)
+        index = pane.indexOf(old_doc)
         password, zoom, fit = old_doc.password, old_doc.zoom, old_doc.fit_mode
-        w.close_tab(index, force=True)
         doc = w._new_document(destination)
+        w.close_document(old_doc, force=True)
         doc.password, doc.zoom, doc.fit_mode = password, zoom, fit
         doc.fit_page_index = self.page
         doc.selected_pages = self.selected

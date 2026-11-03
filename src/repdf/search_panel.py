@@ -639,7 +639,7 @@ class SearchController(QObject):
         if doc is None:
             return
         if not doc.ready:
-            self.owner.tabs.setCurrentWidget(doc)
+            self.owner.activate_document(doc)
             self.pending_activation = (self.generation, doc.document_id, key)
             return
         self._activate_result(doc, key)
@@ -666,7 +666,7 @@ class SearchController(QObject):
         self.clear_highlights()
         self.selected = key
         doc.pages.set_highlights(page, rects, rects)
-        self.owner.tabs.setCurrentWidget(doc)
+        self.owner.activate_document(doc)
         if self.owner.width() < 640:
             self.narrow_results = False
             self.layout()
