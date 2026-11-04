@@ -193,10 +193,11 @@ The backend's `PdfDocumentCache` holds at most three PDFium documents, keyed by 
 100% maps PDF's 72 DPI points to the Windows-standard 96 DPI display scale:
 
 ```text
-render_scale = slider_percent / 100 × 96 / 72
+logical_scale = slider_percent / 100 × 96 / 72
+render_scale = logical_scale × devicePixelRatio
 ```
 
-A 300pt-wide page is therefore about 400px wide at 100%. Each page uses its actual dimensions; landscape pages are not forced to portrait width.
+A 300pt-wide page is therefore about 400 logical pixels wide at 100%, rendered as 800 physical pixels on a 200% display. Images retain their device pixel ratio while cards use logical dimensions. Cache keys include the physical render scale, and screen ratio changes reschedule rendering. Each page uses its actual dimensions; landscape pages are not forced to portrait width.
 
 Fit chooses the most recently clicked still-visible page, or the page nearest the viewport center. After subtracting card header and padding, it uses the smaller available-width/page-width and available-height/page-height ratio. It does not subtract the entire grid's vertical margins from height. After rendering, it centers the reference page in the viewport to avoid bottom gaps or exposing the next page. Each document retains Fit mode and its reference page. Resize updates use a 150 ms timer; manual zoom exits Fit. Fit may exceed the manual 25%–200% range.
 
@@ -392,7 +393,7 @@ Packaged smoke tests must stop render backends holding cached PDFs before removi
 - The search pane starts at width 320px with resizable width and list divider. Below width 640px it shares a single pane with the PDF; below height 360px scope/flags move into a menu, preserving the 320 × 240 minimum window.
 - The main window checks loaded PDF modification time and size every two seconds, prompting once per changed version. Reload loads a replacement asynchronously and swaps tabs only after success, restoring tab position, page, and zoom; failures keep the old tab. Unsaved edits can be saved as a copy before opening the changed source.
 - TrimBox view uses PDFium's explicit TrimBox without CropBox fallback, intersected with the visible page; identical or invalid boxes disable the tool. The preview backend supplies a normalized box per page. In normal view `PageCard.preview_clip` shrinks the card to that box while its full-page `preview` moves negatively inside the clip, preserving original coordinates for text selection, links, and annotations. Both normal and virtual grids use visible dimensions; Fit scales to the crop area. Source PDFs and exports are unchanged.
-- Without TrimBox, `trim_view.crop_mark_box()` examines open, stroked, unfilled vector paths with object and parent Form transforms. It requires paired horizontal/vertical short marks at all four page-edge corners, choosing the inner rectangle for double marks. Path and candidate budgets bound work; incomplete marks, ordinary rectangles, and raster images leave the page whole.
+- Without TrimBox, `trim_view.crop_mark_box()` examines open, stroked, unfilled vector paths with object and parent Form transforms. It requires paired horizontal/vertical short marks at all four page-edge corners, choosing the inner rectangle for double marks. Path and candidate budgets bound work. The segment budget counts only eligible stroked, unfilled paths, so complex filled figures do not exhaust crop-mark detection; incomplete marks, ordinary rectangles, and raster images leave the page whole.
 - Opening search from toolbar overflow reactivates the main window on the next event-loop turn before focusing input, avoiding a lingering active menu window on macOS.
 - Passwords travel only through local communication. No decrypted PDF, disk text index, or password log is created. Search history and results last only for the current session.
 

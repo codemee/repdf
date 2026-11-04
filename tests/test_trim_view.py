@@ -46,6 +46,28 @@ def test_vector_crop_marks_require_all_eight_strokes(qtbot, tmp_path, rotation, 
         assert doc.page_cards[0].preview._trim_mask is not None
 
 
+def test_crop_marks_survive_a_complex_filled_figure(tmp_path):
+    source = tmp_path / 'figure.pdf'
+    writer = PdfWriter()
+    page = writer.add_blank_page(300, 400)
+    marks = [(0, 40, 30, 40), (270, 40, 300, 40),
+             (0, 360, 30, 360), (270, 360, 300, 360),
+             (40, 0, 40, 30), (260, 0, 260, 30),
+             (40, 370, 40, 400), (260, 370, 260, 400)]
+    strokes = ' '.join(f'{x0} {y0} m {x1} {y1} l S' for x0, y0, x1, y1 in marks)
+    # Filled rectangles stand in for a vector-heavy figure. They should not
+    # exhaust the safety budget for inspecting stroked crop marks.
+    fills = ' '.join(f'{60 + i % 100} {80 + i // 100} 1 1 re f'
+                     for i in range(4300))
+    stream = DecodedStreamObject()
+    stream.set_data((strokes + ' ' + fills).encode())
+    page[NameObject('/Contents')] = writer._add_object(stream)
+    writer.write(source)
+
+    with closing(pdfium.PdfDocument(str(source))) as document, closing(document[0]) as parsed:
+        assert viewing_box(parsed) == pytest.approx((40, 40, 260, 360))
+
+
 def test_trimbox_tool_only_available_when_page_has_trim(qtbot, tmp_path):
     path = tmp_path / 'trim.pdf'
     writer = PdfWriter()

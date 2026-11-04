@@ -636,10 +636,11 @@ class PageCard(QFrame):
 
     def set_image(self, image: QImage) -> None:
         pixmap = QPixmap.fromImage(image)
-        self.target_width = pixmap.width()
-        self.setFixedWidth(pixmap.width() + 24)
+        size = pixmap.deviceIndependentSize().toSize()
+        self.target_width = size.width()
+        self.setFixedWidth(size.width() + 24)
         self.preview.setMinimumHeight(0)
-        self.preview.setFixedSize(pixmap.size())
+        self.preview.setFixedSize(size)
         self.preview.setPixmap(pixmap)
         self._position_preview()
 

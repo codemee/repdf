@@ -201,6 +201,7 @@ class FullscreenPreview(QWidget):
             self.labels[index].set_links(self.document.page_links[index])
             self.labels[index].set_annotations(self.document.page_annotations[index])
             unknown_size = index not in self.document.page_sizes
+            previous_trim = self.document.trim_boxes.get(index)
             if payload.get('trim_rect') is not None:
                 self.document.trim_boxes[index] = payload['trim_rect']
             else:
@@ -208,7 +209,8 @@ class FullscreenPreview(QWidget):
             self.document.page_sizes[index] = (
                 float(payload["width_points"]), float(payload["height_points"]))
             self.update_image()
-            if unknown_size:
+            if unknown_size or (self.document.trim_view
+                                and previous_trim != self.document.trim_boxes.get(index)):
                 self.timer.start()
         elif payload.get("type") == "error":
             for index, image in self.images.items():

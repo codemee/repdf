@@ -72,6 +72,7 @@ class PageViewport:
         self.order_positions = {}
         self.batch = []
         self.batch_scale = None
+        self.batch_ratio = 1.0
         self.failed = set()
         self.highlights = {}
         self.annotation_highlights = {}
@@ -99,7 +100,7 @@ class PageViewport:
         self.reflow()
 
     def scale(self):
-        return self.doc._preview_scale()
+        return self.doc._preview_scale() * self.doc.devicePixelRatioF()
 
     def key(self, page, scale=None):
         return self.doc.document_id, page, self.scale() if scale is None else scale
@@ -109,7 +110,8 @@ class PageViewport:
 
     def dimensions(self, page):
         width, height = self.page_size(page)
-        return max(1, ceil(width * self.scale())), max(1, ceil(height * self.scale()))
+        scale = self.doc._preview_scale()
+        return max(1, ceil(width * scale)), max(1, ceil(height * scale))
 
     def display_dimensions(self, page):
         width, height = self.dimensions(page)
@@ -285,6 +287,7 @@ class PageViewport:
         d.render_timer.stop()
         self.batch = needed[:self.BATCH_SIZE]
         self.batch_scale = scale
+        self.batch_ratio = d.devicePixelRatioF()
         d._render_pending = len(self.batch)
         d._render_received.clear()
         d.owner.render_service.request(d.source_path, scale, Path(d.owner.preview_temp.name),
@@ -319,6 +322,7 @@ class PageViewport:
         if not 0 <= page < d.page_count or image.isNull():
             return
         scale = self.batch_scale or self.scale()
+        image.setDevicePixelRatio(self.batch_ratio)
         old_size = d.page_sizes.get(page)
         # Nearby pages can change the grid geometry after the hit page renders.
         # Keep a visible search destination aligned, but do not pull the user

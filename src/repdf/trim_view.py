@@ -33,14 +33,14 @@ def crop_mark_box(page):
         if obj.type != raw.FPDF_PAGEOBJ_PATH:
             continue
         count = raw.FPDFPath_CountSegments(obj)
-        budget -= count
-        if budget < 0:
-            return None
         if not 2 <= count <= 128:
             continue
         fill, stroke = c_int(), c_int()
         if not raw.FPDFPath_GetDrawMode(obj, byref(fill), byref(stroke)) or not stroke.value or fill.value:
             continue
+        budget -= count
+        if budget < 0:
+            return None
         segments = [raw.FPDFPath_GetPathSegment(obj, i) for i in range(count)]
         if any(raw.FPDFPathSegment_GetClose(segment) for segment in segments):
             continue

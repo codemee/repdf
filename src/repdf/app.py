@@ -1133,6 +1133,10 @@ class MainWindow(QMainWindow):
 
     def changeEvent(self, event: QEvent) -> None:
         super().changeEvent(event)
+        if event.type() == QEvent.Type.DevicePixelRatioChange and hasattr(self, 'documents'):
+            for doc in self.documents.values():
+                if doc.ready:
+                    doc.pages.schedule()
         if event.type() == QEvent.Type.PaletteChange and hasattr(self, "zoom_reset_action"):
             self._refresh_toolbar_icons()
         if event.type() == QEvent.Type.LocaleChange and hasattr(self, "language_controller"):

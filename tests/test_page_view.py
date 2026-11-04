@@ -26,6 +26,27 @@ def settled(doc):
                     for page in doc.pages.targets()))
 
 
+def test_high_dpi_renders_more_pixels_without_enlarging_page(qtbot, tmp_path, monkeypatch):
+    path = tmp_path / 'high-dpi.pdf'
+    make_document(path, 1)
+    window = MainWindow()
+    qtbot.addWidget(window)
+    window.show()
+    doc = window._new_document(path)
+    monkeypatch.setattr(doc, 'devicePixelRatioF', lambda: 2.0)
+    doc.loaded(1)
+    doc.page_sizes[0] = (300, 400)
+    doc.zoom = 100
+    doc.pages.request_visible()
+    qtbot.waitUntil(lambda: settled(doc), timeout=15000)
+    card = doc.page_cards[0]
+    image = window.preview_cache.get(doc.pages.key(0))
+    assert image.devicePixelRatio() == 2
+    assert image.width() == 800
+    assert card.preview.width() == 400
+    assert doc.pages.dimensions(0) == (400, 534)
+
+
 def test_large_document_only_renders_nearby_pages_and_reuses_cache(qtbot, tmp_path, monkeypatch):
     path = tmp_path / '800-pages.pdf'
     make_document(path, 800)
