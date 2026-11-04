@@ -2,7 +2,7 @@
 
 [繁體中文](LICENSE_AUDIT.md)
 
-Reviewed on 2026-11-03: **45 third-party dependency names / 46 locked version
+Reviewed on 2026-11-04: **45 third-party dependency names / 46 locked version
 records** in `uv.lock` (two conditional NumPy versions), and **10 OCR model
 artifacts**. This lock update changes only RePDF's own version; third-party
 package versions and OCR models are unchanged. Runtime, conditional, test and
