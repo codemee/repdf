@@ -7,7 +7,7 @@ from repdf.shortcut_hints import shortcut_tooltip
 
 from PySide6.QtGui import QKeySequence, QDesktopServices
 from PySide6.QtWidgets import (QApplication, QHBoxLayout, QLabel, QLayout, QSplitter, QToolButton,
-                               QTreeWidgetItem, QVBoxLayout, QWidget, QPlainTextEdit)
+                               QTreeWidgetItem, QVBoxLayout, QWidget, QPlainTextEdit, QDialog)
 
 from repdf.icons import toolbar_icon, annotation_icon
 from repdf.annotation_tree import AnnotationTree, copy_tooltip
@@ -115,6 +115,24 @@ class BookmarkPanel(QWidget):
                             item.setIcon(0, annotation_icon(kind))
 
 
+class FloatingNavigation(QDialog):
+    def __init__(self, controller, viewer):
+        super().__init__(viewer, Qt.WindowType.Tool)
+        self.controller = controller
+        self.setWindowTitle(tr('註解'))
+        self.resize(320, 550)
+        self.setModal(False)
+        self.box = QVBoxLayout(self)
+        self.box.setContentsMargins(0, 0, 0, 0)
+
+    def closeEvent(self, event):
+        self.controller.close()
+        event.ignore()
+
+    def reject(self):
+        self.controller.close()
+
+
 class NavigationController(QObject):
     def __init__(self, owner, content):
         super().__init__(owner)
@@ -141,6 +159,7 @@ class NavigationController(QObject):
         self.annotation_selection = None
         self.pending_annotation_copy = None
         self._layout_state = None
+        self.floating = None
         self.panel.close_button.clicked.connect(self.close)
         self.panel.tree.textCopied.connect(lambda text: self.owner.statusBar().showMessage(tr('已複製 {p0} 個字元到剪貼簿', p0=len(text))))
         self.panel.tree.itemClicked.connect(self._clicked)
@@ -158,7 +177,7 @@ class NavigationController(QObject):
                 self._clear_annotation_selection()
             self._cancel_annotations()
         self.kind = kind
-        if self.owner._fullscreen_preview is not None and not keep_fullscreen:
+        if self.owner._fullscreen_preview is not None and not keep_fullscreen and kind != 'annotations':
             self.owner._fullscreen_preview.close()
         self.owner.search_controller.close()
         self.opened = True
@@ -184,6 +203,26 @@ class NavigationController(QObject):
             doc.pages.set_annotation_highlight(None, None)
 
     def layout(self):
+        viewer = self.owner._fullscreen_preview
+        floating = viewer is not None and self.kind == 'annotations'
+        if floating:
+            if self.floating is None:
+                self.floating = FloatingNavigation(self, viewer)
+                self.floating.move(viewer.x() + 16, viewer.y() + 48)
+                self.floating.box.addWidget(self.panel)
+            self.content.show()
+            self.panel.setVisible(self.opened)
+            self.floating.setVisible(self.opened)
+            self.owner.annotation_action.setChecked(self.opened)
+            self.owner.bookmark_action.setChecked(False)
+            self._layout_state = None
+            return
+        if self.floating is not None:
+            self.workspace.insertWidget(0, self.panel)
+            self.floating.hide()
+            self.floating.deleteLater()
+            self.floating = None
+            self._layout_state = None
         narrow = self.owner.width() < 640
         state = narrow, self.opened, self.narrow_results, self.kind
         if state == self._layout_state:
@@ -361,6 +400,7 @@ class NavigationController(QObject):
                         self.owner.annotation_editor.select_target(doc,annotation['page'],annotation['index'])
 
     def activate(self, doc, destination, fullscreen=False):
+        fullscreen = fullscreen or (self.owner._fullscreen_preview is not None and self.kind == 'annotations')
         if doc.ready and doc is self.owner.current_document():
             self.pending_annotation_copy = None
             if 'annotation_index' in destination:

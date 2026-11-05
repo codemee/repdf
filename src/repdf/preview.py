@@ -61,6 +61,7 @@ class FullscreenPreview(QWidget):
         self.mode = mode
         self.groups = groups
         self.owner.fullscreen_mode = mode
+        self.owner.settings.setValue('ui/fullscreen_mode', mode)
         action = {'single': self.owner.single_action, 'spread': self.owner.spread_action,
                   'cover': self.owner.cover_action}[mode]
         action.setChecked(True)
@@ -323,6 +324,7 @@ class FullscreenPreview(QWidget):
         QApplication.instance().removeEventFilter(self)
         self.owner.render_service.cancel_pending(-self.document.document_id)
         self.owner._fullscreen_preview = None
+        self.owner.navigation.layout()
         if not self.owner._closing and self.document.document_id in self.owner.documents:
             self.owner.activate_document(self.document)
             self.document.jump_to_search_result(self.page_index, [.5, .5, .5, .5],

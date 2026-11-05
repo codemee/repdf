@@ -112,7 +112,7 @@ The controls are described below. Hover over a control to see its tooltip, inclu
 
 ### Reading and zoom
 
-- Fullscreen uses a main button with a right-hand mode dropdown for single page, spread or cover plus spread. <kbd>F11</kbd> reuses the last mode selected in this session. Single page shows one page; spread pairs pages from the first; cover plus spread shows the first page alone and pairs the remaining pages.
+- Fullscreen uses a main button with a right-hand mode dropdown for single page, spread or cover plus spread. <kbd>F11</kbd> reuses the last selected mode, including after restarting. Single page shows one page; spread pairs pages from the first; cover plus spread shows the first page alone and pairs the remaining pages.
 - After exiting fullscreen, the normal view stays on the last page viewed in fullscreen and retains its Fit or manual zoom mode.
 
 - Pages are centered horizontally. Fit mode uses a single column.
@@ -215,6 +215,8 @@ The controls are described below. Hover over a control to see its tooltip, inclu
 - Annotation tools are mutually exclusive with text copying, OCR and image extraction, and also work fullscreen. Styles are remembered. Colour and style changes apply to a selected editable annotation; choosing another text/drawing tool type prepares a new annotation.
 - Changes add an unsaved asterisk. Saved annotations remain editable after reopening. Printing, exporting and splitting include unsaved annotation changes. Closing offers Save, Don’t Save and Cancel.
 - Saved files contain standard PDF annotations and complete appearances with embedded text fonts for viewing in other PDF readers. Editing capabilities in those readers depend on their features.
+
+Fullscreen remembers the single, spread or cover-plus-spread mode across restarts. The annotation button beside the annotation-tools toggle in the floating toolbar opens or hides a movable, resizable annotation window without shrinking the PDF view. On exit, the annotation list returns to the normal sidebar.
 
 ### Search text
 

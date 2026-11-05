@@ -400,6 +400,8 @@ Packaged smoke tests must stop render backends holding cached PDFs before removi
 - Opening search from toolbar overflow reactivates the main window on the next event-loop turn before focusing input, avoiding a lingering active menu window on macOS.
 - Passwords travel only through local communication. No decrypted PDF, disk text index, or password log is created. Search history and results last only for the current session.
 
+Fullscreen remembers the single, spread or cover-plus-spread mode across restarts. The annotation button beside the annotation-tools toggle in the floating toolbar opens or hides a movable, resizable annotation window without shrinking the PDF view. On exit, the annotation list returns to the normal sidebar.
+
 ## 17. Bookmarks and internal links
 
 - `NavigationController` manages the left bookmark tree, per-document expansion/selection, and request generations. Search and bookmarks share the sidebar space. Below width 640px, bookmarks and the PDF share one pane; selecting a chapter returns to the PDF.
@@ -472,7 +474,7 @@ Packaged smoke tests must stop render backends holding cached PDFs before removi
 - Encrypted PDFs use AES-256 with the opening password and original permission flags. An unknown original owner password cannot be preserved. A same-directory temporary file is flushed/fsynced before atomic replacement; failure removes the temporary file and preserves the original.
 - Before writing on Windows, preview/search/annotation readers stop to release PDFium file handles. Preview services restart on success or failure. Successful saving rebuilds the tab and remaps the current page, selection, and Fit/zoom state so old source indices cannot refer to the reordered file.
 
-- The main fullscreen QAction opens or closes fullscreen; its right-hand dropdown provides three exclusive mode actions. <kbd>F11</kbd> uses the session’s `fullscreen_mode`. An existing fullscreen window switches through `set_mode()`, regrouping pages and invalidating old renders while retaining the current page.
+- The main fullscreen QAction opens or closes fullscreen; its right-hand dropdown provides three exclusive mode actions. <kbd>F11</kbd> uses `fullscreen_mode`, saved in `ui/fullscreen_mode` and restored across restarts. An existing fullscreen window switches through `set_mode()`, regrouping pages and invalidating old renders while retaining the current page.
 
 ## 23. Annotation creation and compatible editing
 

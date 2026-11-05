@@ -21,6 +21,38 @@ def wait_for_preview(qtbot, doc):
                    and not doc.render_timer.isActive() and not doc.fit_timer.isActive(), timeout=15000)
 
 
+def test_fullscreen_remembers_mode_and_floats_annotations(qtbot, tmp_path):
+    source = tmp_path / 'float.pdf'
+    make_pdf(source, [(300, 400)] * 3)
+    window = MainWindow()
+    qtbot.addWidget(window)
+    window.show()
+    window.load_pdf(source)
+    doc = window.current_document()
+    wait_for_preview(qtbot, doc)
+    window._show_fullscreen_preview('cover')
+    viewer = window._fullscreen_preview
+    viewer.set_mode('spread')
+    assert window.settings.value('ui/fullscreen_mode') == 'spread'
+    before = viewer.size()
+    window.annotation_action.trigger()
+    nav = window.navigation
+    assert nav.floating is not None and nav.floating.isVisible()
+    assert viewer.size() == before
+    assert window._fullscreen_preview is viewer
+    window.annotation_action.trigger()
+    assert not nav.floating.isVisible()
+    window.annotation_action.trigger()
+    viewer.close()
+    assert nav.floating is None
+    assert nav.panel.parentWidget() is nav.workspace
+    window.close()
+    restored = MainWindow()
+    qtbot.addWidget(restored)
+    assert restored.fullscreen_mode == 'spread'
+    assert restored.spread_action.isChecked()
+
+
 @pytest.mark.parametrize('count', [8, 80])
 @pytest.mark.parametrize('fit', [False, True])
 def test_exit_fullscreen_keeps_last_viewed_page(qtbot, tmp_path, count, fit):

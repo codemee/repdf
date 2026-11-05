@@ -969,7 +969,9 @@ class MainWindow(QMainWindow):
         self.trim_view_action.setToolTip(tr('優先依 TrimBox，否則依可辨識的四角裁切線檢視（不修改原檔）'))
         self.trim_view_action.triggered.connect(self._toggle_trim_view)
         self.toolbar.addAction(self.trim_view_action)
-        self.fullscreen_mode = 'single'
+        self.fullscreen_mode = self.settings.value('ui/fullscreen_mode', 'single')
+        if self.fullscreen_mode not in ('single', 'spread', 'cover'):
+            self.fullscreen_mode = 'single'
         self.fullscreen_action = QAction(tr('全螢幕'), self)
         self.fullscreen_action.setShortcut(QKeySequence("F11"))
         self.fullscreen_action.setToolTip(tr('全螢幕'))
@@ -991,7 +993,8 @@ class MainWindow(QMainWindow):
             action.setCheckable(True)
             self.fullscreen_modes.addAction(action)
             self.fullscreen_menu.addAction(action)
-        self.single_action.setChecked(True)
+        {'single': self.single_action, 'spread': self.spread_action,
+         'cover': self.cover_action}[self.fullscreen_mode].setChecked(True)
         self.fullscreen_menu_button = self.toolbar.add_action_menu_group(
             self.fullscreen_action, self.fullscreen_menu, arrow_name='fullscreenModeMenu')
         self.fullscreen_menu_button.setToolTip(tr('全螢幕模式'))
@@ -1329,6 +1332,7 @@ class MainWindow(QMainWindow):
             self._fullscreen_preview.set_mode(mode)
             return
         self.fullscreen_mode = mode
+        self.settings.setValue('ui/fullscreen_mode', mode)
         action = {'single': self.single_action, 'spread': self.spread_action, 'cover': self.cover_action}[mode]
         action.setChecked(True)
         self.fullscreen_action.setToolTip(tr('全螢幕模式：{mode}', mode=action.text()))
@@ -1336,6 +1340,7 @@ class MainWindow(QMainWindow):
         self.annotation_floating.hide()
         viewer = FullscreenPreview(self, doc, doc.preview_page_index(), mode)
         self._fullscreen_preview = viewer
+        self.navigation.layout()
         viewer.setGeometry(self.screen().geometry())
         viewer.showFullScreen()
         viewer.activateWindow()

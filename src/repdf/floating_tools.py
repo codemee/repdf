@@ -101,6 +101,14 @@ class FloatingAnnotationTools(QFrame):
             trim_button.setFocusPolicy(Qt.FocusPolicy.NoFocus)
             trim_button.setAttribute(Qt.WidgetAttribute.WA_Hover, True)
             self.buttons[self.owner.trim_view_action] = trim_button
+            button = QToolButton(self)
+            button.setDefaultAction(self.owner.annotation_action)
+            button.setFixedSize(34, 34)
+            button.setIconSize(QSize(20, 20))
+            button.setProperty('stateButton', True)
+            button.setFocusPolicy(Qt.FocusPolicy.NoFocus)
+            layout.insertWidget(1, button)
+            self.buttons[self.owner.annotation_action] = button
         else:
             self.toggle.hide()
         self.toolbar.group_sections()
