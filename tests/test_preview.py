@@ -41,7 +41,8 @@ def test_exit_fullscreen_keeps_last_viewed_page(qtbot, tmp_path, count, fit):
     viewer.close()
     qtbot.waitUntil(lambda: window._fullscreen_preview is None
                    and doc.preview_page_index() == target, timeout=15000)
-    wait_for_preview(qtbot, doc)
+    from test_page_view import settled
+    qtbot.waitUntil(lambda: settled(doc) and doc.preview_page_index() == target, timeout=15000)
     assert doc.preview_page_index() == target
     assert doc.fit_mode == fit
     if fit:
