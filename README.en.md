@@ -227,7 +227,8 @@ The controls are described below. Hover over a control to see its tooltip, inclu
 - The folder scope searches all PDFs directly in the current PDF’s directory, including unopened files, without opening every file as a tab. Subfolders are excluded.
 - Selecting a result file or paragraph opens an unopened PDF in a new tab, or reuses its existing tab, and navigates to the match. Open password-protected PDFs and enter their passwords before folder searches. Unreadable files are reported without discarding other results.
 
-- By default, search covers the current tab, ignores case, and does not use regular expressions. The four search scopes are mutually exclusive.
+- By default, search covers the current tab, ignores case, and does not use regular expressions. The five search scopes are mutually exclusive.
+- The “Current tab’s folder and subfolders” search scope recursively includes PDFs in the current PDF’s directory and its subdirectories. “Current tab’s folder” searches only that directory.
 - Search is a toggle button: highlighted while the pane is visible, and clicking again closes it. Closing the pane or opening another sidebar updates the button state.
 - While focus is in the search pane, arrow keys operate search controls only. Pressing Up or Down past the ends of the matches list does not scroll the PDF preview.
 - Whole-word matching is off by default. When enabled, matches cannot be immediately adjacent to Unicode letters, digits, underscores, or combining marks. For example, `cat` does not match `catalog`. This works with regular expressions but does not segment continuous Chinese text into words.

@@ -1,6 +1,6 @@
 {
   "reviewed_on": "2026-11-05",
-  "lock_sha256": "0543afb417364c1f4f1b55126cc1a7011691c541b54e699e9449f440a9e3a975",
+  "lock_sha256": "e938cec619551157afb48a7561d8462b19ec63637edb57f33ea84ad5481f8e07",
   "packages": [
     {
       "name": "altgraph",

@@ -873,7 +873,7 @@ class MainWindow(QMainWindow):
         self.search_action = QAction(tr('搜尋文字'), self)
         self.search_action.setCheckable(True)
         self.search_action.setShortcuts(QKeySequence.keyBindings(QKeySequence.StandardKey.Find))
-        self.search_action.setToolTip(tr('搜尋文字：搜尋目前、勾選、所有標籤頁或目前標籤所在資料夾'))
+        self.search_action.setToolTip(tr('搜尋文字：搜尋目前、勾選、所有標籤或目前標籤所在資料夾及子資料夾'))
         self.search_action.triggered.connect(lambda checked:
             self.search_controller.open() if checked else self.search_controller.close())
         self.toolbar.insertAction(self.bookmark_action,self.search_action)

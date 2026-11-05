@@ -378,6 +378,7 @@ Packaged smoke tests must stop render backends holding cached PDFs before removi
 
 ## 16. Text search
 
+- The “Current tab’s folder and subfolders” search scope recursively includes PDFs in the current PDF’s directory and its subdirectories. “Current tab’s folder” searches only that directory.
 - A swatch button or compact options menu opens `QColorDialog` for match colors, stored as RGB in `search/highlight_color`. The default and fallback for invalid settings is `#ffe13c`. Ordinary highlights use alpha 100; selected paragraphs overlay `darker(120)` with alpha 115. Changes repaint without rerunning searches. Existing pages, recreated virtual cards, and fullscreen share this setting independently of the interface theme.
 - `SearchController` in `search_panel.py` manages the right pane, exclusive scope, query generations, results, and cancellation. `SearchPanel` supplies input, options, and upper/lower result tables with column headers.
 - Search snapshots loaded documents, tab order, and page order at execution. Tab checkboxes control document scope; page checkboxes do not filter searches.

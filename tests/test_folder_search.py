@@ -1,4 +1,5 @@
 from pathlib import Path
+import pytest
 
 from PySide6.QtCore import Qt
 from pypdf import PdfWriter
@@ -8,7 +9,8 @@ from test_page_view import settled
 from test_search import search_pdf, wait_search
 
 
-def test_folder_search_opens_only_selected_results_and_reuses_tabs(qtbot, tmp_path):
+@pytest.mark.parametrize('scope', [3, 4])
+def test_folder_search_opens_only_selected_results_and_reuses_tabs(qtbot, tmp_path, scope):
     first, unopened = tmp_path / 'a.pdf', tmp_path / 'b.PDF'
     search_pdf(first, [[(40, 300, 'target first')]])
     search_pdf(unopened, [[(40, 300, 'nothing')], [(40, 300, 'target second')]])
@@ -19,13 +21,14 @@ def test_folder_search_opens_only_selected_results_and_reuses_tabs(qtbot, tmp_pa
     window, doc = load_window(qtbot, first)
     controller = window.search_controller
     controller.open()
-    controller.panel.scope.setCurrentIndex(3)
+    controller.panel.scope.setCurrentIndex(scope)
     controller.panel.query.setText('target')
     controller.start()
     wait_search(qtbot, controller)
     assert window.tabs.count() == 1
-    assert {target.source_path for target in controller.targets.values()} == {first, unopened}
-    assert controller.panel.files.topLevelItemCount() == 2
+    expected = {first, unopened} | ({subfolder / 'ignored.pdf'} if scope == 4 else set())
+    assert {target.source_path for target in controller.targets.values()} == expected
+    assert controller.panel.files.topLevelItemCount() == len(expected)
     item = controller.panel.files.topLevelItem(1)
     rectangle = controller.panel.files.visualItemRect(item)
     qtbot.mouseClick(controller.panel.files.viewport(), Qt.MouseButton.LeftButton, pos=rectangle.center())
@@ -37,7 +40,7 @@ def test_folder_search_opens_only_selected_results_and_reuses_tabs(qtbot, tmp_pa
     controller._activate_item(controller.panel.paragraphs.topLevelItem(0), 1)
     assert window.tabs.count() == 2 and window.current_document() is opened
     window.close_tab(window.tabs.indexOf(opened))
-    assert controller.panel.files.topLevelItemCount() == 2
+    assert controller.panel.files.topLevelItemCount() == len(expected)
     controller._activate_item(controller.panel.paragraphs.topLevelItem(0))
     qtbot.waitUntil(lambda: window.tabs.count() == 2 and window.current_document().ready, timeout=10000)
     assert window.current_document().source_path == unopened

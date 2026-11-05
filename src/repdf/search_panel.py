@@ -117,7 +117,7 @@ class SearchPanel(QWidget):
         layout.addLayout(row)
         self.scope = QComboBox()
         self.scope.setAccessibleName(tr('搜尋範圍'))
-        self.scope.addItems([tr('目前標籤頁'), tr('勾選的標籤頁'), tr('所有標籤頁'), tr('目前標籤所在的資料夾')])
+        self.scope.addItems([tr('目前標籤'), tr('勾選的標籤'), tr('所有標籤'), tr('目前標籤所在的資料夾'), tr('目前標籤所在及子資料夾')])
         self.scope.setToolTip(self.scope.currentText())
         self.scope.currentTextChanged.connect(self.scope.setToolTip)
         self.scope.setMinimumWidth(0)
@@ -264,7 +264,7 @@ class SearchPanel(QWidget):
 
     def retranslate(self):
         index = self.scope.currentIndex()
-        for i, label in enumerate(('目前標籤頁', '勾選的標籤頁', '所有標籤頁', '目前標籤所在的資料夾')):
+        for i, label in enumerate(('目前標籤', '勾選的標籤', '所有標籤', '目前標籤所在的資料夾', '目前標籤所在及子資料夾')):
             self.scope.setItemText(i, tr(label))
             self.scope_actions[i].setText(tr(label))
         self.scope_menu.setTitle(tr('搜尋範圍'))
@@ -444,7 +444,7 @@ class SearchController(QObject):
             documents = [doc for doc in documents if doc.include_checkbox.isChecked()]
         documents = [doc for doc in documents if doc.ready]
         self._reset_results()
-        self.folder_search = p.scope.currentIndex() == 3
+        self.folder_search = p.scope.currentIndex() in (3, 4)
         if self.folder_search:
             current = self.owner.current_document()
             if current is None or not current.ready:
@@ -452,7 +452,9 @@ class SearchController(QObject):
                 return
             opened = {doc.source_path.resolve(): doc for doc in documents}
             try:
-                paths = sorted((path.resolve() for path in current.source_path.parent.iterdir()
+                folder = current.source_path.parent
+                entries = folder.rglob('*') if p.scope.currentIndex() == 4 else folder.iterdir()
+                paths = sorted((path.resolve() for path in entries
                                 if path.is_file() and path.suffix.lower() == '.pdf'), key=lambda path: path.name.casefold())
             except OSError as exc:
                 p.status.setText(tr('無法讀取資料夾：{message}', message=str(exc)))
@@ -464,7 +466,7 @@ class SearchController(QObject):
         else:
             self.targets = {doc.document_id: SearchTarget(doc.source_path, list(doc.page_order), doc.password) for doc in documents}
         if not self.targets:
-            p.status.setText(tr('此範圍沒有已載入的檔案；請先開啟或勾選標籤頁'))
+            p.status.setText(tr('此範圍沒有已載入的檔案；請先開啟或勾選標籤'))
             return
         self.order = list(self.targets)
         self.page_orders = {key: target.page_order for key, target in self.targets.items()}
