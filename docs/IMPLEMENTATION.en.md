@@ -205,6 +205,8 @@ Fit chooses the most recently clicked still-visible page, or the page nearest th
 
 Fullscreen reserves a 30px selection header. Spreads use a shared scale calculated from total page width and maximum height. Device pixel ratio provides sharp images. Only the current group renders, capped at 30 million raster pixels in total. <kbd>F11</kbd> / <kbd>Esc</kbd> returns; arrow keys or <kbd>Page Up</kbd> / <kbd>Page Down</kbd> switch groups.
 
+On fullscreen close, `page_index` activates the original document and calls `jump_to_page()` to retain the last viewed page. Existing Fit/navigation and deferred rendering handle both ordinary and virtual page layouts.
+
 Main and fullscreen windows each install an application event filter, handling only unmodified navigation keys in their own window, without affecting file dialogs. Normal view uses scrollbar single/page steps; Fit changes and refits the reference page. Navigation still works when sliders or fullscreen checkboxes have focus.
 
 The slider's 250 ms debounce sends a request only after changes pause. If changing the zoom range or DPI definition, also check:

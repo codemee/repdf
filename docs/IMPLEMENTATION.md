@@ -206,6 +206,8 @@ Fit 使用最近點擊且仍可見的頁面，或距預覽區中央最近的頁�
 
 顯示時保留 30px 選頁列，對頁依頁面寬度總和與最大高度計算共同縮放比例，使用 device pixel ratio 產生清晰預覽；一次只渲染目前群組，合計 raster 上限為 3000 萬像素。<kbd>F11</kbd>／<kbd>Esc</kbd> 返回，<kbd>←</kbd>、<kbd>↑</kbd>、<kbd>→</kbd>、<kbd>↓</kbd> 或 <kbd>Page Up</kbd>／<kbd>Page Down</kbd> 切換群組。
 
+關閉全螢幕時，以 `page_index` 啟用原文件並呼叫 `jump_to_page()`，同步最後瀏覽頁；沿用既有 Fit／搜尋定位與延遲渲染流程，涵蓋虛擬頁面。
+
 主視窗與全螢幕視窗各自安裝 QApplication event filter，僅攔截自己的視窗內未帶修飾鍵的導覽按鍵，不影響檔案對話框。一般預覽對應捲動條的 single/page step；Fit 模式切換參考頁並重新適應。即使縮放滑桿或全螢幕核取方塊有焦點，導覽按鍵仍操作預覽。
 
 滑桿有 250ms 防抖；連續拖動時只會在停止變動後送出渲染要求。若修改比例範圍或 DPI 定義，需同步檢查：

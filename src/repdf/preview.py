@@ -323,6 +323,9 @@ class FullscreenPreview(QWidget):
         QApplication.instance().removeEventFilter(self)
         self.owner.render_service.cancel_pending(-self.document.document_id)
         self.owner._fullscreen_preview = None
+        if not self.owner._closing and self.document.document_id in self.owner.documents:
+            self.owner.activate_document(self.document)
+            self.document.jump_to_page(self.page_index, (.5, .5))
         self.owner.annotation_floating.setVisible(self.owner.annotation_tools_action.isChecked())
         self.owner.annotation_floating.reposition()
         self.owner.activateWindow()

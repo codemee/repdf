@@ -113,6 +113,7 @@ The controls are described below. Hover over a control to see its tooltip, inclu
 ### Reading and zoom
 
 - Fullscreen uses a main button with a right-hand mode dropdown for single page, spread or cover plus spread. <kbd>F11</kbd> reuses the last mode selected in this session. Single page shows one page; spread pairs pages from the first; cover plus spread shows the first page alone and pairs the remaining pages.
+- After exiting fullscreen, the normal view stays on the last page viewed in fullscreen and retains its Fit or manual zoom mode.
 
 - Pages are centered horizontally. Fit mode uses a single column.
 - Large files prioritize the pages you are reading. Jumping to a page does not require waiting for the entire document to load.

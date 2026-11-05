@@ -21,6 +21,33 @@ def wait_for_preview(qtbot, doc):
                    and not doc.render_timer.isActive() and not doc.fit_timer.isActive(), timeout=15000)
 
 
+@pytest.mark.parametrize('count', [8, 80])
+@pytest.mark.parametrize('fit', [False, True])
+def test_exit_fullscreen_keeps_last_viewed_page(qtbot, tmp_path, count, fit):
+    source = tmp_path / 'return-page.pdf'
+    make_pdf(source, [(300, 400)] * count)
+    window = MainWindow()
+    qtbot.addWidget(window)
+    window.resize(900, 700)
+    window.show()
+    window.load_pdf(source)
+    doc = window.current_document()
+    wait_for_preview(qtbot, doc)
+    doc.fit_mode = fit
+    window._show_fullscreen_preview('single')
+    viewer = window._fullscreen_preview
+    target = count - 2
+    viewer.show_page(target)
+    viewer.close()
+    qtbot.waitUntil(lambda: window._fullscreen_preview is None
+                   and doc.preview_page_index() == target, timeout=15000)
+    wait_for_preview(qtbot, doc)
+    assert doc.preview_page_index() == target
+    assert doc.fit_mode == fit
+    if fit:
+        assert doc.fit_page_index == target
+
+
 def test_long_page_grid_preserves_full_preview_and_reflows(qtbot):
     from PySide6.QtCore import QPoint
     from PySide6.QtWidgets import QScrollArea
