@@ -69,9 +69,9 @@ File, selection, and text tools are on the left. Stretchable space separates the
 | Normal | Transparent background/border, normal icon color |
 | Hover | Hover background |
 | Pressed | Pressed background |
-| Keyboard focus | Accent border for ordinary tools; state buttons remain borderless |
+| Keyboard focus | Toolbar buttons use the hover background to indicate focus, without a border |
 | Disabled | Transparent background, disabled icon/text colors |
-| State button active | Hover background with accent-colored icon and no outline; pressed background when hovered |
+| State button active | Hover background with the normal icon stroke color and no outline; pressed background when hovered |
 
 Copy text, region OCR, image extraction, bookmarks, annotations, Fit, and search options share the borderless `stateButton` styling with background radius 8. Copy text, region OCR, and image extraction remain mutually exclusive.
 
@@ -89,9 +89,11 @@ Copy text, region OCR, image extraction, bookmarks, annotations, Fit, and search
 | Line joins | `RoundJoin` |
 | Antialiasing | Enabled |
 | Normal icon color | `QPalette.ButtonText` |
-| Active state icon color | `QPalette.Highlight`, including while hovered |
+| Active state icon color | `QPalette.ButtonText`, unchanged when active or hovered |
 | Disabled icon color | `QPalette.Disabled.ButtonText` |
 | Theme updates | Regenerate icons when the palette changes |
+
+The system integration icon shows a folder behind a context menu. The menu sits lower to expose the folder tab and left outline, with two simple horizontal lines inside.
 
 Stroke scaling:
 

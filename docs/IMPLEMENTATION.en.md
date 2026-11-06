@@ -267,7 +267,7 @@ During export, users may switch tabs, read, and zoom, but cannot open/close file
 
 ## 11. Themes, fonts, and icons
 
-- Checkable toolbar buttons and search options share the `stateButton` style: hover background when active, pressed background when hovering an active button, radius 8, and transparent border space without a visible outline. `icons.py` supplies `QPalette.Highlight` icons for QIcon's On state in both Normal and Active modes; disabled icons retain their disabled color. Buttons remain 34 × 34, icons 20 × 20, and icon design strokes 1.
+- Checkable toolbar buttons and search options share the `stateButton` style: hover background when active, pressed background when hovering an active button, radius 8, and transparent border space without a visible outline. `icons.py` supplies `QPalette.ButtonText` icons for QIcon's On state in both Normal and Active modes; disabled icons retain their disabled color. Buttons remain 34 × 34, icons 20 × 20, and icon design strokes 1.
 
 The toolbar's `language_action` cycles `system → zh → en`; `theme_action` cycles `system → light → dark`. `QSettings("repdf", "repdf")` stores `ui/language` and `ui/theme`, defaulting to `system` and falling back to it for invalid values. On first startup, valid language/theme preferences from `QSettings("PDFPick", "PDFPick")` populate unset new keys, without overwriting existing repdf preferences or deleting old settings.
 

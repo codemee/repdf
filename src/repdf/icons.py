@@ -12,7 +12,7 @@ def toolbar_icon(kind: str) -> QIcon:
     icon = QIcon()
     for mode, group, state, role in (
             (QIcon.Mode.Normal, QPalette.ColorGroup.Active, QIcon.State.Off, QPalette.ColorRole.ButtonText),
-            (QIcon.Mode.Normal, QPalette.ColorGroup.Active, QIcon.State.On, QPalette.ColorRole.Highlight),
+            (QIcon.Mode.Normal, QPalette.ColorGroup.Active, QIcon.State.On, QPalette.ColorRole.ButtonText),
             (QIcon.Mode.Selected, QPalette.ColorGroup.Active, QIcon.State.Off, QPalette.ColorRole.HighlightedText),
             (QIcon.Mode.Selected, QPalette.ColorGroup.Active, QIcon.State.On, QPalette.ColorRole.HighlightedText),
             (QIcon.Mode.Disabled, QPalette.ColorGroup.Disabled, QIcon.State.Off, QPalette.ColorRole.ButtonText),
@@ -26,10 +26,12 @@ def toolbar_icon(kind: str) -> QIcon:
                             1.0, Qt.PenStyle.SolidLine, Qt.PenCapStyle.RoundCap,
                             Qt.PenJoinStyle.RoundJoin))
         if kind == 'integration':
-            for y, x in ((6, 8), (12, 16), (18, 10)):
-                painter.drawLine(3, y, x - 2, y)
-                painter.drawLine(x + 2, y, 21, y)
-                painter.drawRect(QRectF(x - 2, y - 2, 4, 4))
+            painter.drawPolyline(QPolygonF([
+                QPointF(8, 19), QPointF(3, 19), QPointF(3, 5),
+                QPointF(8, 5), QPointF(11, 8), QPointF(19, 8), QPointF(19, 11)]))
+            painter.drawRoundedRect(QRectF(10, 13, 12, 9), 1, 1)
+            for y in (16, 19):
+                painter.drawLine(13, y, 19, y)
         elif kind == 'drag_handle':
             painter.setBrush(painter.pen().color())
             for x in (9,15):

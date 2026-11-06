@@ -168,7 +168,7 @@ def test_all_state_buttons_use_borderless_hover_colors(qtbot, monkeypatch):
                 icon = button.icon().pixmap(QSize(48, 48), icon_mode, QIcon.State.On).toImage()
                 color = max((icon.pixelColor(x, y) for x in range(icon.width()) for y in range(icon.height())),
                             key=lambda value: value.alpha())
-                assert color.name() == QApplication.palette().highlight().color().name()
+                assert color.name() == QApplication.palette().buttonText().color().name()
             qtbot.mouseMove(button, pos=QPoint(17, 17))
             def assert_hovered():
                 assert pixel(button, 17, 29) == hovered, button.objectName()

@@ -120,7 +120,7 @@ class ThemeController(QObject):
                            border-radius: 4px; padding: 4px; color: palette(button-text); }}
             QToolButton:hover {{ background: {hover}; }}
             QToolButton:pressed {{ background: {pressed}; }}
-            QToolButton:focus {{ border-color: {slider_fill}; }}
+            QToolButton:focus {{ background: {hover}; border-color: transparent; }}
             QToolButton[stateButton="true"] {{ border-color: transparent; border-radius: 8px; }}
             QToolButton[stateButton="true"]:checked {{ background: {hover}; border-color: transparent; }}
             QToolButton[stateButton="true"]:checked:hover {{ background: {pressed}; }}
