@@ -663,6 +663,23 @@ def test_load_batch_preserves_order_and_successes(qtbot, monkeypatch, tmp_path) 
     assert window.tabs.count() == 2
 
 
+def test_open_picker_uses_current_folder_or_documents(qtbot, monkeypatch, tmp_path):
+    from PySide6.QtCore import QStandardPaths
+    window = MainWindow()
+    qtbot.addWidget(window)
+    picked = []
+    monkeypatch.setattr(window, '_choose_pdfs_in', picked.append)
+    monkeypatch.setattr(QStandardPaths, 'writableLocation', lambda _location: str(tmp_path / 'Documents'))
+    window.choose_pdf()
+    assert picked[-1] == tmp_path / 'Documents'
+    doc = window._new_document(tmp_path / 'PDFs' / 'chapter.pdf')
+    window.choose_pdf()
+    assert picked[-1] == doc.source_path.parent
+    actions = window.toolbar.tool_actions()
+    assert actions.index(window.integration_action) + 1 == actions.index(window.language_action)
+    assert not window.integration_action.icon().isNull()
+
+
 def test_drop_folder_opens_pdf_picker_at_that_folder(qtbot, monkeypatch, tmp_path):
     from PySide6.QtCore import QMimeData, QUrl
 

@@ -25,7 +25,12 @@ def toolbar_icon(kind: str) -> QIcon:
         painter.setPen(QPen(QApplication.palette().color(group, role),
                             1.0, Qt.PenStyle.SolidLine, Qt.PenCapStyle.RoundCap,
                             Qt.PenJoinStyle.RoundJoin))
-        if kind == 'drag_handle':
+        if kind == 'integration':
+            for y, x in ((6, 8), (12, 16), (18, 10)):
+                painter.drawLine(3, y, x - 2, y)
+                painter.drawLine(x + 2, y, 21, y)
+                painter.drawRect(QRectF(x - 2, y - 2, 4, 4))
+        elif kind == 'drag_handle':
             painter.setBrush(painter.pen().color())
             for x in (9,15):
                 for y in (6,12,18): painter.drawEllipse(QRectF(x-0.75,y-0.75,1.5,1.5))

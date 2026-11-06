@@ -15,7 +15,7 @@ The main window accepts dropped local PDFs and folders. PDFs go directly to `loa
 - `desktop_open.py` parses multiple file paths. `DesktopApplication` handles macOS `QFileOpenEvent`, queuing requests until the window is ready or an export completes before calling `load_pdfs()`.
 - `DesktopInstance` uses a per-user `QLocalServer` / `QLocalSocket` name and newline-terminated UTF-8 JSON containing absolute paths. A `QLockFile` guards startup and stale socket removal. Subsequent processes forward requests without starting a render backend. Sockets restrict access to the current user; messages are limited to 1 MiB.
 - `desktop_integration.py` writes HKCU RePDF ProgID, OpenWithProgids, Capabilities, RegisteredApplications, and PDF-specific shell entries only on explicit registration. It never writes UserChoice or forces a default. Portable builds copy to `%LOCALAPPDATA%/Programs/RePDF/repdf.exe`; Python builds register the current environment’s `pythonw -m repdf`.
-- Entry points use the Windows system menu and macOS PreferencesRole. `packaging/repdf.spec` declares `com.adobe.pdf`, Editor, and Alternate; Qt file events replace argv emulation.
+- System integration is available on the main toolbar, immediately left of the language button. `packaging/repdf.spec` declares `com.adobe.pdf`, Editor, and Alternate; Qt file events replace argv emulation.
 - Unregister removes only RePDF-owned keys and named values, leaving shared `.pdf` keys, other apps, and executables intact. A Windows 11 first-level IExplorerCommand extension is not included.
 
 RePDF is a Python desktop application for Windows and macOS. Its main features are:

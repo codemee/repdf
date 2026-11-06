@@ -9,7 +9,7 @@ from importlib.resources import files
 from pathlib import Path
 from shiboken6 import isValid
 
-from PySide6.QtCore import QEvent, QPoint, QPointF, QSettings, QSize, Qt, QThreadPool, QTimer, Slot
+from PySide6.QtCore import QEvent, QPoint, QPointF, QSettings, QSize, QStandardPaths, Qt, QThreadPool, QTimer, Slot
 from PySide6.QtGui import (
     QCloseEvent,
     QAction,
@@ -494,15 +494,10 @@ class MainWindow(QMainWindow):
         self.about_action.setMenuRole(QAction.MenuRole.AboutRole)
         self.about_action.triggered.connect(self.show_about)
         self.addAction(self.about_action)
-        self.integration_action = QAction(tr('系統整合'), self)
-        self.integration_action.setMenuRole(QAction.MenuRole.PreferencesRole)
-        self.integration_action.triggered.connect(self.show_integration)
-        self.addAction(self.integration_action)
         if sys.platform != 'win32':
             self.menuBar().setNativeMenuBar(True)
             help_menu = self.menuBar().addMenu(tr('說明'))
             help_menu.addAction(self.about_action)
-            help_menu.addAction(self.integration_action)
         self._windows_system_menu = WindowsSystemMenu(self)
         try:
             saved = json.loads(self.settings.value('ui/workspace', '{}'))
@@ -1004,6 +999,10 @@ class MainWindow(QMainWindow):
         self.language_action.triggered.connect(self._cycle_language)
         self.theme_action = QAction(self)
         self.theme_action.triggered.connect(self._cycle_theme)
+        self.integration_action = QAction(tr('系統整合'), self)
+        self.integration_action.setToolTip(tr('系統整合'))
+        self.integration_action.triggered.connect(self.show_integration)
+        self.toolbar.addAction(self.integration_action)
         self.toolbar.addAction(self.language_action)
         self.toolbar.addAction(self.theme_action)
         self._refresh_toolbar_icons()
@@ -1052,6 +1051,7 @@ class MainWindow(QMainWindow):
                              (self.print_action, "print"),
                              (self.bookmark_action, "bookmarks"),
                              (self.annotation_action, "annotations"),
+                             (self.integration_action, "integration"),
                              (self.fit_action, "fit"), (self.trim_view_action, "trim_view"),
                              (self.fullscreen_action, {'single': 'fullscreen', 'spread': 'fullscreen_spread', 'cover': 'fullscreen_cover'}[self.fullscreen_mode]),
                              (self.single_action, 'fullscreen'),
@@ -1530,7 +1530,10 @@ class MainWindow(QMainWindow):
 
     @Slot()
     def choose_pdf(self) -> None:
-        self._choose_pdfs_in(Path.home())
+        doc = self.current_document()
+        directory = (doc.source_path.parent if doc is not None else
+                     Path(QStandardPaths.writableLocation(QStandardPaths.StandardLocation.DocumentsLocation)))
+        self._choose_pdfs_in(directory)
 
     def _choose_pdfs_in(self, directory: Path) -> None:
         filenames, _ = QFileDialog.getOpenFileNames(self, tr('開啟 PDF'), str(directory), tr('PDF 檔案 (*.pdf)'), "", QFileDialog.Option.DontUseNativeDialog)
