@@ -23,6 +23,7 @@ def main() -> None:
     if sys.platform not in {"win32", "darwin"}:
         raise SystemExit("Build Windows on Windows or macOS on macOS.")
     version = tomllib.loads((ROOT / "pyproject.toml").read_text(encoding="utf-8"))["project"]["version"]
+    folder_bundle = sys.platform == 'win32' and os.environ.get('REPDF_WINDOWS_BUNDLE') == 'onedir'
     OUT.mkdir(parents=True, exist_ok=True)
     from collect_licenses import collect
     collect(OUT / 'licenses')
@@ -44,7 +45,7 @@ def main() -> None:
         "--distpath", str(OUT / "dist"), "--workpath", str(OUT / "build"),
         str(ROOT / "packaging/repdf.spec"), env=build_env)
     executable = (OUT / "dist/RePDF.app/Contents/MacOS/repdf"
-                  if sys.platform == "darwin" else OUT / "dist/repdf.exe")
+                  if sys.platform == "darwin" else OUT / ("dist/RePDF/repdf.exe" if folder_bundle else "dist/repdf.exe"))
     report = OUT / "smoke-report.json"
     report.unlink(missing_ok=True)
     result = subprocess.run([str(executable), "--self-test", str(report)], cwd=OUT, timeout=240)
@@ -59,7 +60,7 @@ def main() -> None:
         shutil.copy2(ROOT / name, release / f"{name}.txt")
     arch = {"AMD64": "x86_64", "aarch64": "arm64"}.get(platform.machine(), platform.machine())
     system = "macos" if sys.platform == "darwin" else "windows"
-    suffix = "dmg" if sys.platform == "darwin" else "exe"
+    suffix = "dmg" if sys.platform == "darwin" else "zip" if folder_bundle else "exe"
     artifact = release / f"repdf-{version}-{system}-{arch}.{suffix}"
     shutil.make_archive(str(release / f"repdf-{version}-{system}-{arch}-licenses"),
                         'zip', root_dir=OUT / 'licenses')
@@ -71,6 +72,11 @@ def main() -> None:
             run("hdiutil", "create", "-volname", f"RePDF {version}", "-srcfolder",
                 str(stage), "-format", "UDZO", "-ov", str(artifact))
         run("hdiutil", "verify", str(artifact))
+    elif folder_bundle:
+        bundle = OUT / 'dist/RePDF'
+        for name in ('LICENSE', 'NOTICE'):
+            shutil.copy2(ROOT / name, bundle / f'{name}.txt')
+        shutil.make_archive(str(artifact.with_suffix('')), 'zip', root_dir=bundle.parent, base_dir=bundle.name)
     else:
         shutil.copy2(executable, artifact)
     with artifact.open("rb") as stream:

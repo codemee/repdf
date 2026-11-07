@@ -41,10 +41,15 @@ def registration_entries(command, icon):
 
 def launch_command():
     if getattr(sys, 'frozen', False):
+        source = Path(sys.executable).resolve()
+        # A portable folder must keep its executable with its libraries.
+        # Register it in place instead of copying only the EXE.
+        if (source.parent / '_internal').is_dir():
+            executable = str(source)
+            return subprocess.list2cmdline([executable]) + ' "%1"', '"' + executable + '",0'
         # Keep the registered executable path stable across versioned downloads.
         destination = Path(os.environ['LOCALAPPDATA']) / 'Programs/RePDF/repdf.exe'
         destination.parent.mkdir(parents=True, exist_ok=True)
-        source = Path(sys.executable).resolve()
         if source != destination.resolve():
             with tempfile.NamedTemporaryFile(dir=destination.parent, suffix='.new', delete=False) as stream:
                 staging = Path(stream.name)
@@ -131,7 +136,7 @@ class DesktopIntegrationDialog(QDialog):
         self.message.setWordWrap(True)
         layout.addWidget(self.message)
         if sys.platform == 'win32':
-            self.message.setText(tr('將 RePDF 加入 PDF 的「開啟方式」與快顯選單。預設應用程式仍由您在 Windows 設定中選擇。免安裝版會複製至目前使用者的 Programs/RePDF 固定位置；更新後請再次註冊。'))
+            self.message.setText(tr('將 RePDF 加入 PDF 的「開啟方式」與快顯選單。預設應用程式仍由您在 Windows 設定中選擇。單檔版會複製至 Programs/RePDF；資料夾版登錄目前位置，請保留整個資料夾。更新或搬移後請再次註冊。'))
             for label, callback in [('註冊 PDF 開啟功能', register_windows),
                                     ('取消註冊', unregister_windows)]:
                 button = QPushButton(tr(label))

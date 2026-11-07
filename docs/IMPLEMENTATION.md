@@ -350,6 +350,7 @@ Fit 使用最近點擊且仍可見的頁面，或距預覽區中央最近的頁�
 
 - 打包全程在 GitHub Actions 雲端環境執行；一般開發只執行原始碼與測試，不在本機打包。
 - Windows x86_64：使用 PyInstaller onefile windowed 模式，產生單一 EXE。
+- Windows 可手動以 `windows_bundle=onedir` 建置資料夾免安裝 ZIP；預設仍為 `onefile`。ZIP 保留 `RePDF/repdf.exe` 與 `_internal`，封裝自我檢查直接執行資料夾內的 EXE。資料夾版系統整合登錄目前 EXE 路徑，不複製單一 EXE；搬移整個資料夾後需重新註冊。
 - macOS Apple Silicon（arm64）：使用 onedir App bundle，保留原生函式庫的符號連結，再封裝為 DMG。
 - Windows EXE 與 macOS App／DMG 分別在對應平台的原生 runner 建置。
 - 桌面產物皆附 SHA256 校驗檔；OCR 執行環境與模型隨套件提供。

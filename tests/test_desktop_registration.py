@@ -60,6 +60,22 @@ def test_register_unregister_preserves_shared_keys_and_defaults(monkeypatch):
     assert not any(path.startswith(integration.CONTEXT_KEY) for path in values)
 
 
+def test_folder_bundle_registration_keeps_libraries_with_executable(monkeypatch, tmp_path):
+    bundle = tmp_path / 'RePDF portable'
+    (bundle / '_internal').mkdir(parents=True)
+    source = bundle / 'repdf.exe'
+    source.write_bytes(b'executable')
+    (bundle / '_internal/library.dll').write_bytes(b'library')
+    monkeypatch.setattr(sys, 'frozen', True, raising=False)
+    monkeypatch.setattr(sys, 'executable', str(source))
+    monkeypatch.setenv('LOCALAPPDATA', str(tmp_path / 'local'))
+    command, icon = integration.launch_command()
+    assert str(source) in command and command.endswith('"%1"')
+    assert str(source) in icon
+    assert not (tmp_path / 'local/Programs/RePDF/repdf.exe').exists()
+    assert (bundle / '_internal/library.dll').read_bytes() == b'library'
+
+
 def test_frozen_registration_installs_fixed_path_and_updates_atomically(monkeypatch, tmp_path):
     source = tmp_path / 'new version.exe'
     source.write_bytes(b'new executable')
