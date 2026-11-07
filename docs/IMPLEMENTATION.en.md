@@ -334,6 +334,8 @@ Packaged smoke tests must stop render backends holding cached PDFs before removi
 
 - All packaging runs in GitHub Actions. Local development runs source and tests without building desktop packages.
 - Windows x86_64 uses PyInstaller onefile/windowed mode for a single EXE.
+- Windows manual builds can select `windows_bundle=onedir` for a portable ZIP; the default remains `onefile`. The ZIP preserves `RePDF/repdf.exe` and `_internal`, and the packaged smoke test runs the folder EXE. Folder-build integration registers its current executable path instead of copying the EXE alone; register again after moving the folder.
+- Local Windows measurements on 2026-11-08, from process launch to a visible main window: onefile 15.48/16.29 seconds, onedir 9.64/6.36 seconds. These are two samples on one machine and are affected by system caches and scanning.
 - macOS Apple Silicon (arm64) uses an onedir App bundle, preserving native-library symlinks, packaged into a DMG.
 - Each desktop artifact is built on a native runner for its platform.
 - Desktop artifacts include SHA256 checksum files and the OCR runtime/models.
