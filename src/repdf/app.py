@@ -2073,11 +2073,21 @@ def main() -> int:
         message.setText(str(error))
         message.exec()
         return 1
-    render_backend = start_render_backend()
-    window = MainWindow(render_backend)
-    window.show()
-    app.attach_window(window)
     try:
+        try:
+            render_backend = start_render_backend()
+        except (RuntimeError, OSError) as error:
+            message = QMessageBox()
+            message.setOption(QMessageBox.Option.DontUseNativeDialog, True)
+            message.setIcon(QMessageBox.Icon.Critical)
+            message.setWindowTitle('RePDF')
+            message.setText(tr('無法啟動 PDF 預覽後端。'))
+            message.setDetailedText(str(error))
+            message.exec()
+            return 1
+        window = MainWindow(render_backend)
+        window.show()
+        app.attach_window(window)
         return app.exec()
     finally:
         instance.close()

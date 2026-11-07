@@ -1,6 +1,41 @@
 import io
+import sys
+import pytest
 
 from repdf.renderer import RenderService
+
+
+@pytest.mark.parametrize('failure', [None, 'exit', 'import', 'timeout'])
+def test_packaged_worker_bootstrap_reports_startup_outcome(qtbot, monkeypatch, failure):
+    import repdf.renderer as renderer
+    popen = renderer.subprocess.Popen
+    if failure == 'timeout':
+        script = 'import time; time.sleep(30)'
+    elif failure == 'exit':
+        script = 'raise SystemExit(7)'
+    elif failure == 'import':
+        script = '''import sys
+sys.modules['repdf.render_worker'] = None
+from repdf.backend_bootstrap import serve_socket
+raise SystemExit(serve_socket(int(sys.argv[1]), sys.argv[2]))'''
+    else:
+        script = '''import sys
+from repdf.backend_bootstrap import serve_socket
+raise SystemExit(serve_socket(int(sys.argv[1]), sys.argv[2]))'''
+    def launch(args, **kwargs):
+        assert 'PYINSTALLER_RESET_ENVIRONMENT' not in kwargs['env']
+        return popen([sys.executable, '-c', script, *args[2:]], **kwargs)
+    monkeypatch.setenv('PYINSTALLER_RESET_ENVIRONMENT', '1')
+    monkeypatch.setattr(renderer.subprocess, 'Popen', launch)
+    monkeypatch.setattr(renderer, 'FROZEN_START_TIMEOUT', .2 if failure == 'timeout' else 10)
+    if failure:
+        expected = {'exit': 'code 7', 'import': 'ModuleNotFoundError', 'timeout': 'did not connect'}
+        with pytest.raises(RuntimeError, match=expected[failure]):
+            renderer._start_frozen_backend()
+    else:
+        process = renderer._start_frozen_backend()
+        assert process.poll() is None
+        RenderService(process).close()
 
 
 class FakeBackend:
@@ -11,6 +46,27 @@ class FakeBackend:
 
     def poll(self):
         return 0
+
+
+def test_startup_failure_shows_qt_error_and_releases_instance(qapp, monkeypatch):
+    import repdf.app as application
+    import repdf.desktop_open as desktop
+    closed, messages = [], []
+    class Instance:
+        def __init__(self, app): pass
+        def start(self, paths): return True
+        def close(self): closed.append(True)
+    monkeypatch.setattr(desktop, 'DesktopApplication', lambda _args: qapp)
+    monkeypatch.setattr(desktop, 'DesktopInstance', Instance)
+    monkeypatch.setattr(desktop, 'file_arguments', lambda _args: [])
+    monkeypatch.setattr(application, 'configure_application', lambda _app: None)
+    def fail():
+        raise RuntimeError('worker startup diagnostics')
+    monkeypatch.setattr(application, 'start_render_backend', fail)
+    monkeypatch.setattr(application.QMessageBox, 'exec', lambda box: messages.append(box.detailedText()))
+    assert application.main() == 1
+    assert messages == ['worker startup diagnostics']
+    assert closed == [True]
 
 
 def test_render_queue_coalesces_per_document_and_prioritizes_current(qtbot, tmp_path, monkeypatch):

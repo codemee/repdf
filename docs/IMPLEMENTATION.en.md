@@ -358,6 +358,7 @@ Packaged smoke tests must stop render backends holding cached PDFs before removi
 - macOS uses system `ditto` and `hdiutil` to create and verify DMGs.
 - [`entrypoint.py`](../src/repdf/entrypoint.py) detects backend and smoke-test modes before loading the GUI, preventing child processes from opening another window.
 - [`renderer.py`](../src/repdf/renderer.py) uses stdin/stdout in source mode. Frozen mode uses loopback TCP, a one-time random handshake token, and UTF-8 streams because Windows windowed bootloaders lack standard streams.
+- The packaged worker connects and authenticates through lightweight `backend_bootstrap.py` before loading PDF/image modules. The parent uses a 120-second startup deadline and detects early child exit. Failures retain worker diagnostics, clean up the child, show a Qt error dialog, and release the single-instance lock.
 
 ### Packaged smoke tests
 

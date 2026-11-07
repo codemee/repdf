@@ -374,6 +374,7 @@ Fit 使用最近點擊且仍可見的頁面，或距預覽區中央最近的頁�
 - macOS 使用系統內建的 `ditto` 與 `hdiutil` 建立並驗證 DMG。
 - [`entrypoint.py`](../src/repdf/entrypoint.py)：在載入 GUI 前辨識背景後端與封裝自我檢查模式，避免子程序再次開啟 GUI。
 - [`renderer.py`](../src/repdf/renderer.py)：原始碼模式沿用 stdin/stdout；凍結模式改用 loopback TCP、一次性隨機握手 token 與 UTF-8 串流，因為 Windows windowed bootloader 沒有標準輸入輸出。
+- 封裝後端由輕量 `backend_bootstrap.py` 先連接並送出驗證啟動訊號，再載入 PDF／影像模組；主程序以 120 秒總期限等待就緒並偵測子程序提前退出。失敗時保留子程序錯誤資訊、終止殘留程序，以 Qt 錯誤交談窗顯示詳細內容並釋放單一執行個體鎖。
 
 ### 封裝自我檢查
 

@@ -47,7 +47,7 @@ def main() -> None:
                   if sys.platform == "darwin" else OUT / "dist/repdf.exe")
     report = OUT / "smoke-report.json"
     report.unlink(missing_ok=True)
-    result = subprocess.run([str(executable), "--self-test", str(report)], cwd=OUT, timeout=120)
+    result = subprocess.run([str(executable), "--self-test", str(report)], cwd=OUT, timeout=240)
     if not report.is_file():
         raise RuntimeError(f"Packaged smoke test produced no report (exit {result.returncode})")
     smoke = json.loads(report.read_text(encoding="utf-8"))

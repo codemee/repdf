@@ -3,16 +3,21 @@ from __future__ import annotations
 from repdf.strings import tr
 
 import json
+import os
 import secrets
 import socket
 import subprocess
 import sys
 import threading
+import tempfile
+import time
 from collections import OrderedDict
 from pathlib import Path
 from typing import TextIO
 
 from PySide6.QtCore import QObject, Signal
+
+FROZEN_START_TIMEOUT = 120
 
 
 def start_render_backend() -> subprocess.Popen[str]:
@@ -45,37 +50,63 @@ def start_render_backend() -> subprocess.Popen[str]:
 def _start_frozen_backend() -> subprocess.Popen[str]:
     # Windowed executables have no stdin/stdout; use an authenticated local socket.
     token = secrets.token_hex(32)
-    with socket.socket() as listener:
+    with tempfile.TemporaryFile() as diagnostics, socket.socket() as listener:
         listener.bind(("127.0.0.1", 0))
         listener.listen(1)
-        listener.settimeout(30)
+        listener.settimeout(.25)
         port = listener.getsockname()[1]
         flags = subprocess.CREATE_NO_WINDOW if sys.platform == "win32" else 0
+        environment = os.environ.copy()
+        environment.pop('PYINSTALLER_RESET_ENVIRONMENT', None)
         process = subprocess.Popen(
             [sys.executable, "--render-server", str(port), token],
             stdin=subprocess.DEVNULL,
             stdout=subprocess.DEVNULL,
-            stderr=subprocess.DEVNULL,
+            stderr=diagnostics,
             creationflags=flags,
+            env=environment,
         )
         try:
-            connection, _address = listener.accept()
+            deadline = time.monotonic() + FROZEN_START_TIMEOUT
+            while True:
+                if process.poll() is not None:
+                    raise RuntimeError(f'PDF worker exited with code {process.returncode}.')
+                if time.monotonic() >= deadline:
+                    raise TimeoutError(f'PDF worker did not connect within {FROZEN_START_TIMEOUT} seconds.')
+                try:
+                    connection, _address = listener.accept()
+                    break
+                except socket.timeout:
+                    continue
             with connection:
-                connection.settimeout(30)
+                connection.settimeout(max(.1, deadline - time.monotonic()))
                 process.stdin = connection.makefile("w", encoding="utf-8")
                 process.stdout = connection.makefile("r", encoding="utf-8")
                 ready = json.loads(process.stdout.readline())
+                if ready.get('type') == 'starting' and ready.get('token') == token:
+                    connection.settimeout(max(.1, deadline - time.monotonic()))
+                    ready = json.loads(process.stdout.readline())
+                if ready.get('type') == 'startup_error' and ready.get('token') == token:
+                    raise RuntimeError(ready.get('message', 'PDF worker failed to load.'))
                 if ready.get("type") != "ready" or ready.get("token") != token:
                     raise RuntimeError(tr('PDF 預覽後端驗證失敗。'))
                 connection.settimeout(None)
             return process
         except Exception as exc:
-            process.terminate()
-            process.wait(timeout=5)
+            if process.poll() is None:
+                process.terminate()
+                try:
+                    process.wait(timeout=5)
+                except subprocess.TimeoutExpired:
+                    process.kill()
+                    process.wait(timeout=5)
             for stream in (process.stdin, process.stdout):
                 if stream is not None:
                     stream.close()
-            raise RuntimeError(tr('無法啟動封裝版 PDF 預覽後端。')) from exc
+            diagnostics.seek(0)
+            details = diagnostics.read()[-8000:].decode('utf-8', errors='replace').replace(token, '[token]')
+            raise RuntimeError(tr('無法啟動封裝版 PDF 預覽後端。') + '\n' + str(exc)
+                               + ('\n' + details if details else '')) from exc
 
 
 class RenderService(QObject):
