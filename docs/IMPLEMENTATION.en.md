@@ -81,6 +81,8 @@ tests/
 
 The public entry point is `repdf.entrypoint:main`. Ordinary startup delegates to `repdf.app:main`; entrypoint also dispatches packaged backend and `--self-test` modes.
 
+On Windows, `early_open.py` first forwards files through a native named pipe without loading Qt, PDF or OCR modules, and grants foreground activation to the existing window. It preserves the UTF-8 JSON list protocol for compatibility with older receivers. Missing pipes or failed writes fall back to full startup and the existing lock check. PyInstaller onefile extraction still precedes the Python entry point. The rendering worker defers pypdf and annotation-writing imports until annotation changes actually require them.
+
 Startup order is intentional:
 
 1. `start_render_backend()` starts the persistent PDF preview child process.

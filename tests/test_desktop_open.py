@@ -83,6 +83,62 @@ def test_socket_waits_for_complete_message_and_rejects_bad_payload(qtbot, tmp_pa
         instance.close()
 
 
+@pytest.mark.skipif(sys.platform != 'win32', reason='Windows native pipe fast path')
+def test_early_forward_uses_existing_protocol_without_loading_qt(qtbot, tmp_path):
+    receiver = Receiver()
+    name = 'repdf-test-' + uuid.uuid4().hex
+    instance = DesktopInstance(receiver, name)
+    paths = [str(tmp_path / '中文 空白.pdf'), str(tmp_path / 'second.pdf')]
+    script = '''
+import json, sys
+from repdf.early_open import forward_to_running
+assert forward_to_running(json.loads(sys.argv[2]), sys.argv[1])
+assert not any(name.startswith('PySide6') for name in sys.modules)
+assert 'repdf.app' not in sys.modules
+assert 'repdf.render_worker' not in sys.modules
+'''
+    try:
+        assert instance.start([])
+        process = subprocess.Popen([sys.executable, '-c', script, name, json.dumps(paths)],
+                                   stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+        qtbot.waitUntil(lambda: process.poll() is not None, timeout=10000)
+        assert process.returncode == 0, process.communicate()[1].decode(errors='replace')
+        qtbot.waitUntil(lambda: paths in receiver.requests)
+        assert receiver.requests == [[], paths]
+    finally:
+        instance.close()
+
+
+def test_early_forward_without_server_falls_back():
+    from repdf.early_open import forward_to_running
+    assert not forward_to_running([], 'repdf-missing-' + uuid.uuid4().hex)
+
+
+def test_entrypoint_returns_before_gui_import_on_successful_forward():
+    script = '''
+import sys
+from unittest.mock import patch
+from repdf.entrypoint import main
+with patch('repdf.early_open.forward_to_running', return_value=True) as forward:
+    sys.argv = ['repdf']
+    assert main() == 0
+    forward.assert_called_once_with([])
+assert 'repdf.app' not in sys.modules
+assert not any(name.startswith('PySide6') for name in sys.modules)
+'''
+    subprocess.run([sys.executable, '-c', script], check=True, capture_output=True)
+
+
+def test_render_worker_defers_pdf_editing_library():
+    script = '''
+import sys
+import repdf.render_worker
+assert 'pypdf' not in sys.modules
+assert 'repdf.annotation_data' not in sys.modules
+'''
+    subprocess.run([sys.executable, '-c', script], check=True, capture_output=True)
+
+
 def test_registry_plan_does_not_overwrite_default_or_other_apps():
     entries = registration_entries('"C:\\Program Files\\RePDF\\repdf.exe" "%1"', 'app.ico')
     assert any(path.endswith('OpenWithProgids') and name == 'RePDF.PDF' for path, name, _ in entries)

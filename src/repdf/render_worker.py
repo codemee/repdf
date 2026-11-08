@@ -2,8 +2,6 @@ from __future__ import annotations
 
 import json
 import io
-from pypdf import PdfReader, PdfWriter
-from repdf.annotation_data import read_models, apply_changes
 from math import ceil
 import socket
 import sys
@@ -34,6 +32,8 @@ class PdfDocumentCache:
         key = (path, stat.st_size, stat.st_mtime_ns, password, fingerprint)
         if key not in self.documents:
             if annotation_changes:
+                from pypdf import PdfReader, PdfWriter
+                from repdf.annotation_data import apply_changes
                 reader=PdfReader(path,password=password)
                 writer=PdfWriter(); writer.clone_document_from_reader(reader); apply_changes(writer,annotation_changes)
                 buffer=io.BytesIO(); writer.write(buffer)
@@ -75,6 +75,8 @@ def render_document(
 ) -> None:
     edited_reader = None
     if annotation_changes:
+        from pypdf import PdfReader, PdfWriter
+        from repdf.annotation_data import apply_changes
         edited_reader = PdfReader(source, password=password)
         writer = PdfWriter(); writer.clone_document_from_reader(edited_reader)
         apply_changes(writer, annotation_changes)

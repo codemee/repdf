@@ -81,6 +81,8 @@ tests/
 
 公開入口為 `repdf.entrypoint:main`，一般啟動交由 `repdf.app:main`；封裝版渲染服務與 `--self-test` 由 entrypoint 分派。
 
+Windows 一般啟動先使用 `early_open.py` 的原生 named pipe 轉交檔案；成功時不載入 Qt、PDF 或 OCR 模組，並授予既有視窗取得前景的權限。沿用原有 UTF-8 JSON 清單協定，支援舊版接收端；無既有 pipe 或傳送失敗時回到完整啟動與鎖定檢查。單檔 EXE 在 Python 入口前的 PyInstaller 解壓仍會發生。渲染子程序將 pypdf 與註解寫入模組延後至實際需要套用註解時載入。
+
 啟動順序刻意設計如下：
 
 1. `start_render_backend()` 先啟動常駐 PDF 預覽子程序。

@@ -1,18 +1,11 @@
 """Desktop file opening and per-user single-instance delivery."""
-import argparse
-import hashlib
 import json
 from pathlib import Path
 
 from PySide6.QtCore import QElapsedTimer, QEvent, QLockFile, QObject, QStandardPaths, QThread, QTimer
 from PySide6.QtNetwork import QLocalServer, QLocalSocket
 from PySide6.QtWidgets import QApplication
-
-
-def file_arguments(arguments):
-    parser = argparse.ArgumentParser(prog='repdf', description='Read the PDF')
-    parser.add_argument('files', nargs='*', type=lambda value: str(Path(value).resolve()))
-    return parser.parse_args(arguments).files
+from repdf.early_open import file_arguments, instance_name
 
 
 class DesktopApplication(QApplication):
@@ -60,8 +53,7 @@ class DesktopInstance(QObject):
     """A lock guards stale socket removal; only the lock owner may listen."""
     def __init__(self, app, name=None):
         super().__init__(app)
-        identity = hashlib.sha256(str(Path.home()).encode()).hexdigest()[:20]
-        self.name = name or f'io.github.codemee.repdf-{identity}'
+        self.name = name or instance_name()
         directory = Path(QStandardPaths.writableLocation(QStandardPaths.StandardLocation.TempLocation))
         self.lock = QLockFile(str(directory / (self.name + '.lock')))
         self.server = QLocalServer(self)

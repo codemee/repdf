@@ -15,5 +15,8 @@ def main() -> int:
     if len(sys.argv) == 3 and sys.argv[1] == "--self-test":
         from repdf.packaging_smoke import main as smoke_main
         return smoke_main(sys.argv[2])
+    from repdf.early_open import file_arguments, forward_to_running
+    if forward_to_running(file_arguments(sys.argv[1:])):
+        return 0
     from repdf.app import main as app_main
     return app_main()
