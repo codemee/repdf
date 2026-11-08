@@ -870,6 +870,8 @@ def test_real_multi_file_previews_survive_rapid_switch_and_zoom(qtbot, tmp_path)
     window.load_pdfs(paths)
     qtbot.waitUntil(lambda: all(doc.ready for doc in window.documents.values()), timeout=5_000)
     a, b = window.ordered_documents()
+    # This exercises independent manual zoom values, not the initial Fit timer.
+    b.set_zoom(100)
     window.tabs.setCurrentWidget(a)
     window.zoom_slider.setValue(200)
     window.zoom_slider.setValue(50)
