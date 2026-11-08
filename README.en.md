@@ -15,7 +15,7 @@ RePDF stands for **Read the PDF**. Its command and Python package name are `repd
 
 Download the file for your platform from [GitHub Releases](https://github.com/codemee/repdf/releases/latest). Python and uv are not required.
 
-- **Windows x86_64**: Download and run `repdf-<version>-windows-x86_64.exe`.
+- **Windows x86_64**: Download `repdf-<version>-windows-x86_64.zip`, extract the whole archive, and run `RePDF/repdf.exe`. Keep the adjacent `_internal` folder; do not move the EXE alone. The folder build avoids extracting its runtime on every launch.
 - **macOS Apple Silicon (arm64)**: Download `repdf-<version>-macos-arm64.dmg`, open it, drag `RePDF.app` into Applications, and launch it from there.
 - Releases include SHA256 checksum files.
 - Desktop packages include the OCR runtime and built-in multilingual model. Additional languages can be downloaded when first selected, then used offline.
@@ -86,7 +86,7 @@ The controls are described below. Hover over a control to see its tooltip, inclu
 
 - Run `repdf "document.pdf" "another.pdf"` to open multiple files in the existing RePDF window. Files already open select their existing tab.
 - **Windows:** click **System integration** to the left of the language button on the main toolbar, then select **Register PDF opening**. This adds RePDF to PDF **Open with** and a dedicated **Open with RePDF** command (under **Show more options** in Windows 11). Use **Open default app settings** to choose RePDF for `.pdf` yourself.
-- Registering a portable executable copies it to `%LOCALAPPDATA%\Programs\RePDF\repdf.exe`. After updating, run the new version and register again. Close any copy running at that destination before updating it. Python installations register the current Python environment; register again after moving or replacing it.
+- The portable folder build registers its current `repdf.exe` location. Place the entire `RePDF` folder at its intended location before registering, and register again after moving or updating it. Close the app before replacing the whole folder. Older single-file builds retain the compatibility path that copies the EXE to `%LOCALAPPDATA%\Programs\RePDF\repdf.exe`. Python installations register the current Python environment; register again after moving or replacing it.
 - **Unregister** removes RePDF’s registration without deleting PDFs or the copied executable. Choose a different default application in Windows Settings.
 - **macOS:** move `RePDF.app` to Applications. Select a PDF in Finder, press <kbd>⌘</kbd>+<kbd>I</kbd>, choose RePDF under **Open with**, and click **Change All**. **System integration** on the main toolbar also provides these instructions.
 

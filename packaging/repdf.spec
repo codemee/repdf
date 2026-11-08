@@ -1,5 +1,4 @@
 import sys
-import os
 import tomllib
 from PySide6.QtCore import QLibraryInfo
 from pathlib import Path
@@ -59,11 +58,6 @@ if sys.platform == "darwin":
                              }],
                              "NSHighResolutionCapable": True})
 else:
-    if os.environ.get('REPDF_WINDOWS_BUNDLE') == 'onedir':
-        exe = EXE(pyz, a.scripts, [], exclude_binaries=True, name="repdf",
-                  console=False, upx=False, icon=str(root / "output/desktop/repdf.ico"))
-        coll = COLLECT(exe, a.binaries, a.datas, name="RePDF", upx=False)
-    else:
-        exe = EXE(pyz, a.scripts, a.binaries, a.datas, name="repdf",
-                  console=False, upx=False,
-                  icon=str(root / "output/desktop/repdf.ico"))
+    exe = EXE(pyz, a.scripts, [], exclude_binaries=True, name="repdf",
+              console=False, upx=False, icon=str(root / "output/desktop/repdf.ico"))
+    coll = COLLECT(exe, a.binaries, a.datas, name="RePDF", upx=False)

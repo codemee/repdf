@@ -345,7 +345,7 @@ Fit 使用最近點擊且仍可見的頁面，或距預覽區中央最近的頁�
 - 不提供頁面旋轉、裁切或內容編輯；跨文件重組依勾選頁面與畫面順序輸出。
 - 縮圖按需載入並使用有上限的快取；目前顯示的高解析度頁面與 PDF 本身仍會占用額外記憶體。
 - 不會強制中斷正在執行的 PDFium 原生呼叫；新位置可能需等待目前最多兩頁的批次完成，單頁本身非常複雜時仍可能延遲。
-- GitHub Actions 可產出 Windows 單一 EXE 與 macOS App／DMG；目前未設定開發者簽章與 macOS 公證。
+- GitHub Actions 可產出 Windows 資料夾免安裝 ZIP 與 macOS App／DMG；目前未設定開發者簽章與 macOS 公證。
 
 ## 15. 打包與發布
 
@@ -353,8 +353,8 @@ Fit 使用最近點擊且仍可見的頁面，或距預覽區中央最近的頁�
 ### 建置原則與產物
 
 - 打包全程在 GitHub Actions 雲端環境執行；一般開發只執行原始碼與測試，不在本機打包。
-- Windows x86_64：使用 PyInstaller onefile windowed 模式，產生單一 EXE。
-- Windows 可手動以 `windows_bundle=onedir` 建置資料夾免安裝 ZIP；預設仍為 `onefile`。ZIP 保留 `RePDF/repdf.exe` 與 `_internal`，封裝自我檢查直接執行資料夾內的 EXE。資料夾版系統整合登錄目前 EXE 路徑，不複製單一 EXE；搬移整個資料夾後需重新註冊。
+- Windows x86_64：統一使用 PyInstaller onedir windowed 模式，產生 `repdf-<版本>-windows-x86_64.zip`；正式發布與手動建置均不再提供單檔切換選項。
+- ZIP 保留 `RePDF/repdf.exe` 與 `_internal`，封裝自我檢查直接執行資料夾內的 EXE。資料夾版系統整合登錄目前 EXE 路徑，不複製單一 EXE；搬移整個資料夾後需重新註冊。更新時先關閉程式，再替換整個資料夾。
 - 2026-11-08 本機對照量測：單檔版兩次啟動為 15.48／16.29 秒，資料夾版為 9.64／6.36 秒；以啟動至主視窗可見為範圍。這是同一台 Windows 電腦的兩次樣本，會受系統快取與掃描影響。
 - macOS Apple Silicon（arm64）：使用 onedir App bundle，保留原生函式庫的符號連結，再封裝為 DMG。
 - Windows EXE 與 macOS App／DMG 分別在對應平台的原生 runner 建置。

@@ -328,7 +328,7 @@ Tests use `QT_QPA_PLATFORM=offscreen`. The offscreen plugin can differ slightly 
 - No page rotation, cropping, or content editing. Cross-document exports follow checked pages and visual order.
 - Thumbnails load on demand with a bounded cache, but displayed high-resolution pages and PDF state still consume additional memory.
 - Active native PDFium calls are not forcibly interrupted. A new location may wait for the current batch of at most two pages; a very complex individual page can still cause delays.
-- GitHub Actions builds Windows single-file EXEs and macOS App/DMGs. Developer signing and macOS notarization are not configured.
+- GitHub Actions builds Windows portable-folder ZIPs and macOS App/DMGs. Developer signing and macOS notarization are not configured.
 
 ## 15. Packaging and releases
 
@@ -337,8 +337,8 @@ Packaged smoke tests must stop render backends holding cached PDFs before removi
 ### Build policy and artifacts
 
 - All packaging runs in GitHub Actions. Local development runs source and tests without building desktop packages.
-- Windows x86_64 uses PyInstaller onefile/windowed mode for a single EXE.
-- Windows manual builds can select `windows_bundle=onedir` for a portable ZIP; the default remains `onefile`. The ZIP preserves `RePDF/repdf.exe` and `_internal`, and the packaged smoke test runs the folder EXE. Folder-build integration registers its current executable path instead of copying the EXE alone; register again after moving the folder.
+- Windows x86_64 always uses PyInstaller onedir/windowed mode to produce `repdf-<version>-windows-x86_64.zip`. Release and manual builds no longer offer a single-file option.
+- The ZIP preserves `RePDF/repdf.exe` and `_internal`, and the packaged smoke test runs the folder EXE. Folder-build integration registers its current executable path instead of copying the EXE alone; register again after moving the folder. Close the app before replacing the entire folder during updates.
 - Local Windows measurements on 2026-11-08, from process launch to a visible main window: onefile 15.48/16.29 seconds, onedir 9.64/6.36 seconds. These are two samples on one machine and are affected by system caches and scanning.
 - macOS Apple Silicon (arm64) uses an onedir App bundle, preserving native-library symlinks, packaged into a DMG.
 - Each desktop artifact is built on a native runner for its platform.

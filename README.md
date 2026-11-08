@@ -15,7 +15,7 @@ RePDF 代表 **Read the PDF**，命令與 Python 套件名稱為 `repdf`。這�
 
 從 [GitHub Releases](https://github.com/codemee/repdf/releases/latest) 下載適合平台的檔案，不需要安裝 Python 或 uv：
 
-- **Windows x86_64**：下載 `repdf-<版本>-windows-x86_64.exe`，直接執行。
+- **Windows x86_64**：下載 `repdf-<版本>-windows-x86_64.zip`，完整解壓後執行 `RePDF/repdf.exe`。請保留同一資料夾內的 `_internal`，不要只搬移 EXE。資料夾版啟動時不需重複解壓。
 - **macOS Apple Silicon（arm64）**：下載 `repdf-<版本>-macos-arm64.dmg`，開啟後將 `RePDF.app` 拖入 Applications，再從 Applications 啟動。
 
 - Release 同時提供 SHA256 校驗檔。
@@ -87,7 +87,7 @@ repdf
 
 - 可使用 `repdf "文件.pdf" "另一份文件.pdf"` 一次開啟多份 PDF。RePDF 已執行時，檔案會交給既有視窗；已開啟的檔案會切換至原標籤。
 - **Windows**：按主工具列語系按鈕左側的「系統整合」，選「註冊 PDF 開啟功能」，加入 PDF 的「開啟方式」與「Open with RePDF」快顯選單。Windows 11 的獨立命令位於「顯示其他選項」。再按「開啟預設應用程式設定」，自行將 `.pdf` 指定給 RePDF。
-- 免安裝版註冊時會複製到 `%LOCALAPPDATA%\Programs\RePDF\repdf.exe`；更新後請執行新版並重新註冊。若該位置的程式正在執行，請先關閉，再從新版註冊。Python 安裝版的關聯指向目前 Python 環境，移除或搬移環境後需重新註冊。
+- 資料夾免安裝版註冊目前 `repdf.exe` 的位置；請先把整個 `RePDF` 資料夾放到預定位置，搬移或更新後再執行程式重新註冊。更新前請先關閉程式，並替換整個資料夾。舊單檔版仍保留複製到 `%LOCALAPPDATA%\Programs\RePDF\repdf.exe` 的相容處理。Python 安裝版的關聯指向目前 Python 環境，移除或搬移環境後需重新註冊。
 - 「取消註冊」移除 RePDF 的開啟功能，不會刪除 PDF 或固定位置的執行檔；更換預設程式請使用 Windows 設定。
 - **macOS**：將 `RePDF.app` 放入 Applications。在 Finder 選取 PDF，按 <kbd>⌘</kbd>+<kbd>I</kbd> 開啟「取得資訊」，於「打開檔案的應用程式」選擇 RePDF，再按「全部更改」。主工具列的「系統整合」也提供操作提示。
 
