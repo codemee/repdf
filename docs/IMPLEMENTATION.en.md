@@ -83,6 +83,8 @@ The public entry point is `repdf.entrypoint:main`. Ordinary startup delegates to
 
 On Windows, `early_open.py` first forwards files through a native named pipe without loading Qt, PDF or OCR modules, and grants foreground activation to the existing window. It preserves the UTF-8 JSON list protocol for compatibility with older receivers. Missing pipes or failed writes fall back to full startup and the existing lock check. PyInstaller onefile extraction still precedes the Python entry point. The rendering worker defers pypdf and annotation-writing imports until annotation changes actually require them.
 
+2026-11-08 onefile measurements on the same Windows machine: main-window visibility took 18.38/18.14 seconds before and 13.12/13.02 seconds after. With a window already running, a second EXE delivered a PDF and exited in 12.74/19.15 seconds before and 10.37/15.16 seconds after. These are two samples per case including extraction, subject to cache and scanning effects, not performance guarantees.
+
 Startup order is intentional:
 
 1. `start_render_backend()` starts the persistent PDF preview child process.
