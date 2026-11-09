@@ -1,3 +1,4 @@
+from types import SimpleNamespace
 import pytest
 from PySide6.QtCore import QPoint, QPointF, Qt
 from PySide6.QtGui import QFont, QWheelEvent
@@ -105,7 +106,7 @@ def test_fullscreen_keeps_both_floating_panels_and_navigates_search_results(qtbo
 
 def test_desktop_actions_show_actual_state_and_do_not_fake_default_changes(qtbot, monkeypatch):
     registered, default, changes, opened = [False], [False], [], []
-    monkeypatch.setattr(desktop.sys, 'platform', 'win32')
+    monkeypatch.setattr(desktop, 'sys', SimpleNamespace(platform='win32'))
     monkeypatch.setattr(desktop, 'windows_registration_status', lambda: registered[0])
     monkeypatch.setattr(desktop, 'pdf_default_status', lambda: default[0])
     def register():
@@ -165,7 +166,7 @@ def test_registration_status_detects_partial_registration_without_writing():
 
 
 def test_default_checkbox_keeps_actual_state_when_opening_settings(qtbot, monkeypatch):
-    monkeypatch.setattr(desktop.sys, 'platform', 'win32')
+    monkeypatch.setattr(desktop, 'sys', SimpleNamespace(platform='win32'))
     monkeypatch.setattr(desktop, 'windows_registration_status', lambda: True)
     monkeypatch.setattr(desktop, 'pdf_default_status', lambda: True)
     opened = []
