@@ -60,7 +60,8 @@ def test_range_message_proportions_and_keyboard_dismissal(qapp, qtbot):
     assert message.iconPixmap().deviceIndependentSize().width() == 24
     assert message.defaultButton() is message.button(QMessageBox.StandardButton.Ok)
     qtbot.keyClick(message, Qt.Key.Key_Escape)
-    assert message.result() == QMessageBox.StandardButton.Ok
+    # macOS uses animateClick() for Escape, so completion is asynchronous.
+    qtbot.waitUntil(lambda: message.result() == QMessageBox.StandardButton.Ok)
 
 
 def test_diagnostics_and_custom_button_roles_are_preserved(qapp, qtbot):
