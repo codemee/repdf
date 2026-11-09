@@ -1,5 +1,7 @@
 """Toolbar styles and interactive editing shared by normal/fullscreen previews."""
 
+from repdf.annotation_text import copy_annotation_text
+
 from copy import deepcopy
 from html import escape as html_escape
 import json
@@ -571,7 +573,7 @@ class AnnotationEditor(QObject):
                     "",
                 )
             if text.strip():
-                QApplication.clipboard().setText(text)
+                copy_annotation_text(text)
         self.sync_list(doc, key)
         self.repaint()
 
@@ -1025,7 +1027,7 @@ class AnnotationEditor(QObject):
                         "",
                     )
                     if text.strip():
-                        QApplication.clipboard().setText(text)
+                        copy_annotation_text(text)
                         self.owner.statusBar().showMessage(
                             tr("已複製 {p0} 個字元到剪貼簿", p0=len(text))
                         )
@@ -1115,14 +1117,8 @@ class AnnotationEditor(QObject):
                 if model:
                     label.setToolTip(
                         "<qt>"
-                        + html_escape(tr(KINDS.get(model["kind"], "註解")))
-                        + (
-                            "<br>"
-                            + html_escape(model.get("text", "")).replace("\n", "<br>")
-                            if model.get("text")
-                            else ""
-                        )
-                        + "</qt>"
+                        + html_escape(model.get("text", "")).replace("\n", "<br>")
+                        + "</qt>" if model.get("text") else ""
                     )
                 return bool(model or self.mode())
             if self.drag[0] is not label:
@@ -1365,7 +1361,8 @@ class AnnotationEditor(QObject):
     def show_annotation_list(self, doc, key):
         nav = self.owner.navigation
         nav.open(
-            "annotations", keep_fullscreen=self.owner._fullscreen_preview is not None
+            "annotations", keep_fullscreen=self.owner._fullscreen_preview is not None,
+            jump_first=False,
         )
         nav.narrow_results = False
         nav.layout()

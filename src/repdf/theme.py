@@ -86,13 +86,14 @@ class ThemeController(QObject):
         partial = files("repdf").joinpath("assets", f"partial{mark_suffix}.svg").as_posix()
         self.app.setStyleSheet(
             f"""
-            QFrame#fullscreenAnnotationTools {{ background: palette(window); border: 1px solid {border}; border-radius: 8px; }}
+            QFrame#fullscreenAnnotationTools, QFrame#floatingNavigationFrame {{ background: palette(window); border: 1px solid {border}; border-radius: 8px; }}
             QToolBar#floatingAnnotationBar {{ background: transparent; border: none; padding: 4px; }}
             QFrame#pageCard {{ background: {card}; border: 1px solid {border};
                                border-radius: 8px; }}
             QFrame#documentPaneFrame {{ background: palette(window); border: 1px solid {pane_border};
                                         border-radius: 8px; }}
             QFrame#paneTabSeparator {{ background: {border}; border: none; }}
+            QFrame#compactAnnotationSeparator {{ background: {border}; border: none; }}
             QWidget#pageCardHeader, QWidget#fullscreenPageHeader {{
                 background: {hover}; border: none; border-bottom: 1px solid {border};
                 border-radius: 4px;
@@ -126,6 +127,14 @@ class ThemeController(QObject):
             QToolButton[stateButton="true"]:checked:hover {{ background: {pressed}; }}
             QToolButton[stateButton="true"]:disabled {{ background: transparent; }}
             QToolButton:disabled {{ color: {disabled}; background: transparent; }}
+            QComboBox#compactAnnotationChoice {{ background: transparent; color: palette(button-text);
+                border: none; border-radius: 4px; padding: 4px 24px 4px 4px; }}
+            QComboBox#compactAnnotationChoice:hover {{ background: {hover}; }}
+            QComboBox#compactAnnotationChoice::drop-down {{ border: none; width: 24px; }}
+            QComboBox#compactAnnotationChoice::down-arrow {{ image: none; }}
+            QComboBox#compactAnnotationChoice QAbstractItemView {{ background: {menu_background};
+                color: palette(window-text); border: 1px solid {border}; padding: 4px;
+                selection-background-color: {menu_hover}; selection-color: palette(window-text); }}
             QMessageBox {{ background: palette(window); }}
             QMessageBox QLabel {{ color: palette(window-text); padding: 6px 2px; }}
             QMessageBox QPushButton {{ min-width: 48px; min-height: 26px; padding: 2px 10px; }}

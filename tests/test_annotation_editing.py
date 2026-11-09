@@ -767,6 +767,55 @@ def test_double_click_callout_edits_without_sidebar_relayout(
     assert len(doc.annotation_store.items) == 1
 
 
+@pytest.mark.parametrize('fullscreen', [False, True])
+@pytest.mark.parametrize('kind', ['note', 'highlight'])
+def test_click_later_page_note_keeps_page_when_opening_list(qtbot, tmp_path, fullscreen, kind):
+    source = tmp_path / 'later-note.pdf'
+    writer = PdfWriter()
+    for _ in range(3):
+        writer.add_blank_page(400, 500)
+    writer.write(source)
+    notes = []
+    for page in (0, 2):
+        note = deepcopy(drawing_models()[-1] if kind == 'note' else models()[0])
+        note.update(id=f'repdf-note-{page}', page=page)
+        note['kind'] = kind
+        note['appearance_pdf'] = appearance(note)
+        notes.append(note)
+    saved = tmp_path / 'editable-notes.pdf'
+    save_document(source, saved, [0, 1, 2], annotation_changes=notes)
+    source = saved
+    window, doc = load_window(qtbot, source)
+    editor, nav = window.annotation_editor, window.navigation
+    if fullscreen:
+        window._show_fullscreen_preview()
+        viewer = window._fullscreen_preview
+        viewer.show_page(2)
+        qtbot.waitUntil(lambda: 2 in doc.annotation_store.loaded, timeout=15000)
+        label = viewer.labels[2]
+    else:
+        doc.jump_to_page(2)
+        qtbot.waitUntil(lambda: doc.focused_page == 2 and settled(doc), timeout=15000)
+        label = doc.page_cards[2].preview
+    model = doc.annotation_store.page(2)[0]
+    tx = transform(model['geometry'], label.width(), label.height())
+    if kind == 'note':
+        l, b, r, t = model['rect']
+    else:
+        quad = model['quads'][0]
+        l, r = min(quad[::2]), max(quad[::2])
+        b, t = min(quad[1::2]), max(quad[1::2])
+    center = tx.map(QPointF((l + r) / 2, (b + t) / 2)).toPoint()
+    qtbot.mouseClick(label, Qt.MouseButton.LeftButton, pos=center)
+    qtbot.waitUntil(lambda: nav.panel.isVisible() and len(nav.items) == 2, timeout=15000)
+    qtbot.waitUntil(lambda: nav.annotation_service is not None and not any(
+        value[1] == 'annotations' for value in nav.requests.values()), timeout=15000)
+    assert editor.current()['page'] == 2
+    assert nav.panel.tree.currentItem() is nav.items[1]
+    assert window._fullscreen_preview.page_index == 2 if fullscreen else doc.preview_page_index() == 2
+    assert nav.latest_jump is None
+
+
 def test_single_click_callout_still_opens_annotation_list(qtbot, tmp_path):
     source = tmp_path / "single-click.pdf"
     source_pdf(source)
@@ -852,7 +901,7 @@ def test_copy_shortcut_on_selected_page_annotation(qtbot, tmp_path):
     label.setFocus()
     QApplication.clipboard().setText("before copy")
     qtbot.keyClick(label, Qt.Key.Key_C, Qt.KeyboardModifier.ControlModifier)
-    assert QApplication.clipboard().text() == model["text"]
+    assert QApplication.clipboard().text().replace("\r\n", "\n") == model["text"]
 
 
 def test_callout_retains_initial_width_and_grows_with_single_line(qtbot, tmp_path):

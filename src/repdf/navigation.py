@@ -5,12 +5,16 @@ from html import escape
 from PySide6.QtCore import QEvent, QObject, QSize, Qt, QUrl
 from repdf.shortcut_hints import shortcut_tooltip
 
-from PySide6.QtGui import QKeySequence, QDesktopServices
-from PySide6.QtWidgets import (QApplication, QHBoxLayout, QLabel, QLayout, QSplitter, QToolButton,
-                               QTreeWidgetItem, QVBoxLayout, QWidget, QPlainTextEdit, QDialog)
+from PySide6.QtGui import QAction, QKeySequence, QDesktopServices
+from PySide6.QtWidgets import (QHBoxLayout, QLabel, QLayout, QSplitter, QToolButton,
+                               QTreeWidgetItem, QVBoxLayout, QWidget)
 
 from repdf.icons import toolbar_icon, annotation_icon
-from repdf.annotation_tree import AnnotationTree, copy_tooltip
+from repdf.annotation_tree import AnnotationTree, PAGE_BAND_ROLE, copy_tooltip
+from repdf.floating_panel import FloatingPanel
+from repdf.panel_text import PanelTextSize
+from repdf.annotation_compact import CompactAnnotations
+from repdf.annotation_text import AnnotationTextEdit, copy_annotation_text
 from repdf.strings import tr, localize_text
 from repdf.renderer import RenderService, start_render_backend
 
@@ -23,7 +27,9 @@ class BookmarkPanel(QWidget):
         layout.setContentsMargins(8, 8, 8, 8)
         layout.setSpacing(6)
         layout.setSizeConstraint(QLayout.SizeConstraint.SetNoConstraint)
-        row = QHBoxLayout()
+        self.header = QWidget()
+        row = QHBoxLayout(self.header)
+        row.setContentsMargins(0, 0, 0, 0)
         self.title = QLabel(tr('書籤'))
         row.addWidget(self.title, 1)
         self.close_button = QToolButton()
@@ -35,7 +41,7 @@ class BookmarkPanel(QWidget):
         self.close_button.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonIconOnly)
         self.close_button.setIcon(toolbar_icon('close'))
         row.addWidget(self.close_button)
-        layout.addLayout(row)
+        layout.addWidget(self.header)
         self.status = QLabel()
         self.status.setWordWrap(True)
         self.status.setTextFormat(Qt.TextFormat.PlainText)
@@ -67,7 +73,7 @@ class BookmarkPanel(QWidget):
             button.setAccessibleName(tr(label))
             header.addWidget(button)
         text_layout.addLayout(header)
-        self.annotation_text = QPlainTextEdit()
+        self.annotation_text = AnnotationTextEdit()
         self.annotation_text.setObjectName('annotationText')
         self.annotation_text.setAccessibleName(tr('註解文字'))
         self.annotation_text.setReadOnly(True)
@@ -87,7 +93,7 @@ class BookmarkPanel(QWidget):
         text = text or ''
         if self.annotation_text.toPlainText() != text:
             self.annotation_text.setPlainText(text)
-        self.text_panel.setVisible(bool(text.strip()))
+        self.text_panel.setVisible(bool(text.strip()) and not getattr(self, 'compact_mode', False))
 
     def select_annotation_text(self):
         self.annotation_text.setFocus()
@@ -97,7 +103,7 @@ class BookmarkPanel(QWidget):
         cursor = self.annotation_text.textCursor()
         text = cursor.selectedText().replace('\u2029', '\n') if cursor.hasSelection() else self.annotation_text.toPlainText()
         if text:
-            QApplication.clipboard().setText(text)
+            copy_annotation_text(text)
 
     def changeEvent(self, event):
         super().changeEvent(event)
@@ -115,29 +121,32 @@ class BookmarkPanel(QWidget):
                             item.setIcon(0, annotation_icon(kind))
 
 
-class FloatingNavigation(QDialog):
-    def __init__(self, controller, viewer):
-        super().__init__(viewer, Qt.WindowType.Tool)
-        self.controller = controller
-        self.setWindowTitle(tr('註解'))
-        self.resize(320, 550)
-        self.setModal(False)
-        self.box = QVBoxLayout(self)
-        self.box.setContentsMargins(0, 0, 0, 0)
-
-    def closeEvent(self, event):
-        self.controller.close()
-        event.ignore()
-
-    def reject(self):
-        self.controller.close()
-
-
 class NavigationController(QObject):
     def __init__(self, owner, content):
         super().__init__(owner)
         self.owner, self.content = owner, content
         self.panel = BookmarkPanel()
+        self.previous_annotation_page = QAction(self)
+        self.next_annotation_page = QAction(self)
+        for action, shortcut, delta in ((self.previous_annotation_page, 'Alt+PgUp', -1),
+                                         (self.next_annotation_page, 'Alt+PgDown', 1)):
+            action.setShortcut(QKeySequence(shortcut))
+            action.setShortcutContext(Qt.ShortcutContext.ApplicationShortcut)
+            self.panel.addAction(action)
+            action.triggered.connect(lambda _checked=False, delta=delta: self.compact_bar.step_page(delta))
+        self.compact = owner.settings.value('view/annotations_compact', False, type=bool)
+        self.compact_action = QAction(self)
+        self.compact_action.setCheckable(True)
+        self.compact_action.setChecked(self.compact)
+        self.mode_button = QToolButton()
+        self.mode_button.setFixedSize(34, 34)
+        self.mode_button.setIconSize(QSize(20, 20))
+        self.mode_button.setDefaultAction(self.compact_action)
+        self.mode_button.setProperty('stateButton', True)
+        self.panel.header.layout().insertWidget(0, self.mode_button)
+        self.compact_bar = CompactAnnotations(self)
+        self.panel.layout().insertWidget(0, self.compact_bar)
+        self.text_size = PanelTextSize(self.panel, owner.settings, 'ui/annotation_font_size')
         self.workspace = QSplitter(Qt.Orientation.Horizontal)
         self.workspace.setChildrenCollapsible(False)
         self.workspace.addWidget(self.panel)
@@ -158,8 +167,15 @@ class NavigationController(QObject):
         self.latest_jump = None
         self.annotation_selection = None
         self.pending_annotation_copy = None
+        self._first_annotation_pending = False
+        self._first_annotation_jump = None
         self._layout_state = None
         self.floating = None
+        self._floating_compact = None
+        self._full_floating_size = QSize(320, 550)
+        self.compact_action.triggered.connect(self.set_compact)
+        self.text_size.changed.connect(self._resize_compact)
+        self.panel.tree.currentItemChanged.connect(self.compact_bar.sync)
         self.panel.close_button.clicked.connect(self.close)
         self.panel.tree.textCopied.connect(lambda text: self.owner.statusBar().showMessage(tr('已複製 {p0} 個字元到剪貼簿', p0=len(text))))
         self.panel.tree.itemClicked.connect(self._clicked)
@@ -171,7 +187,8 @@ class NavigationController(QObject):
         else:
             self.open(kind)
 
-    def open(self, kind='bookmarks', *, keep_fullscreen=False):
+    def open(self, kind='bookmarks', *, keep_fullscreen=False, jump_first=True):
+        self._first_annotation_pending = kind == 'annotations' and jump_first
         if kind != self.kind:
             if self.kind == 'annotations':
                 self._clear_annotation_selection()
@@ -179,14 +196,17 @@ class NavigationController(QObject):
         self.kind = kind
         if self.owner._fullscreen_preview is not None and not keep_fullscreen and kind != 'annotations':
             self.owner._fullscreen_preview.close()
-        self.owner.search_controller.close()
+        if kind != 'annotations':
+            self.owner.search_controller.close()
         self.opened = True
         self.narrow_results = True
         self.layout()
         self.show_document()
+        self._jump_first_annotation()
         self.panel.tree.setFocus()
 
     def close(self):
+        self._first_annotation_pending = False
         if self.kind == 'annotations':
             self._clear_annotation_selection()
         self._cancel_annotations()
@@ -202,27 +222,100 @@ class NavigationController(QObject):
         for doc in self.owner.documents.values():
             doc.pages.set_annotation_highlight(None, None)
 
+    def reveal_document(self):
+        self.narrow_results = False
+        if self.owner.width() < 640 and self.owner._fullscreen_preview is None:
+            self.owner.search_controller.narrow_results = False
+        self.layout()
+
+    def set_compact(self, enabled):
+        if enabled and not self.compact and self.floating is not None:
+            self._full_floating_size = self.floating.size()
+        self.compact = bool(enabled)
+        self.compact_action.setChecked(self.compact)
+        self.owner.settings.setValue('view/annotations_compact', self.compact)
+        self._layout_state = None
+        self.layout()
+        self.compact_bar.sync()
+
+    def select_compact_annotation(self, index):
+        if not 0 <= index < len(self.items):
+            return
+        item = self.items[index]
+        item.parent().setExpanded(True)
+        self.panel.tree.setCurrentItem(item)
+        self._clicked(item)
+        self.compact_bar.sync()
+
+    def _jump_first_annotation(self):
+        if self._first_annotation_pending and self.opened and self.kind == 'annotations' and self.items:
+            self._first_annotation_pending = False
+            item = self.items[0]
+            item.parent().setExpanded(True)
+            self.panel.tree.setCurrentItem(item)
+            doc = self.owner.current_document()
+            self.annotation_selection = None
+            self.activate(doc, item.data(0, Qt.ItemDataRole.UserRole))
+            self._first_annotation_jump = self.latest_jump
+            self.compact_bar.sync()
+
+    def _resize_compact(self):
+        if self.floating is not None and self.panel.compact_mode:
+            height = self.compact_bar.annotations.sizeHint().height()
+            self.compact_bar.annotations.setFixedHeight(height)
+            self.compact_bar.text.setFixedHeight(height)
+            self.floating.setFixedHeight(max(34, height) + 10)
+
+    def _panel_mode(self):
+        compact = self.kind == 'annotations' and self.compact and self.owner._fullscreen_preview is not None
+        self.panel.compact_mode = compact
+        self.mode_button.setVisible(self.kind == 'annotations' and self.owner._fullscreen_preview is not None)
+        self.compact_bar.setVisible(compact)
+        self.panel.header.setVisible(not compact)
+        self.panel.tree.setVisible(not compact)
+        self.panel.status.setVisible(not compact)
+        self.panel.text_panel.setVisible(not compact and bool(self.panel.annotation_text.toPlainText().strip()))
+        margins = (4, 4, 22, 4) if compact else (8, 8, 8, 8)
+        self.panel.layout().setContentsMargins(*margins)
+        self.compact_action.setText(tr('切換為完整註解清單' if compact else '切換為精簡註解工具列'))
+        self.compact_action.setToolTip(self.compact_action.text())
+        self.compact_action.setIcon(toolbar_icon('panel_full' if compact else 'panel_compact'))
+        return compact
+
     def layout(self):
         viewer = self.owner._fullscreen_preview
-        floating = viewer is not None and self.kind == 'annotations'
+        compact = self._panel_mode()
+        floating = self.kind == 'annotations' and (viewer is not None or compact)
+        parent = viewer or self.owner
+        if self.floating is not None and (not floating or self.floating.parentWidget() is not parent):
+            self.floating.detach_panel()
+            self.workspace.insertWidget(0, self.panel)
+            self.floating.hide()
+            self.floating.deleteLater()
+            self.floating = None
+            self._floating_compact = None
         if floating:
             if self.floating is None:
-                self.floating = FloatingNavigation(self, viewer)
-                self.floating.move(viewer.x() + 16, viewer.y() + 48)
+                self.floating = FloatingPanel(self, parent, tr('註解'))
+                self.floating.move(parent.x() + 16, parent.y() + (48 if viewer else 100))
                 self.floating.box.addWidget(self.panel)
+            self.floating.set_drag_widgets((self.compact_bar.grip, self.compact_bar, self.compact_bar.page_label) if compact
+                                           else (self.panel.header, self.panel.title))
+            if compact != self._floating_compact:
+                self.floating.setMaximumHeight(16777215)
+                self.floating.setMinimumSize(520 if compact else 0, 0)
+                if compact:
+                    self._resize_compact()
+                self.floating.resize(QSize(760, self.floating.minimumHeight()) if compact else self._full_floating_size)
+                self._floating_compact = compact
             self.content.show()
             self.panel.setVisible(self.opened)
             self.floating.setVisible(self.opened)
             self.owner.annotation_action.setChecked(self.opened)
             self.owner.bookmark_action.setChecked(False)
             self._layout_state = None
+            self.owner.search_controller.layout()
             return
-        if self.floating is not None:
-            self.workspace.insertWidget(0, self.panel)
-            self.floating.hide()
-            self.floating.deleteLater()
-            self.floating = None
-            self._layout_state = None
         narrow = self.owner.width() < 640
         state = narrow, self.opened, self.narrow_results, self.kind
         if state == self._layout_state:
@@ -235,6 +328,7 @@ class NavigationController(QObject):
         self.owner.annotation_action.setChecked(visible and self.kind == 'annotations')
         if visible and not narrow:
             self.workspace.setSizes([260, max(1, self.owner.width() - 260)])
+        self.owner.search_controller.layout()
 
     def show_document(self):
         doc = self.owner.current_document()
@@ -248,9 +342,11 @@ class NavigationController(QObject):
             self.displayed_id = document_id
             self.displayed_kind = self.kind
             self.panel.tree.clear()
+            self.panel.show_annotation_text(None)
             self.items = []
             self.annotation_groups = {}
         annotations = self.kind == 'annotations'
+        self.compact_bar.sync()
         self.panel.title.setText(tr('註解' if annotations else '書籤'))
         self.panel.annotation_text_title.setText(tr('註解文字'))
         self.panel.annotation_text.setAccessibleName(tr('註解文字'))
@@ -267,14 +363,15 @@ class NavigationController(QObject):
         if not self.opened:
             return
         if doc is None or not doc.ready:
+            self.panel.show_annotation_text(None)
             self.panel.status.setText(tr('請先開啟 PDF 檔案'))
-            self.panel.status.show()
+            self.panel.status.setVisible(not self.panel.compact_mode)
             return
         if getattr(doc, self.kind) is not None:
             self.populate(doc)
             return
         self.panel.status.setText(tr('正在載入註解…' if annotations else '正在載入書籤…'))
-        self.panel.status.show()
+        self.panel.status.setVisible(not self.panel.compact_mode)
         if not any(value == (doc.document_id, self.kind, False) for value in self.requests.values()):
             self._request(doc, self.kind)
 
@@ -333,9 +430,10 @@ class NavigationController(QObject):
             page = annotation['page']
             counts[page] = counts.get(page, 0) + 1
             first_destinations.setdefault(page, annotation['destination'])
-        for page, count in counts.items():
+        for band, (page, count) in enumerate(counts.items()):
             title = tr('第 {page} 頁（{count} 則註解）', page=page + 1, count=count)
             group = QTreeWidgetItem(self.panel.tree, [title])
+            group.setData(0, PAGE_BAND_ROLE, bool(band % 2))
             group.setToolTip(0, title)
             group.setData(0, Qt.ItemDataRole.UserRole, first_destinations[page])
             self.annotation_groups[page] = group
@@ -355,8 +453,13 @@ class NavigationController(QObject):
         for page, group in self.annotation_groups.items():
             group.setExpanded(remembered is not None and page in remembered[0])
         self._select_annotation_item(doc)
-        self.panel.status.setText(tr('共 {count} 則註解', count=len(doc.annotations)) if doc.annotations else tr('此 PDF 沒有註解'))
-        self.panel.status.show()
+        self.panel.tree.update_page_bands()
+        self.compact_bar.sync()
+        self.panel.status.setText(tr('共 {count} 則註解，分布於 {pages} 頁',
+                                     count=len(doc.annotations), pages=len(counts))
+                                  if doc.annotations else tr('此 PDF 沒有註解'))
+        self.panel.status.setVisible(not self.panel.compact_mode)
+        self._jump_first_annotation()
 
     def annotation_tooltip(self, doc, annotation):
         details=[tr(annotation['kind']),annotation['contents'] or tr('沒有文字內容')]
@@ -408,9 +511,8 @@ class NavigationController(QObject):
                 doc._search_navigation = None
                 self.annotation_selection = doc.document_id, destination['page'], destination['annotation_index']
                 self.pending_annotation_copy = self.annotation_selection
-                self.open('annotations', keep_fullscreen=fullscreen)
-                self.narrow_results = False
-                self.layout()
+                self.open('annotations', keep_fullscreen=fullscreen, jump_first=False)
+                self.reveal_document()
                 self._select_annotation_item(doc)
                 self.owner.search_controller.clear_highlights()
                 doc.pages.set_annotation_highlight(destination['page'], destination.get('annotation_rect'))
@@ -446,7 +548,7 @@ class NavigationController(QObject):
                 self.pending_annotation_copy = None
                 text = annotation['contents']
                 if text.strip():
-                    QApplication.clipboard().setText(text)
+                    copy_annotation_text(text)
                     self.owner.statusBar().showMessage(tr('已複製 {p0} 個字元到剪貼簿', p0=len(text)))
                 break
 
@@ -484,15 +586,17 @@ class NavigationController(QObject):
             if fullscreen and viewer is not None and viewer.document is doc:
                 viewer.show_page(page)
             else:
-                self.narrow_results = False
-                self.layout()
+                if generation != self._first_annotation_jump:
+                    self.reveal_document()
                 doc.jump_to_page(page, payload['point'])
         elif message_type == 'error':
             message = tr('無法載入註解：{p0}' if kind == 'annotations' else '無法載入 PDF 導航：{p0}',
                          p0=payload.get('message', ''))
             if doc.document_id == self.displayed_id and kind == self.kind:
                 self.panel.status.setText(message)
-                self.panel.status.show()
+                self.panel.status.setVisible(not self.panel.compact_mode)
+                if self.panel.compact_mode:
+                    self.compact_bar.text.set_contents(message)
             self.owner.statusBar().showMessage(message)
         return True
 
@@ -512,10 +616,18 @@ class NavigationController(QObject):
             self.items = []
             self.annotation_groups = {}
             self.panel.tree.clear()
+            self.panel.show_annotation_text(None)
+            self.compact_bar.sync()
         for prefix in (-3_000_000, -4_000_000):
             self.owner.render_service.cancel_pending(prefix - doc.document_id)
 
     def retranslate(self):
+        self.compact_bar.retranslate()
+        self._panel_mode()
+        self.compact_bar.sync()
+        self.text_size.retranslate()
+        if self.floating is not None:
+            self.floating.setWindowTitle(tr('註解'))
         if self.kind == 'annotations':
             self._remember_state()
             self.panel.tree.clear()

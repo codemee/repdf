@@ -264,6 +264,16 @@ class FullscreenPreview(QWidget):
             self.timer.start()
 
     def eventFilter(self, watched, event):
+        if (not self.closed and isinstance(watched, QWidget)
+                and watched.window() in (self, self.owner.navigation.floating,
+                                         self.owner.search_controller.floating)
+                and event.type() in (QEvent.Type.ShortcutOverride, QEvent.Type.KeyPress)
+                and event.matches(QKeySequence.StandardKey.Close)):
+            if event.type() == QEvent.Type.ShortcutOverride:
+                event.accept()
+            else:
+                self.owner._close_fullscreen_document()
+            return True
         editor=self.owner.annotation_editor
         if editor.text_edit is not None and isinstance(watched,QWidget) and (watched is editor.text_edit or editor.text_edit.isAncestorOf(watched)):
             return False
@@ -325,6 +335,7 @@ class FullscreenPreview(QWidget):
         self.owner.render_service.cancel_pending(-self.document.document_id)
         self.owner._fullscreen_preview = None
         self.owner.navigation.layout()
+        self.owner.search_controller.layout()
         if not self.owner._closing and self.document.document_id in self.owner.documents:
             self.owner.activate_document(self.document)
             self.document.jump_to_search_result(self.page_index, [.5, .5, .5, .5],

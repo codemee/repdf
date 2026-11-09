@@ -213,7 +213,7 @@ def test_toolbar_overflow_popup_and_resize(qtbot, monkeypatch):
     assert window.toolbar.widgetForAction(window.export_action).isVisible()
     assert window.toolbar.widgetForAction(window.split_action).isVisible()
     assert not window.odd_checkbox.isVisible() and not window.even_checkbox.isVisible()
-    assert window.theme_action in window.toolbar.tool_actions()
+    assert window.theme_action in window.preferences_menu.actions()
     window.resize(520, 600)
     qtbot.waitUntil(toolbar.overflow_button.isVisible)
     toolbar._populate_overflow()
@@ -676,7 +676,9 @@ def test_open_picker_uses_current_folder_or_documents(qtbot, monkeypatch, tmp_pa
     window.choose_pdf()
     assert picked[-1] == doc.source_path.parent
     actions = window.toolbar.tool_actions()
-    assert actions.index(window.integration_action) + 1 == actions.index(window.language_action)
+    assert window.integration_action in window.preferences_menu.actions()
+    assert window.integration_action.isCheckable()
+    assert window.default_pdf_action.isCheckable()
     assert not window.integration_action.icon().isNull()
 
 
@@ -903,8 +905,9 @@ def test_reading_toolbar_layout_and_floating_annotations_persistence(qtbot,monke
     assert window.toolbar.height() == 42 and not window.annotation_floating.isVisible()
     assert window.copy_text_action in window.toolbar.tool_actions()
     assert window.toolbar.widgetForAction(window.export_action) is not None
-    assert window.language_action in window.toolbar.tool_actions()
-    assert window.theme_action in window.toolbar.tool_actions()
+    assert window.language_action in window.preferences_menu.actions()
+    assert window.theme_action in window.preferences_menu.actions()
+    assert window.preferences_button.isVisible()
     assert window.save_as_action in window.toolbar.tool_actions()
     assert window.toolbar.widgetForAction(window.export_action).isVisible()
     ready_document(window,Path('one.pdf'),1)
@@ -944,10 +947,11 @@ def test_page_output_group_does_not_clip_labels_when_resized(qtbot, monkeypatch)
             (window.copy_text_action, window.region_ocr_action, window.extract_image_action),
             (window.export_action, window.split_action),
             (window.zoom_reset_action, window.fit_action, window.fullscreen_action),
-            (window.language_action, window.theme_action),
+            (),
         )
     ]
     groups[4].append(window.zoom_slider)
+    groups[-1].append(window.preferences_button)
     actions = window.toolbar.tool_actions()
     group_action = next(action for action in actions if window.toolbar._action_groups.get(action, (None,))[0] is window.export_action)
     index = actions.index(group_action)
@@ -997,7 +1001,9 @@ def test_shortcut_tooltips_follow_bindings_and_language(qtbot, monkeypatch):
         assert 'F11' in window.single_action.toolTip()
         assert ('上次選擇' if mode == 'zh' else 'last selected') in window.single_action.toolTip()
     actions = window.toolbar.tool_actions()
-    order = (window.zoom_reset_action, window.fit_action, window.language_action, window.theme_action)
+    preferences = next(action for action, (menu, _) in window.toolbar._menu_buttons.items()
+                       if menu is window.preferences_menu)
+    order = (window.zoom_reset_action, window.fit_action, preferences)
     assert [actions.index(action) for action in order] == sorted(actions.index(action) for action in order)
     changed_shortcut = QKeySequence('Ctrl+Alt+P')
     window.print_action.setShortcuts([changed_shortcut])

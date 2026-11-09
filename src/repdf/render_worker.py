@@ -102,8 +102,9 @@ def render_document(
                 links = read_page_links(document, page)
                 annotation_hits = [
                     {'rect': annotation['destination']['annotation_rect'],
-                     'destination': {**annotation['destination'], 'annotation_index': annotation['index']}}
-                    for annotation in read_annotations(document, [page_index], include_text=False)
+                     'destination': {**annotation['destination'], 'annotation_index': annotation['index'],
+                                     'contents': annotation['contents']}}
+                    for annotation in read_annotations(document, [page_index])
                     if 'annotation_rect' in annotation['destination']]
                 page_label = read_page_label(document, page_index)
                 render_scale = max(scale, 0.1)

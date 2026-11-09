@@ -9,7 +9,7 @@ from importlib.resources import files
 
 from PySide6.QtCore import QUrl
 from PySide6.QtGui import QDesktopServices
-from PySide6.QtWidgets import QDialog, QVBoxLayout, QLabel, QPushButton
+from PySide6.QtWidgets import QDialog, QVBoxLayout, QLabel, QPushButton, QCheckBox
 
 from repdf.strings import tr
 
@@ -137,16 +137,20 @@ class DesktopIntegrationDialog(QDialog):
         layout.addWidget(self.message)
         if sys.platform == 'win32':
             self.message.setText(tr('將 RePDF 加入 PDF 的「開啟方式」與快顯選單。預設應用程式仍由您在 Windows 設定中選擇。單檔版會複製至 Programs/RePDF；資料夾版登錄目前位置，請保留整個資料夾。更新或搬移後請再次註冊。'))
-            for label, callback in [('註冊 PDF 開啟功能', register_windows),
-                                    ('取消註冊', unregister_windows)]:
-                button = QPushButton(tr(label))
-                button.setMinimumHeight(34)
-                button.clicked.connect(lambda _checked=False, fn=callback: self.run_action(fn))
-                layout.addWidget(button)
-            settings = QPushButton(tr('開啟預設應用程式設定'))
-            settings.setMinimumHeight(34)
-            settings.clicked.connect(lambda: QDesktopServices.openUrl(QUrl('ms-settings:defaultapps?registeredAppUser=RePDF')))
-            layout.addWidget(settings)
+            from repdf.desktop_preferences import DesktopPreferenceActions
+            self.preference_actions = DesktopPreferenceActions(self)
+            self.registration_checkbox = QCheckBox(tr('註冊 PDF 開啟功能'))
+            self.registration_checkbox.setChecked(self.preference_actions.registration.isChecked())
+            self.registration_checkbox.setEnabled(self.preference_actions.registration.isEnabled())
+            self.registration_checkbox.clicked.connect(self.preference_actions.set_registered)
+            self.preference_actions.registration.changed.connect(lambda: self.registration_checkbox.setChecked(
+                self.preference_actions.registration.isChecked()))
+            layout.addWidget(self.registration_checkbox)
+            self.default_checkbox = QCheckBox(self.preference_actions.default.text())
+            self.default_checkbox.setChecked(self.preference_actions.default.isChecked())
+            self.default_checkbox.clicked.connect(self.preference_actions.open_defaults)
+            self.preference_actions.default.changed.connect(lambda: self.default_checkbox.setChecked(self.preference_actions.default.isChecked()))
+            layout.addWidget(self.default_checkbox)
             hint = QLabel(tr('設定頁會顯示目前的 PDF 預設程式；點選 .pdf 那一列，再選 RePDF。'))
             hint.setWordWrap(True)
             layout.addWidget(hint)
@@ -156,6 +160,13 @@ class DesktopIntegrationDialog(QDialog):
         close.setMinimumHeight(34)
         close.clicked.connect(self.accept)
         layout.addWidget(close)
+
+    def changeEvent(self, event):
+        super().changeEvent(event)
+        from PySide6.QtCore import QEvent
+        if event.type() == QEvent.Type.ActivationChange and self.isActiveWindow() and hasattr(self, 'preference_actions'):
+            self.preference_actions.refresh()
+            self.default_checkbox.setText(self.preference_actions.default.text())
 
     def run_action(self, callback):
         try:

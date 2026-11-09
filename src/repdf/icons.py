@@ -6,6 +6,9 @@ from PySide6.QtWidgets import QApplication
 
 
 def toolbar_icon(kind: str) -> QIcon:
+    checked_badge = kind in ('integration_checked', 'open_checked')
+    if checked_badge:
+        kind = kind.removesuffix('_checked')
     crop_badge = kind in ('export_trim', 'split_trim')
     if crop_badge:
         kind = kind.removesuffix('_trim')
@@ -25,7 +28,12 @@ def toolbar_icon(kind: str) -> QIcon:
         painter.setPen(QPen(QApplication.palette().color(group, role),
                             1.0, Qt.PenStyle.SolidLine, Qt.PenCapStyle.RoundCap,
                             Qt.PenJoinStyle.RoundJoin))
-        if kind == 'integration':
+        if kind in ('panel_compact', 'panel_full'):
+            painter.drawRoundedRect(QRectF(3, 8 if kind == 'panel_compact' else 3,
+                                          18, 8 if kind == 'panel_compact' else 18), 1, 1)
+            for y in ((12,) if kind == 'panel_compact' else (8, 12, 16)):
+                painter.drawLine(7, y, 17, y)
+        elif kind == 'integration':
             painter.drawPolyline(QPolygonF([
                 QPointF(8, 19), QPointF(3, 19), QPointF(3, 5),
                 QPointF(8, 5), QPointF(11, 8), QPointF(19, 8), QPointF(19, 11)]))
@@ -275,6 +283,15 @@ def toolbar_icon(kind: str) -> QIcon:
             painter.restore()
             painter.drawPolyline(QPolygonF([QPointF(16, 1), QPointF(16, 8), QPointF(23, 8)]))
             painter.drawPolyline(QPolygonF([QPointF(13, 4), QPointF(20, 4), QPointF(20, 11)]))
+        if checked_badge:
+            painter.save()
+            painter.setCompositionMode(QPainter.CompositionMode.CompositionMode_Clear)
+            painter.fillRect(QRectF(12, 12, 12, 12), Qt.GlobalColor.transparent)
+            painter.restore()
+            pen = painter.pen()
+            pen.setWidthF(2)
+            painter.setPen(pen)
+            painter.drawPolyline(QPolygonF([QPointF(13, 18), QPointF(16, 21), QPointF(22, 14)]))
         painter.end()
         icon.addPixmap(pixmap, mode, state)
         if mode == QIcon.Mode.Normal:

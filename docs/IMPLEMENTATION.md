@@ -15,7 +15,7 @@
 - `desktop_open.py` 解析多檔路徑；`DesktopApplication` 接收 macOS `QFileOpenEvent`。主視窗尚未就緒或正在輸出時暫存開檔要求，再交由 `load_pdfs()` 處理。
 - `DesktopInstance` 使用每位使用者固定名稱的 `QLocalServer` / `QLocalSocket`，以 UTF-8 JSON 加換行傳送絕對路徑。`QLockFile` 保護啟動與殘留 socket 清理；後續程序僅送出要求，不啟動 PDF 後端。socket 限目前使用者存取，訊息上限 1 MiB。
 - `desktop_integration.py` 僅在使用者按下註冊時寫入 HKCU 的 RePDF ProgID、OpenWithProgids、Capabilities、RegisteredApplications 與 PDF 專用 shell 命令。不寫入 UserChoice 或強制覆蓋預設程式。免安裝版複製到 `%LOCALAPPDATA%/Programs/RePDF/repdf.exe`，Python 版指向目前環境的 `pythonw -m repdf`。
-- 系統整合入口位於主工具列語系按鈕左側。macOS 封裝在 `packaging/repdf.spec` 宣告 `com.adobe.pdf`、Editor 與 Alternate；透過 Qt 開檔事件處理，不使用 argv emulation。
+- 系統整合位於主工具列右側「…」設定選單，註冊與預設 PDF 顯示實際狀態，與語系及配色同組。macOS 封裝在 `packaging/repdf.spec` 宣告 `com.adobe.pdf`、Editor 與 Alternate；透過 Qt 開檔事件處理，不使用 argv emulation。
 - 取消註冊只刪除 RePDF 專屬鍵與命名值，不刪除 `.pdf` 共用鍵、其他程式的關聯或執行檔。Windows 11 第一層 IExplorerCommand 擴充不在目前實作範圍。
 
 RePDF 是支援 Windows 與 macOS 的 Python 桌面程式，主要功能包括：
@@ -423,7 +423,7 @@ Fit 使用最近點擊且仍可見的頁面，或距預覽區中央最近的頁�
 - 從工具列溢位選單開啟搜尋時，在下一輪事件處理恢復主視窗啟用狀態，再將焦點移至搜尋欄，避免 macOS 的選單視窗暫留啟用狀態。
 - 密碼只經既有本機通訊傳遞，不建立解密 PDF、磁碟文字索引或含密碼的記錄。搜尋歷史與結果只保留於目前工作階段。
 
-全螢幕會記住單頁、對頁或封面＋對頁的選擇。全螢幕懸浮工具列的「註解」位於註解工具開關旁，可切換浮動註解清單；窗格可移動與調整大小，不壓縮 PDF 顯示區域，結束全螢幕後回到一般側欄。
+全螢幕會記住單頁、對頁或封面＋對頁的選擇。全螢幕懸浮工具列的「註解」位於註解工具開關旁，可切換浮動註解清單；窗格可移動與調整大小，不壓縮 PDF 顯示區域，結束全螢幕後恢復完整註解側欄。
 
 ## 17. 書籤與內部連結
 
@@ -479,7 +479,7 @@ Fit 使用最近點擊且仍可見的頁面，或距預覽區中央最近的頁�
 
 ## 21. 註解清單
 
-- `NavigationController` 共用一個左側窗格，以 `bookmarks`／`annotations` 區分內容；各標籤與模式分別保留選取、展開狀態，與搜尋窗格互斥。窄視窗沿用清單／PDF 單窗格切換。
+- `NavigationController` 共用一個左側窗格，以 `bookmarks`／`annotations` 區分內容；各標籤與模式分別保留選取、展開狀態。註解可與搜尋同時顯示，書籤仍與搜尋互斥；窄視窗可並列兩份清單，選取後切回 PDF。全螢幕兩者共用 `FloatingPanel`，可獨立移動、調整大小與關閉；`PanelTextSize` 以 `ui/annotation_font_size`、`ui/search_font_size` 分別記住 8–24 pt 字級。
 - `DocumentView.annotations` 初始為 `None`，開檔不掃描完整註解清單。首次開啟註解窗格才啟動專用 `RenderService`／既有可封裝後端，避免全檔掃描佔用預覽的要求佇列。切換文件或模式、關閉窗格／文件／程式時停止註解服務並丟棄失效世代。
 - `pdf_annotations.py` 逐頁使用 PDFium annotation API 讀取支援的 markup 類型、UTF-16LE Contents／T／Subj／M 字串與矩形；排除連結、表單 widget 與 popup 容器，避免把連結當註解或重複列出彈出內容。每個 annotation、page 與掃描文件都明確關閉。
 - 螢光標示、底線、波浪底線、刪除線未提供 Contents 時，按 attachment quad 擷取底下文字；沒有文字層時顯示無文字提示，不執行 OCR。註解矩形無效時仍可按頁跳轉。
@@ -564,3 +564,9 @@ Fit 使用最近點擊且仍可見的頁面，或距預覽區中央最近的頁�
 - `ParityCheckBox` 以標準三態核取方塊呈現每頁所屬的奇偶頁群組，一般與全螢幕頁首共用文件選取狀態；全螢幕頁首用水平排版維持對齊。
 - 重組與拆分的 `export_crop_actions` 分別保存 `export/export_remove_trimbox` 與 `export/split_remove_trimbox` 設定，各自更新裁切徽記圖示。`ExportPdfTask` 快照該次輸出選項。
 - `_crop_to_trimbox()` 將輸出頁面的 MediaBox 與 CropBox 限縮至有效 TrimBox 與原可見框的交集，再移除 TrimBox；保留原座標與旋轉，因此不需平移內容或註解。無 TrimBox 時不裁切；來源檔與 PNG 輸出不受影響。
+
+
+註解精簡模式：`annotation_compact.py` 與完整清單共用選取及定位。僅全螢幕可切換精簡列，`view/annotations_compact` 記錄選擇；一般視窗固定完整側欄。精簡列提供拖曳手把、模式、前一註解頁、頁碼、後一註解頁、無框線註解選單及單行文字標籤，控制項垂直置中、高度隨字級調整。文字過長以 … 結尾，tooltip 顯示完整內容及換行，不提供展開。Alt＋Page Up／Page Down 在完整與精簡窗格皆可跳註解頁。
+
+
+0.1.21 狀態與導覽補充：裁切檢視以正規化絕對路徑的 SHA-256 作為 `view/trim_documents/` 設定鍵，記錄啟用及停用。開啟註解窗格時等待清單載入後定位第一筆；點選頁面註解的兩條開啟流程使用 `jump_first=False`，避免跳回首筆。關閉或切換文件明確清除註解文字及提示。`annotation_text.py` 統一各處註解複製的作業系統換行。全螢幕 Ctrl+W 透過標準 Close 快捷鍵處理，依工作區順序切換下一文件；儲存完成後的回呼沿用同一切換流程，取消則保持原檢視。

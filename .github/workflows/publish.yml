@@ -8,7 +8,7 @@ on:
       tag:
         description: GitHub release tag to publish
         required: true
-        default: v0.1.20
+        default: v0.1.21
         type: string
 
 permissions:

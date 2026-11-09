@@ -85,10 +85,10 @@ The controls are described below. Hover over a control to see its tooltip, inclu
 - On RePDF’s default app settings page, the `.pdf` row shows the current default application. Click that row, then choose RePDF. System integration installs a dedicated multi-resolution icon for both Python and packaged builds.
 
 - Run `repdf "document.pdf" "another.pdf"` to open multiple files in the existing RePDF window. Files already open select their existing tab.
-- **Windows:** click **System integration** to the left of the language button on the main toolbar, then select **Register PDF opening**. This adds RePDF to PDF **Open with** and a dedicated **Open with RePDF** command (under **Show more options** in Windows 11). Use **Open default app settings** to choose RePDF for `.pdf` yourself.
+- **Windows:** open the right-hand **…** settings menu and check **Register PDF opening**. This adds RePDF to PDF **Open with** and a dedicated **Open with RePDF** command (under **Show more options** in Windows 11). The **Default PDF application** check reflects the actual system association. Click it to choose RePDF for `.pdf` in Windows Settings; returning to the app or reopening the menu refreshes its status.
 - The portable folder build registers its current `repdf.exe` location. Place the entire `RePDF` folder at its intended location before registering, and register again after moving or updating it. Close the app before replacing the whole folder. Older single-file builds retain the compatibility path that copies the EXE to `%LOCALAPPDATA%\Programs\RePDF\repdf.exe`. Python installations register the current Python environment; register again after moving or replacing it.
 - **Unregister** removes RePDF’s registration without deleting PDFs or the copied executable. Choose a different default application in Windows Settings.
-- **macOS:** move `RePDF.app` to Applications. Select a PDF in Finder, press <kbd>⌘</kbd>+<kbd>I</kbd>, choose RePDF under **Open with**, and click **Change All**. **System integration** on the main toolbar also provides these instructions.
+- **macOS:** move `RePDF.app` to Applications. Select a PDF in Finder, press <kbd>⌘</kbd>+<kbd>I</kbd>, choose RePDF under **Open with**, and click **Change All**. The default-PDF item in the toolbar’s **…** settings menu shows the actual status and provides these instructions; macOS manages application registration.
 
 - Each tab shows the filename without its extension. Hover over a tab to see the full path.
 - The window title shows `RePDF` and its version.
@@ -150,6 +150,7 @@ The controls are described below. Hover over a control to see its tooltip, inclu
 - Newly opened PDFs use Fit mode and adapt to the reading area. Changing zoom switches to manual scaling.
 - Cropped view prefers a valid TrimBox. If no TrimBox exists, it recognizes complete vector corner crop marks near page edges. Missing or incomplete marks leave the page whole and disable the tool. Raster crop marks are not detected. The page card shrinks to the crop area so outside margins take no viewing space; the PDF is not modified.
 - Fullscreen single-page, spread, and cover modes also support cropped view. Toggle the crop icon on the floating toolbar; it is enabled when any displayed page has a recognized crop area.
+- Cropped-view state is remembered per file path and restored when reopening the PDF or restoring the workspace. Files without a saved preference start uncropped.
 - Reordering pages adds `*` to the tab name. Click Save or press <kbd>Ctrl</kbd>+<kbd>S</kbd> to save the original PDF.
 - Click Save As or press <kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>S</kbd> to choose another filename. The tab switches to the saved file. On macOS use <kbd>⌘</kbd> instead of <kbd>Ctrl</kbd>.
 - Saving includes every page in the active tab, independently of page and tab checkboxes. Export and Split use checked selections, falling back to the currently viewed page when there are no eligible checked pages.
@@ -188,6 +189,13 @@ The controls are described below. Hover over a control to see its tooltip, inclu
 
 ### Annotation list
 
+- Opening the annotation pane automatically selects and navigates to the first annotation in reading and fullscreen modes, including reopening it. Automatic navigation preserves the clipboard; clicking a page annotation still selects that specific item.
+
+- With the annotation pane open, Alt+Page Up / Alt+Page Down navigate to the previous/next annotated page in reading and fullscreen modes.
+- The reading window always uses the full annotation sidebar. Fullscreen remembers the full/compact choice. The compact row contains a drag grip, mode switch, previous annotated page, page number, next annotated page, borderless annotation selector, single-line text label.
+- Drag the page label or empty space to move it. Navigation skips pages without annotations; choosing an item locates and marks it. The full pane supports text selection and copying; Ctrl+wheel adjusts the pane text size.
+- The compact row uses a fixed single-line height with vertically centered controls and toolbar-style chevrons. Long text ends with an ellipsis; hovering displays the full text with line breaks. There is no expansion control. Copy uses native line endings (CRLF on Windows, LF on macOS/Linux).
+
 - Click the Annotations speech-bubble icon to open the active tab's comments in the left pane.
 - Annotations are grouped by original PDF page, with a count per page. Groups start collapsed; expand a page to view individual types and summaries. Expansion is preserved across tab, sidebar-mode, and interface-language changes. Hover for full text, author, subject, and modification time when provided.
 - Click a page group to jump to and mark its first listed annotation. Click an individual annotation to jump to its position and mark its bounds with a translucent fill and outline. Zoom/Fit mode is preserved, including after page reordering.
@@ -218,7 +226,7 @@ The controls are described below. Hover over a control to see its tooltip, inclu
 - Changes add an unsaved asterisk. Saved annotations remain editable after reopening. Printing, exporting and splitting include unsaved annotation changes. Closing offers Save, Don’t Save and Cancel.
 - Saved files contain standard PDF annotations and complete appearances with embedded text fonts for viewing in other PDF readers. Editing capabilities in those readers depend on their features.
 
-Fullscreen remembers the single, spread or cover-plus-spread mode across restarts. The annotation button beside the annotation-tools toggle in the floating toolbar opens or hides a movable, resizable annotation window without shrinking the PDF view. On exit, the annotation list returns to the normal sidebar.
+Fullscreen remembers the single, spread or cover-plus-spread mode across restarts. Ctrl+W closes the fullscreen document and opens the next document in workspace tab order, wrapping to the first; closing the last document exits fullscreen. Unsaved changes still offer Cancel, Don’t Save and Save. The annotation button beside the annotation-tools toggle in the floating toolbar opens or hides a movable, resizable annotation window without shrinking the PDF view. On exit, the full annotation sidebar is restored.
 
 ### Search text
 
@@ -248,7 +256,8 @@ Fullscreen remembers the single, spread or cover-plus-spread mode across restart
 - In short windows, use the three-dot Options menu to change scope, regular expression, case-sensitive, and whole-word settings.
 - Click the color swatch in the search options row to choose the match highlight color. In short windows, use Options → Match highlight color. Changes immediately recolor existing highlights without rerunning the search, including fullscreen and pages loaded later. Your choice is remembered; canceling the color picker leaves it unchanged.
 - Closing the search pane stops searching and clears highlights while retaining the query and results. Closing a document removes its results for tab-based searches; folder results remain available for reopening.
-- Using the search shortcut in fullscreen returns to the main window and opens the search pane.
+- Annotation and search panes can stay open together and close independently. In fullscreen, the search shortcut opens a floating search pane beside the floating annotation pane; selecting a result changes the fullscreen document and page directly.
+- Each pane has its own **Aa** font-size menu (8–24 pt) and supports Ctrl+wheel, with independent saved sizes. In narrow windows, selecting a result or annotation temporarily hides the lists to reveal the PDF.
 
 ### Select and reorder pages
 

@@ -2,11 +2,15 @@ import io
 import json
 
 import pytest
-from PySide6.QtCore import Qt
+from PySide6.QtCore import QPoint, Qt
+from PySide6.QtGui import QMouseEvent
+from PySide6.QtWidgets import QApplication
 from pypdf import PdfWriter
 
 from repdf.app import MainWindow
 from repdf.render_worker import render_document
+
+REAL_CONFIRM_CLOSE = MainWindow._confirm_close
 
 
 def make_pdf(path, sizes):
@@ -14,6 +18,65 @@ def make_pdf(path, sizes):
     for width, height in sizes:
         writer.add_blank_page(width=width, height=height)
     writer.write(path)
+
+
+def test_fullscreen_close_shortcut_advances_and_exits_after_last_file(qtbot, tmp_path):
+    from test_navigation import load_window
+    paths = [tmp_path / f'close-{i}.pdf' for i in range(3)]
+    for path in paths:
+        make_pdf(path, [(300, 400)])
+    window, first = load_window(qtbot, paths[0])
+    docs = [first]
+    for path in paths[1:]:
+        window.load_pdf(path)
+        doc = window.current_document()
+        wait_for_preview(qtbot, doc)
+        docs.append(doc)
+    window.activate_document(docs[1])
+    window._show_fullscreen_preview('spread')
+    window.navigation.open('annotations')
+    for expected in (docs[2], docs[0], None):
+        viewer = window._fullscreen_preview
+        window.navigation.floating.activateWindow()
+        window.navigation.panel.setFocus()
+        qtbot.keyClick(window.navigation.panel, Qt.Key.Key_W, Qt.KeyboardModifier.ControlModifier)
+        if expected is None:
+            qtbot.waitUntil(lambda: window._fullscreen_preview is None)
+            assert not window.documents
+        else:
+            qtbot.waitUntil(lambda: window._fullscreen_preview is not None
+                           and window._fullscreen_preview.document is expected, timeout=15000)
+            assert window._fullscreen_preview.mode == 'spread'
+
+
+@pytest.mark.parametrize('choice', ['Cancel', 'Discard', 'Save'])
+def test_fullscreen_close_shortcut_respects_unsaved_changes(qtbot, tmp_path, monkeypatch, choice):
+    from PySide6.QtWidgets import QMessageBox
+    from test_navigation import load_window
+    source, other = tmp_path / 'modified.pdf', tmp_path / 'other.pdf'
+    make_pdf(source, [(300, 400), (300, 400)])
+    make_pdf(other, [(300, 400)])
+    window, doc = load_window(qtbot, source)
+    window.load_pdf(other)
+    following = window.current_document()
+    wait_for_preview(qtbot, following)
+    window.activate_document(doc)
+    doc._move_page(1, 0)
+    window._show_fullscreen_preview()
+    viewer = window._fullscreen_preview
+    def answer(message):
+        assert message.parentWidget() is viewer
+        return getattr(QMessageBox.StandardButton, choice)
+    monkeypatch.setattr(QMessageBox, 'exec', answer)
+    monkeypatch.setattr(window, '_confirm_close', lambda doc, on_saved=None:
+                        REAL_CONFIRM_CLOSE(window, doc, on_saved))
+    qtbot.keyClick(viewer, Qt.Key.Key_W, Qt.KeyboardModifier.ControlModifier)
+    if choice == 'Cancel':
+        assert window._fullscreen_preview is viewer and doc.document_id in window.documents
+    else:
+        qtbot.waitUntil(lambda: len(window.documents) == 1 and window._fullscreen_preview is not None
+                       and window._fullscreen_preview.document is following, timeout=30000)
+    monkeypatch.setattr(window, '_confirm_close', lambda doc, on_saved=None: True)
 
 
 def wait_for_preview(qtbot, doc):
@@ -38,14 +101,36 @@ def test_fullscreen_remembers_mode_and_floats_annotations(qtbot, tmp_path):
     window.annotation_action.trigger()
     nav = window.navigation
     assert nav.floating is not None and nav.floating.isVisible()
+    assert nav.floating.windowTitle() == '註解'
+    assert nav.floating.windowFlags() & Qt.WindowType.FramelessWindowHint
+    assert nav.panel.header.isVisible()
+    assert nav.panel.close_button.isVisible()
+    assert nav.floating.size_grip.isVisible()
+    old_position = nav.floating.pos()
+    header = nav.panel.title
+    local = header.rect().center()
+    global_position = header.mapToGlobal(local)
+    for event_type, position, button, buttons in (
+        (QMouseEvent.Type.MouseButtonPress, global_position, Qt.MouseButton.LeftButton, Qt.MouseButton.LeftButton),
+        (QMouseEvent.Type.MouseMove, global_position + QPoint(30, 20), Qt.MouseButton.NoButton, Qt.MouseButton.LeftButton),
+        (QMouseEvent.Type.MouseButtonRelease, global_position + QPoint(30, 20), Qt.MouseButton.LeftButton, Qt.MouseButton.NoButton),
+    ):
+        QApplication.sendEvent(header, QMouseEvent(event_type, local, position, button, buttons, Qt.KeyboardModifier.NoModifier))
+    assert nav.floating.pos() == old_position + QPoint(30, 20)
     assert viewer.size() == before
     assert window._fullscreen_preview is viewer
-    window.annotation_action.trigger()
+    nav.panel.close_button.click()
     assert not nav.floating.isVisible()
+    assert not window.annotation_action.isChecked()
     window.annotation_action.trigger()
     viewer.close()
     assert nav.floating is None
     assert nav.panel.parentWidget() is nav.workspace
+    assert nav.panel.header.isVisible()
+    assert nav.panel.close_button.isVisible()
+    assert nav.panel.title.cursor().shape() == Qt.CursorShape.ArrowCursor
+    nav.panel.close_button.click()
+    assert not nav.opened
     window.close()
     restored = MainWindow()
     qtbot.addWidget(restored)

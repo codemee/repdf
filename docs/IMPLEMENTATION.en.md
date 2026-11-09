@@ -15,7 +15,7 @@ The main window accepts dropped local PDFs and folders. PDFs go directly to `loa
 - `desktop_open.py` parses multiple file paths. `DesktopApplication` handles macOS `QFileOpenEvent`, queuing requests until the window is ready or an export completes before calling `load_pdfs()`.
 - `DesktopInstance` uses a per-user `QLocalServer` / `QLocalSocket` name and newline-terminated UTF-8 JSON containing absolute paths. A `QLockFile` guards startup and stale socket removal. Subsequent processes forward requests without starting a render backend. Sockets restrict access to the current user; messages are limited to 1 MiB.
 - `desktop_integration.py` writes HKCU RePDF ProgID, OpenWithProgids, Capabilities, RegisteredApplications, and PDF-specific shell entries only on explicit registration. It never writes UserChoice or forces a default. Portable builds copy to `%LOCALAPPDATA%/Programs/RePDF/repdf.exe`; Python builds register the current environment’s `pythonw -m repdf`.
-- System integration is available on the main toolbar, immediately left of the language button. `packaging/repdf.spec` declares `com.adobe.pdf`, Editor, and Alternate; Qt file events replace argv emulation.
+- System integration is available in the right-hand **…** toolbar settings menu; registration and default-PDF actions reflect actual system state alongside language and theme. `packaging/repdf.spec` declares `com.adobe.pdf`, Editor, and Alternate; Qt file events replace argv emulation.
 - Unregister removes only RePDF-owned keys and named values, leaving shared `.pdf` keys, other apps, and executables intact. A Windows 11 first-level IExplorerCommand extension is not included.
 
 RePDF is a Python desktop application for Windows and macOS. Its main features are:
@@ -407,7 +407,7 @@ Packaged smoke tests must stop render backends holding cached PDFs before removi
 - Opening search from toolbar overflow reactivates the main window on the next event-loop turn before focusing input, avoiding a lingering active menu window on macOS.
 - Passwords travel only through local communication. No decrypted PDF, disk text index, or password log is created. Search history and results last only for the current session.
 
-Fullscreen remembers the single, spread or cover-plus-spread mode across restarts. The annotation button beside the annotation-tools toggle in the floating toolbar opens or hides a movable, resizable annotation window without shrinking the PDF view. On exit, the annotation list returns to the normal sidebar.
+Fullscreen remembers the single, spread or cover-plus-spread mode across restarts. The annotation button beside the annotation-tools toggle in the floating toolbar opens or hides a movable, resizable annotation window without shrinking the PDF view. On exit, the full annotation sidebar is restored.
 
 ## 17. Bookmarks and internal links
 
@@ -463,7 +463,7 @@ Fullscreen remembers the single, spread or cover-plus-spread mode across restart
 
 ## 21. Annotation list
 
-- `NavigationController` shares the left pane between `bookmarks` and `annotations`, retaining selection/expansion per document and mode. Search remains mutually exclusive. Narrow windows reuse the list/PDF single-pane layout.
+- `NavigationController` shares the left pane between `bookmarks` and `annotations`, retaining selection/expansion per document and mode. Annotations can coexist with search; bookmarks remain mutually exclusive with search. Narrow windows can show both lists, then reveal the PDF after selection. Both use `FloatingPanel` in fullscreen with independent movement, resizing and closing. `PanelTextSize` persists independent 8–24 pt sizes in `ui/annotation_font_size` and `ui/search_font_size`.
 - `DocumentView.annotations` starts as `None`; opening files does not scan the full annotation list. The first annotation-pane request starts a dedicated `RenderService` through the existing frozen-compatible backend, keeping whole-document scanning out of the preview queue. Switching documents/modes or closing the pane/document/application stops this service and invalidates its generations.
 - `pdf_annotations.py` reads supported markup subtypes, UTF-16LE Contents/T/Subj/M strings, and rectangles through PDFium, one page at a time. Links, form widgets, and popup containers are excluded. Annotation/page/document handles are explicitly closed.
 - Highlights, underlines, squiggles, and strikeouts without Contents extract source text from attachment quads. Image-only markup shows an empty-text label without running OCR. Invalid rectangles still allow page-level navigation.
@@ -548,3 +548,9 @@ Fullscreen remembers the single, spread or cover-plus-spread mode across restart
 - `ParityCheckBox` uses standard three-state checkboxes for each page's parity group. Normal and fullscreen headers share document selection state; fullscreen headers use a horizontal layout for alignment.
 - `export_crop_actions` stores independent `export/export_remove_trimbox` and `export/split_remove_trimbox` preferences and updates each crop-badge icon. `ExportPdfTask` snapshots the output option.
 - `_crop_to_trimbox()` restricts output MediaBox and CropBox to the intersection of a valid TrimBox and existing visible boxes, then removes TrimBox. Coordinates and rotation stay intact, so content and annotations require no translation. Pages without TrimBox, source files, and PNG output are unchanged.
+
+
+Compact annotations: `annotation_compact.py` shares selection/navigation with the full list. Only fullscreen offers compact mode; `view/annotations_compact` remembers the choice. Reading windows always use the full sidebar. The compact row has a drag grip, mode, previous annotated page, page number, next annotated page, borderless annotation selector and single-line label. Controls are vertically centered with font-aware height. Long text ends with an ellipsis and the tooltip shows complete text with line breaks; there is no expansion control. Alt+Page Up/Down navigate annotated pages in either mode.
+
+
+0.1.21 state/navigation: cropped-view preferences use SHA-256 of the normalized absolute path under `view/trim_documents/`, persisting enabled and disabled states. Opening annotations navigates to the first item after loading; both page-click paths pass `jump_first=False`. Closing or changing documents explicitly clears text and tooltips. `annotation_text.py` normalizes all annotation clipboard paths to native line endings. Fullscreen handles the standard Close shortcut, advances through workspace documents and exits after the last. The asynchronous save callback shares this transition; Cancel keeps the existing viewer.

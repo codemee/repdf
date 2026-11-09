@@ -16,6 +16,8 @@ from repdf.icons import toolbar_icon
 from repdf.renderer import RenderService, start_render_backend
 from repdf.search import compile_query
 from repdf.strings import tr
+from repdf.floating_panel import FloatingPanel
+from repdf.panel_text import PanelTextSize
 
 
 @dataclass
@@ -100,6 +102,13 @@ class SearchPanel(QWidget):
         self._icon_buttons = []
         self.highlight_color = '#ffe13c'
         self.close_button = self._button('close', '關閉搜尋窗格')
+        self.header = QWidget()
+        header = QHBoxLayout(self.header)
+        header.setContentsMargins(0, 0, 0, 0)
+        self.title = QLabel(tr('搜尋'))
+        header.addWidget(self.title, 1)
+        header.addWidget(self.close_button)
+        layout.addWidget(self.header)
         row = QHBoxLayout()
         self.query = QLineEdit()
         self.query.setPlaceholderText(tr('輸入文字或規則表達式'))
@@ -113,7 +122,6 @@ class SearchPanel(QWidget):
         row.addWidget(self.query, 1)
         row.addWidget(self.search_button)
         row.addWidget(self.stop_button)
-        row.addWidget(self.close_button)
         layout.addLayout(row)
         self.scope = QComboBox()
         self.scope.setAccessibleName(tr('搜尋範圍'))
@@ -263,6 +271,7 @@ class SearchPanel(QWidget):
             self.refresh_icons()
 
     def retranslate(self):
+        self.title.setText(tr('搜尋'))
         index = self.scope.currentIndex()
         for i, label in enumerate(('目前標籤', '勾選的標籤', '所有標籤', '目前標籤所在的資料夾', '目前標籤所在及子資料夾')):
             self.scope.setItemText(i, tr(label))
@@ -279,7 +288,7 @@ class SearchPanel(QWidget):
     def set_compact(self, compact):
         self.options_box.setVisible(not compact)
         self.compact_options.setVisible(compact)
-        self.status.setMaximumHeight(24 if compact else 36)
+        self.status.setMaximumHeight(max(24 if compact else 36, self.status.fontMetrics().height() * (1 if compact else 2)))
 
 
 class SearchController(QObject):
@@ -288,6 +297,9 @@ class SearchController(QObject):
         self.owner = owner
         self.content = content
         self.panel = SearchPanel()
+        self.text_size = PanelTextSize(self.panel, owner.settings, 'ui/search_font_size')
+        self.text_size.changed.connect(self.layout)
+        self.floating = None
         self.workspace = QSplitter(Qt.Orientation.Horizontal)
         self.workspace.setChildrenCollapsible(False)
         self.workspace.addWidget(content)
@@ -343,11 +355,11 @@ class SearchController(QObject):
                 label.set_search_highlight_color(color)
 
     def open(self):
-        self.owner.navigation.close()
-        if self.owner._fullscreen_preview is not None:
-            self.owner._fullscreen_preview.close()
+        if self.owner.navigation.kind != 'annotations':
+            self.owner.navigation.close()
         self.opened = True
         self.narrow_results = True
+        self.owner.navigation.layout()
         self.layout()
         self.panel.query.setFocus()
         self.panel.query.selectAll()
@@ -357,7 +369,7 @@ class SearchController(QObject):
         if not self.owner._closing and self.opened and self.panel.isVisible():
             # A popup can retain the active-window state after its action runs,
             # especially on macOS. Return activation before assigning focus.
-            self.owner.activateWindow()
+            (self.floating or self.owner).activateWindow()
             self.panel.query.setFocus()
             self.panel.query.selectAll()
 
@@ -368,14 +380,37 @@ class SearchController(QObject):
         self.layout()
 
     def layout(self):
+        viewer = self.owner._fullscreen_preview
+        self.panel.set_compact((self.panel.height() if viewer else self.owner.height()) < 360)
+        if viewer is not None:
+            if self.floating is None and self.opened:
+                self.floating = FloatingPanel(self, viewer, tr('搜尋'))
+                self.floating.resize(360, 550)
+                self.floating.move(viewer.x() + max(16, viewer.width() - 376), viewer.y() + 48)
+                self.floating.box.addWidget(self.panel)
+            if self.floating is not None:
+                self.panel.setVisible(self.opened)
+                self.floating.setVisible(self.opened)
+            self.owner.search_action.setChecked(self.opened)
+            self._layout_state = None
+            return
+        if self.floating is not None:
+            self.floating.detach_panel()
+            self.workspace.addWidget(self.panel)
+            self.floating.hide()
+            self.floating.deleteLater()
+            self.floating = None
+            self._layout_state = None
         narrow = self.owner.width() < 640
         self.panel.set_compact(self.owner.height() < 360)
-        state = (narrow, self.opened, self.narrow_results)
+        nav = self.owner.navigation
+        navigation_visible = nav.opened and nav.narrow_results and nav.floating is None
+        state = (narrow, self.opened, self.narrow_results, navigation_visible)
         self.owner.search_action.setChecked(self.opened and (not narrow or self.narrow_results))
         if state == self._layout_state:
             return
         self._layout_state = state
-        self.content.setVisible(not (narrow and self.opened and self.narrow_results))
+        self.content.setVisible(navigation_visible or not (narrow and self.opened and self.narrow_results))
         self.panel.setVisible(self.opened and (not narrow or self.narrow_results))
         if not narrow and self.opened:
             self.workspace.setSizes([max(1, self.owner.width() - 320), 320])
@@ -665,12 +700,24 @@ class SearchController(QObject):
         if result is None or not 0 <= match_index < len(result['match_rects']):
             return
         rects = result['match_rects'][match_index]
+        self.owner.navigation._clear_annotation_selection()
         self.clear_highlights()
         self.selected = key
         doc.pages.set_highlights(page, rects, rects)
+        viewer = self.owner._fullscreen_preview
+        mode = viewer.mode if viewer is not None else None
+        if viewer is not None and viewer.document is not doc:
+            viewer.close()
+            viewer = None
         self.owner.activate_document(doc)
-        if self.owner.width() < 640:
+        if mode is not None:
+            if viewer is None:
+                self.owner._show_fullscreen_preview(mode)
+                viewer = self.owner._fullscreen_preview
+            viewer.show_page(page)
+        elif self.owner.width() < 640:
             self.narrow_results = False
+            self.owner.navigation.reveal_document()
             self.layout()
         doc.jump_to_search_result(page, rects[0])
 
@@ -705,6 +752,9 @@ class SearchController(QObject):
 
     def retranslate(self):
         self.panel.retranslate()
+        self.text_size.retranslate()
+        if self.floating is not None:
+            self.floating.setWindowTitle(tr('搜尋'))
         self._refresh_files()
         if self.order and not self.pending:
             self._summary()

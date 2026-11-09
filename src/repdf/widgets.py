@@ -364,7 +364,8 @@ class PagePreviewLabel(DragLabel):
         if not self.text_mode:
             link = self._link_at(event.position())
             self.setCursor(Qt.CursorShape.PointingHandCursor if link else Qt.CursorShape.OpenHandCursor if self.draggable else Qt.CursorShape.ArrowCursor)
-            self.setToolTip((tr('註解') if 'annotation_index' in link['destination'] else
+            self.setToolTip(('<qt>' + escape(link['destination'].get('contents', '')).replace('\n', '<br>') + '</qt>' if 'annotation_index' in link['destination'] and link['destination'].get('contents') else
+                            '' if 'annotation_index' in link['destination'] else
                             '<qt>' + escape(link['destination']['url']) + '</qt>' if 'url' in link['destination'] else
                             tr('跳至第 {p0} 頁', p0=link['destination']['page'] + 1)) if link else
                             tr('拖曳到另一頁可調整順序') if self.draggable else '')

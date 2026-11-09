@@ -35,7 +35,7 @@ The main layout contains the toolbar, document tabs, scrollable reading area, an
 
 Fullscreen uses a 34 × 34 main button with a 14 × 34 right-hand dropdown arrow, spacing 2 and 20 × 20 icons. Its menu offers single page, spread and cover plus spread; the main button and <kbd>F11</kbd> reuse the last mode selected in this session.
 
-The main row places Open, Save, Save As, Print, Search, Bookmarks, Annotations, the annotation-tools toggle, copy text, OCR, image extraction, export and split on the left. An expanding spacer keeps zoom, Fit, the fullscreen mode dropdown, language and theme on the right. Markup, text annotations and drawings use a draggable horizontal floating toolbar with remembered visibility.
+The main row places Open, Save, Save As, Print, Search, Bookmarks, Annotations, the annotation-tools toggle, copy text, OCR, image extraction, export and split on the left. An expanding spacer keeps zoom, Fit, the fullscreen mode dropdown and a **…** settings menu containing PDF registration, default-app status, language and theme on the right. Markup, text annotations and drawings use a draggable horizontal floating toolbar with remembered visibility.
 
 | Item | Current specification |
 | --- | --- |
@@ -72,6 +72,8 @@ File, selection, and text tools are on the left. Stretchable space separates the
 | Keyboard focus | Toolbar buttons use the hover background to indicate focus, without a border |
 | Disabled | Transparent background, disabled icon/text colors |
 | State button active | Hover background with the normal icon stroke color and no outline; pressed background when hovered |
+
+PDF registration and default-application items in the settings menu also show a bottom-right check badge when active, with explicit Registered/Not registered and Set/Not set text. This does not depend on the platform menu drawing a separate checkmark. Theme changes and toolbar icon refreshes preserve the badge.
 
 Copy text, region OCR, image extraction, bookmarks, annotations, Fit, and search options share the borderless `stateButton` styling with background radius 8. Copy text, region OCR, and image extraction remain mutually exclusive.
 
@@ -269,6 +271,8 @@ A color swatch on the same row configures match highlighting, using a 34 × 34 b
 - It shares the bookmark pane on the left: initial width 260, margins 8, spacing 6, and a 34 × 34 close button with a 20 × 20 icon. The pane status shows the count, loading state, or empty-list message.
 - Selecting an annotation with text copies it and reports the character count in the status bar; empty annotations preserve the clipboard. Closing the annotation pane or switching sidebars clears markers. Reopening does not restore markers or copy text.
 - In reading mode, annotation bounds use a pointing-hand cursor. Clicking marks the annotation and synchronizes the list selection and expanded group. Fullscreen stays open; narrow windows keep the PDF visible.
+- Fullscreen annotation and search lists can coexist in frameless floating windows with the same in-app heading and 34 × 34 close button as the sidebar. Its themed border is 1 px with an 8 px radius. Drag the heading to move it and use the bottom-right grip to resize; exiting fullscreen restores the full list to the sidebar while the full sidebar is restored.
+- Annotation page groups alternate between Base and AlternateBase. Each page heading, child annotation, indentation and copy-action gutter shares its band color; selection still uses the highlight color. The summary shows both annotation count and the number of annotated pages, and bands update with the theme.
 - Clicking a page group jumps to and marks its first listed annotation. Individual annotations use a 2 px accent outline with translucent fill, scaled with the page in both normal and fullscreen views.
 - A single-column tree groups annotations by page. Page rows show the number and count and start collapsed; children elide long one-line summaries. Tooltips retain full text and metadata. In narrow windows, selecting an item returns to the PDF; the toolbar button reopens the list.
 
@@ -326,3 +330,6 @@ A color swatch on the same row configures match highlighting, using a 34 × 34 b
 - The left scroll control sits at the left end; the right scroll control and dropdown sit at the right end. All three use 16 × 16 outline icons in 26px-wide slots, matching the tab-bar height. Qt tear indicators are suppressed to avoid extra arrows.
 - The dropdown lists full filenames in current tab order, checks the active tab, and shows complete paths in tooltips.
 - Search uses the existing toggle-button appearance: highlighted while the pane is visible, and clicking again closes it. Closing the pane, switching sidebars, or changing narrow-window visibility updates the state. Find shortcuts continue to open and focus search.
+
+
+Compact annotations: `annotation_compact.py` shares selection/navigation with the full list. Only fullscreen offers compact mode; `view/annotations_compact` remembers the choice. Reading windows always use the full sidebar. The compact row has a drag grip, mode, previous annotated page, page number, next annotated page, borderless annotation selector and single-line label. Controls are vertically centered with font-aware height. Long text ends with an ellipsis and the tooltip shows complete text with line breaks; there is no expansion control. Alt+Page Up/Down navigate annotated pages in either mode.

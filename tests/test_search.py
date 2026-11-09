@@ -558,7 +558,10 @@ def test_find_shortcut_fullscreen_and_compact_options(qtbot, tmp_path, monkeypat
     qtbot.waitExposed(viewer)
     viewer.activateWindow()
     QTest.keySequence(viewer, shortcut)
-    qtbot.waitUntil(lambda: window._fullscreen_preview is None and c.panel.isVisible())
+    qtbot.waitUntil(lambda: c.floating is not None and c.floating.isVisible())
+    assert window._fullscreen_preview is viewer
+    viewer.close()
+    assert c.floating is None and c.panel.isVisible()
     window.resize(320, 240)
     qtbot.waitUntil(c.panel.compact_options.isVisible)
     c.panel.scope_actions[2].trigger()

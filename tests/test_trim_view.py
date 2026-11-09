@@ -137,3 +137,27 @@ def test_trimbox_tool_only_available_when_page_has_trim(qtbot, tmp_path):
     assert not window.trim_view_action.isEnabled()
     assert doc.trim_view
     assert path.exists()
+
+
+def test_trim_view_remembers_each_file_and_disabled_state(qtbot, tmp_path):
+    paths = [tmp_path / 'first.pdf', tmp_path / 'second.pdf']
+    for path in paths:
+        writer = PdfWriter()
+        page = writer.add_blank_page(300, 400)
+        page.trimbox.lower_left = (40, 40)
+        page.trimbox.upper_right = (260, 360)
+        writer.write(path)
+    window, doc = load_window(qtbot, paths[0])
+    assert not doc.trim_view
+    window.trim_view_action.trigger()
+    assert doc.trim_view
+    window.settings.sync()
+    restored, restored_doc = load_window(qtbot, paths[0])
+    assert restored_doc.trim_view and restored.trim_view_action.isChecked()
+    assert restored_doc.page_cards[0].preview._trim_mask is not None
+    other, other_doc = load_window(qtbot, paths[1])
+    assert not other_doc.trim_view
+    restored.trim_view_action.trigger()
+    restored.settings.sync()
+    reopened, reopened_doc = load_window(qtbot, paths[0])
+    assert not reopened_doc.trim_view and not reopened.trim_view_action.isChecked()

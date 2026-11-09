@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import json
+import hashlib
+import os
 import sys
 import shutil
 import tempfile
@@ -101,7 +103,7 @@ class DocumentView(QWidget):
         self.focused_page = None
         self.page_sizes = {}
         self.trim_boxes = {}
-        self.trim_view = False
+        self.trim_view = owner.settings.value(self.trim_view_settings_key(), False, type=bool)
         self.page_links = {}
         self.page_annotations = {}
         self.page_labels = {}
@@ -147,6 +149,10 @@ class DocumentView(QWidget):
         self.fit_timer.setInterval(150)
         self.fit_timer.timeout.connect(self._apply_fit)
         self.pages = PageViewport(self)
+
+    def trim_view_settings_key(self):
+        identity = os.path.normcase(str(self.source_path.resolve()))
+        return 'view/trim_documents/' + hashlib.sha256(identity.encode('utf-8')).hexdigest()
 
     def _create_tab_controls(self, *, checked=False):
         """QTabBar owns and destroys its buttons when a tab is removed."""
@@ -999,12 +1005,18 @@ class MainWindow(QMainWindow):
         self.language_action.triggered.connect(self._cycle_language)
         self.theme_action = QAction(self)
         self.theme_action.triggered.connect(self._cycle_theme)
-        self.integration_action = QAction(tr('系統整合'), self)
-        self.integration_action.setToolTip(tr('系統整合'))
-        self.integration_action.triggered.connect(self.show_integration)
-        self.toolbar.addAction(self.integration_action)
-        self.toolbar.addAction(self.language_action)
-        self.toolbar.addAction(self.theme_action)
+        from repdf.desktop_preferences import DesktopPreferenceActions
+        self.desktop_preferences = DesktopPreferenceActions(self)
+        self.integration_action = self.desktop_preferences.registration
+        self.default_pdf_action = self.desktop_preferences.default
+        self.preferences_menu = QMenu(tr('設定'), self)
+        self.preferences_menu.addActions([self.integration_action, self.default_pdf_action])
+        self.preferences_menu.addSeparator()
+        self.preferences_menu.addActions([self.language_action, self.theme_action])
+        self.preferences_menu.aboutToShow.connect(self.desktop_preferences.refresh)
+        self.toolbar.overflow_menu.aboutToShow.connect(self.desktop_preferences.refresh)
+        self.preferences_button = self.toolbar.add_menu_button(
+            self.preferences_menu, name='preferencesMenu', flatten_overflow=True)
         self._refresh_toolbar_icons()
         for toolbar in (self.toolbar,self.annotation_toolbar):
             for action in toolbar.actions():
@@ -1051,7 +1063,6 @@ class MainWindow(QMainWindow):
                              (self.print_action, "print"),
                              (self.bookmark_action, "bookmarks"),
                              (self.annotation_action, "annotations"),
-                             (self.integration_action, "integration"),
                              (self.fit_action, "fit"), (self.trim_view_action, "trim_view"),
                              (self.fullscreen_action, {'single': 'fullscreen', 'spread': 'fullscreen_spread', 'cover': 'fullscreen_cover'}[self.fullscreen_mode]),
                              (self.single_action, 'fullscreen'),
@@ -1062,6 +1073,8 @@ class MainWindow(QMainWindow):
             action.setIcon(toolbar_icon(kind))
         if hasattr(self, "language_action"):
             self._update_preference_actions()
+        if hasattr(self, 'desktop_preferences'):
+            self.desktop_preferences.refresh_icons()
         if hasattr(self, "annotation_editor"):
             self.annotation_editor.refresh_icons()
         self.annotation_tools_action.setIcon(toolbar_icon('edit_tools'))
@@ -1130,12 +1143,17 @@ class MainWindow(QMainWindow):
         if self._about_dialog is not None and isValid(self._about_dialog):
             self._about_dialog.retranslate()
         self._windows_system_menu.refresh()
-        self.integration_action.setText(tr('系統整合'))
+        self.preferences_menu.setTitle(tr('設定'))
+        self.preferences_button.setToolTip(tr('設定'))
+        self.preferences_button.setAccessibleName(tr('設定'))
+        self.desktop_preferences.refresh()
         if self._fullscreen_preview is not None:
             self._fullscreen_preview.floating_tools.refresh_icons()
 
     def changeEvent(self, event: QEvent) -> None:
         super().changeEvent(event)
+        if event.type() == QEvent.Type.ActivationChange and self.isActiveWindow() and hasattr(self, 'desktop_preferences'):
+            self.desktop_preferences.refresh()
         if event.type() == QEvent.Type.DevicePixelRatioChange and hasattr(self, 'documents'):
             for doc in self.documents.values():
                 if doc.ready:
@@ -1170,6 +1188,7 @@ class MainWindow(QMainWindow):
         if doc is None or not doc.ready:
             return
         doc.trim_view = checked
+        self.settings.setValue(doc.trim_view_settings_key(), checked)
         for card in doc.page_cards:
             card.set_trim_rect(doc.trim_boxes.get(card.page_index) if checked else None)
         doc.fit_page()
@@ -1340,8 +1359,9 @@ class MainWindow(QMainWindow):
         self.annotation_floating.hide()
         viewer = FullscreenPreview(self, doc, doc.preview_page_index(), mode)
         self._fullscreen_preview = viewer
-        self.navigation.layout()
         viewer.setGeometry(self.screen().geometry())
+        self.navigation.layout()
+        self.search_controller.layout()
         viewer.showFullScreen()
         viewer.activateWindow()
         viewer.setFocus()
@@ -1363,6 +1383,38 @@ class MainWindow(QMainWindow):
         pane = self.workspace.pane_for(doc)
         if pane is not None:
             self.close_tab(pane.indexOf(doc), force=force, pane=pane)
+
+    def _close_fullscreen_document(self):
+        viewer = self._fullscreen_preview
+        if viewer is None or self._export_running:
+            return
+        doc, mode = viewer.document, viewer.mode
+        ordered = self.ordered_documents()
+        position = ordered.index(doc)
+        following = ordered[position + 1:] + ordered[:position]
+        preferred = following[0].document_id if following else None
+        self.annotation_editor.finish_text(True)
+
+        def finish(saved):
+            current = self._fullscreen_preview
+            if current is not None:
+                current.close()
+            self.close_document(saved, force=True)
+
+            def resume():
+                if self._closing or not self.documents:
+                    return
+                target = self.documents.get(preferred) or self.ordered_documents()[0]
+                if not target.ready:
+                    QTimer.singleShot(50, resume)
+                    return
+                self.activate_document(target)
+                self._show_fullscreen_preview(mode)
+
+            resume()
+
+        if self._confirm_close(doc, finish):
+            finish(doc)
 
     def _cycle_tab(self, step: int) -> None:
         count = self.tabs.count()
@@ -1738,7 +1790,7 @@ class MainWindow(QMainWindow):
     def _confirm_close(self, doc, on_saved=None):
         if not doc.modified:
             return True
-        message = unsaved_changes_message(self, doc.source_path.name)
+        message = unsaved_changes_message(self._fullscreen_preview or self, doc.source_path.name)
         result = message.exec()
         if result == QMessageBox.StandardButton.Discard:
             return True

@@ -113,6 +113,7 @@ def test_annotation_sidebar_is_lazy_and_jumps_after_reordering(qtbot, tmp_path, 
     assert nav.panel.title.text() == '註解'
     assert clipboard.text() == 'keep until selecting'
     assert '共 4' in nav.panel.status.text()
+    assert '3 頁' in nav.panel.status.text()
     assert '&lt;b&gt;' in nav.items[0].toolTip(0)
     assert 'Alice 作者' in nav.items[0].toolTip(0)
     assert 'Marked text' in nav.items[3].text(0)
@@ -179,9 +180,79 @@ def test_annotation_sidebar_is_lazy_and_jumps_after_reordering(qtbot, tmp_path, 
     assert not doc.pages.annotation_highlights
     assert doc.page_cards[0].preview._annotation_rect is None
     nav.open('annotations')
+    service = nav.annotation_service
     window.search_action.trigger()
-    assert not nav.panel.isVisible() and window.search_controller.panel.isVisible()
-    assert nav.annotation_service is None
+    assert nav.panel.isVisible() and window.search_controller.panel.isVisible()
+    assert nav.annotation_service is service
+
+
+def test_annotation_page_bands_include_children_and_copy_area_and_follow_theme(qtbot, tmp_path):
+    path = tmp_path / 'page-bands.pdf'
+    annotations_pdf(path)
+    window, doc = load_window(qtbot, path)
+    nav = window.navigation
+    nav.open('annotations')
+    qtbot.waitUntil(lambda: len(nav.items) == 4, timeout=10000)
+    tree = nav.panel.tree
+    first, second, third = [tree.topLevelItem(i) for i in range(3)]
+    second.setExpanded(True)
+    tree.setCurrentItem(None)
+    tree.clearSelection()
+    for theme in ('light', 'dark'):
+        window._theme_controller.set_mode(theme)
+        qtbot.wait(20)
+        base, alternate = tree.palette().base().color(), tree.palette().alternateBase().color()
+        assert base != alternate
+        assert first.background(0).color() == third.background(0).color() == base
+        assert second.background(0).color() == alternate
+        image = tree.viewport().grab().toImage()
+        for item in [second, second.child(0), second.child(1)]:
+            rect = tree.visualItemRect(item)
+            assert rect.isValid() and rect.height() > 0
+            assert item.background(0).color() == alternate
+            # Check both indentation and the inline copy-button gutter.
+            assert image.pixelColor(3, rect.top() + 1) == alternate
+            assert image.pixelColor(image.width() - 3, rect.top() + 1) == alternate
+        second.setExpanded(False)
+        second.setExpanded(True)
+        assert second.child(0).background(0).color() == alternate
+        tree.setCurrentItem(second.child(0))
+        tree.setFocus()
+        qtbot.wait(10)
+        image = tree.viewport().grab().toImage()
+        rect = tree.visualItemRect(second.child(0))
+        assert image.pixelColor(3, rect.top() + 1) == tree.palette().highlight().color()
+        assert image.pixelColor(image.width() - 3, rect.top() + 1) == tree.palette().highlight().color()
+        tree.setCurrentItem(None)
+        tree.clearSelection()
+    assert nav.panel.status.text() == '共 4 則註解，分布於 3 頁'
+
+
+@pytest.mark.parametrize('remaining_file', [False, True])
+def test_closing_annotation_document_clears_text_and_tooltip(qtbot, tmp_path, remaining_file):
+    comments, empty = tmp_path / 'close-comments.pdf', tmp_path / 'remaining.pdf'
+    annotations_pdf(comments)
+    window, doc = load_window(qtbot, comments)
+    if remaining_file:
+        writer = PdfWriter()
+        writer.add_blank_page(300, 400)
+        writer.write(empty)
+        window.load_pdf(empty)
+        qtbot.waitUntil(lambda: window.current_document().ready, timeout=10000)
+        window.tabs.setCurrentWidget(doc)
+    nav = window.navigation
+    nav.open('annotations')
+    qtbot.waitUntil(lambda: len(nav.items) == 4 and doc.focused_page == 0 and settled(doc), timeout=15000)
+    assert nav.panel.annotation_text.toPlainText()
+    assert nav.compact_bar.text.contents and nav.compact_bar.text.toolTip()
+    window.close_tab(window.tabs.indexOf(doc))
+    qtbot.waitUntil(lambda: not nav.items, timeout=10000)
+    assert not nav.panel.annotation_text.toPlainText()
+    assert not nav.panel.text_panel.isVisible()
+    assert not nav.compact_bar.text.contents
+    assert not nav.compact_bar.text.toolTip()
+    assert not nav.compact_bar.annotations.count()
+    assert not nav.previous_annotation_page.isEnabled() and not nav.next_annotation_page.isEnabled()
 
 
 def test_annotation_tabs_empty_state_translation_and_stale_response(qtbot, tmp_path):
@@ -272,7 +343,7 @@ def test_click_annotation_on_page_syncs_sidebar_and_preserves_fullscreen(qtbot, 
     nav.activate(doc, hit['destination'])
     assert nav.content.isVisible() and not nav.panel.isVisible()
     nav.open('annotations')
-    assert nav.panel.tree.currentItem() is nav.items[2]
+    assert nav.panel.tree.currentItem() is nav.items[0]
 
 
 @pytest.mark.parametrize('close_with', ['button', 'toolbar', 'bookmarks', 'search'])
@@ -297,6 +368,10 @@ def test_closing_annotations_clears_markers_and_pending_copy(qtbot, tmp_path, cl
         window.bookmark_action.trigger()
     else:
         window.search_action.trigger()
+        assert nav.opened and window.search_controller.opened
+        assert doc.pages.annotation_highlights
+        assert nav.floating.isVisible() and window.search_controller.floating.isVisible()
+        nav.panel.close_button.click()
     assert not doc.pages.annotation_highlights
     assert all(card.preview._annotation_rect is None for card in doc.page_cards)
     if not viewer.closed:
@@ -361,6 +436,7 @@ def test_copy_on_annotation_row_does_not_select_or_navigate(qtbot, tmp_path, wid
     window.annotation_action.trigger()
     nav = window.navigation
     qtbot.waitUntil(lambda: len(nav.items) == 4, timeout=10000)
+    qtbot.waitUntil(lambda: doc.focused_page == 0 and settled(doc), timeout=15000)
     tree = nav.panel.tree
     tree.setCurrentItem(nav.items[0])
     target = nav.items[1]

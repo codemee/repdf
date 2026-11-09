@@ -1,21 +1,23 @@
 """Compact annotation rows with an in-place copy action."""
 
 from PySide6.QtCore import QEvent, QPersistentModelIndex, QRect, Qt, Signal
-from PySide6.QtGui import QIcon, QKeySequence
+from PySide6.QtGui import QBrush, QIcon, QKeySequence
 from PySide6.QtWidgets import (
-    QApplication,
     QStyledItemDelegate,
     QStyle,
+    QStyleOption,
     QStyleOptionViewItem,
     QToolTip,
     QTreeWidget,
 )
 
 from repdf.icons import toolbar_icon
+from repdf.annotation_text import copy_annotation_text
 from repdf.strings import tr
 from repdf.shortcut_hints import shortcut_tooltip
 
 TEXT_ROLE = Qt.ItemDataRole.UserRole + 2
+PAGE_BAND_ROLE = Qt.ItemDataRole.UserRole + 3
 
 
 def copy_rect(rect):
@@ -40,8 +42,10 @@ class AnnotationDelegate(QStyledItemDelegate):
         selected = bool(option.state & QStyle.StateFlag.State_Selected)
         painter.save()
         tail = QRect(button.left() - 3, option.rect.top(), 37, option.rect.height())
+        background = index.data(Qt.ItemDataRole.BackgroundRole)
         painter.fillRect(
-            tail, option.palette.highlight() if selected else option.palette.base()
+            tail, option.palette.highlight() if selected else
+            background if isinstance(background, QBrush) else option.palette.base()
         )
         body = QStyleOptionViewItem(option)
         body.rect.setRight(button.left() - 4)
@@ -76,6 +80,43 @@ class AnnotationTree(QTreeWidget):
         self.copy_press = None
         self.setMouseTracking(True)
         self.setItemDelegate(AnnotationDelegate(self))
+
+    def update_page_bands(self):
+        for index in range(self.topLevelItemCount()):
+            group = self.topLevelItem(index)
+            alternate = group.data(0, PAGE_BAND_ROLE)
+            if alternate is None:
+                continue
+            background = self.palette().alternateBase() if alternate else self.palette().base()
+            group.setBackground(0, background)
+            for child in range(group.childCount()):
+                group.child(child).setBackground(0, background)
+
+    def changeEvent(self, event):
+        super().changeEvent(event)
+        if event.type() == QEvent.Type.PaletteChange:
+            self.update_page_bands()
+
+    def drawBranches(self, painter, rect, index):
+        background = index.data(Qt.ItemDataRole.BackgroundRole)
+        if not isinstance(background, QBrush):
+            return super().drawBranches(painter, rect, index)
+        selected = self.selectionModel().isSelected(index)
+        painter.save()
+        painter.fillRect(rect, self.palette().highlight() if selected else background)
+        option = QStyleOption()
+        option.initFrom(self)
+        option.rect = QRect(rect.right() - self.indentation() + 1, rect.top(),
+                            self.indentation(), rect.height())
+        option.state |= QStyle.StateFlag.State_Item
+        if self.model().hasChildren(index):
+            option.state |= QStyle.StateFlag.State_Children
+        if self.isExpanded(index):
+            option.state |= QStyle.StateFlag.State_Open
+        if selected:
+            option.state |= QStyle.StateFlag.State_Selected
+        self.style().drawPrimitive(QStyle.PrimitiveElement.PE_IndicatorBranch, option, painter, self)
+        painter.restore()
 
     def copy_index(self, position):
         index = self.indexAt(position)
@@ -133,7 +174,7 @@ class AnnotationTree(QTreeWidget):
         super().keyPressEvent(event)
 
     def copy_text(self, text):
-        QApplication.clipboard().setText(text)
+        copy_annotation_text(text)
         self.textCopied.emit(text)
 
     def viewportEvent(self, event):
