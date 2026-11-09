@@ -159,7 +159,7 @@ class DocumentView(QWidget):
         owner = self.owner
         self.include_checkbox = QCheckBox()
         self.include_checkbox.setObjectName('tabIncludeCheckbox')
-        self.include_checkbox.setToolTip(tr('勾選此檔案以加入重組或拆分；未勾選任何標籤時僅輸出目前檔案'))
+        self.include_checkbox.setToolTip(tr('勾選此檔案以加入重組、拆分或全螢幕校對；校對限兩個標籤'))
         self.include_checkbox.setEnabled(self.ready and not owner._export_running)
         self.include_checkbox.setChecked(checked)
         self.include_checkbox.toggled.connect(owner._sync_controls)
@@ -371,6 +371,8 @@ class DocumentView(QWidget):
         self.owner._update_page_indicator()
 
     def jump_to_search_result(self, page, rect, *, center_vertically=True):
+        if hasattr(self.owner, 'proofreading') and not self.owner.proofreading.allow_page(self, page):
+            return False
         self.focused_page = page
         self._search_navigation = (page, rect)
         self._center_search_vertically = center_vertically
@@ -424,6 +426,8 @@ class DocumentView(QWidget):
 class MainWindow(QMainWindow):
     def __init__(self, render_backend=None) -> None:
         super().__init__()
+        from repdf.message_dialogs import install_message_style
+        install_message_style(QApplication.instance())
         self.settings = QSettings("repdf", "repdf")
         migrate_preferences(self.settings, QSettings("PDFPick", "PDFPick"))
         self.language_controller = LanguageController(self.settings.value("ui/language", "system"), self)
@@ -493,6 +497,8 @@ class MainWindow(QMainWindow):
         self._update_preference_actions()
 
         QApplication.instance().installEventFilter(self)
+        from repdf.proofreading import ProofreadingController
+        self.proofreading = ProofreadingController(self)
         self._sync_controls()
 
         self._about_dialog = None
@@ -588,6 +594,9 @@ class MainWindow(QMainWindow):
             viewer = self._fullscreen_preview
             pages = viewer.visible_pages if viewer is not None and viewer.document is doc else [current]
             has_trim = bool(ready and any(page in doc.trim_boxes for page in pages))
+            if hasattr(self, 'proofreading') and self.proofreading.active_sync():
+                has_trim = any(page in view.document.trim_boxes
+                               for view in viewer.views.values() for page in view.visible_pages)
             self.trim_view_action.setEnabled(has_trim)
             self.trim_view_action.setChecked(bool(has_trim and doc.trim_view))
         label = doc.page_labels.get(current) if ready else None
@@ -628,6 +637,13 @@ class MainWindow(QMainWindow):
             return
         self._page_edit_dirty = False
         page = number - 1
+        if not self.proofreading.allow_page(doc, page):
+            return
+        viewer = self.proofreading.viewer()
+        if viewer is not None:
+            viewer.show_page(page)
+            self.page_number_input.clearFocus()
+            return
         doc.focused_page = page
         doc._search_navigation = None
         if doc.fit_mode:
@@ -970,6 +986,10 @@ class MainWindow(QMainWindow):
         self.trim_view_action.setToolTip(tr('優先依 TrimBox，否則依可辨識的四角裁切線檢視（不修改原檔）'))
         self.trim_view_action.triggered.connect(self._toggle_trim_view)
         self.toolbar.addAction(self.trim_view_action)
+        self.sync_views_action = QAction(tr('同步校對'), self)
+        self.sync_views_action.setCheckable(True)
+        self.sync_views_action.setEnabled(False)
+        self.toolbar.addAction(self.sync_views_action)
         self.fullscreen_mode = self.settings.value('ui/fullscreen_mode', 'single')
         if self.fullscreen_mode not in ('single', 'spread', 'cover'):
             self.fullscreen_mode = 'single'
@@ -1064,6 +1084,7 @@ class MainWindow(QMainWindow):
                              (self.bookmark_action, "bookmarks"),
                              (self.annotation_action, "annotations"),
                              (self.fit_action, "fit"), (self.trim_view_action, "trim_view"),
+                             (self.sync_views_action, 'sync_views'),
                              (self.fullscreen_action, {'single': 'fullscreen', 'spread': 'fullscreen_spread', 'cover': 'fullscreen_cover'}[self.fullscreen_mode]),
                              (self.single_action, 'fullscreen'),
                              (self.spread_action, "fullscreen_spread"),
@@ -1187,15 +1208,22 @@ class MainWindow(QMainWindow):
         doc = self.current_document()
         if doc is None or not doc.ready:
             return
-        doc.trim_view = checked
-        self.settings.setValue(doc.trim_view_settings_key(), checked)
-        for card in doc.page_cards:
-            card.set_trim_rect(doc.trim_boxes.get(card.page_index) if checked else None)
-        doc.fit_page()
+        viewer = self._fullscreen_preview
+        docs = ([v.document for v in viewer.views.values()]
+                if self.proofreading.active_sync() else [doc])
+        for target in docs:
+            target.trim_view = checked
+            self.settings.setValue(target.trim_view_settings_key(), checked)
+            for card in target.page_cards:
+                card.set_trim_rect(target.trim_boxes.get(card.page_index) if checked else None)
+            if viewer is None:
+                target.fit_page()
+            else:
+                view = viewer.views.get(target.document_id) if hasattr(viewer, 'views') else viewer
+                if view is not None:
+                    view.update_image()
+                    view.timer.start()
         self._sync_controls()
-        if self._fullscreen_preview is not None:
-            self._fullscreen_preview.update_image()
-            self._fullscreen_preview.timer.start()
 
     def _selection_active(self) -> bool:
         return any(action.isChecked() for action in
@@ -1233,8 +1261,11 @@ class MainWindow(QMainWindow):
             for card in doc.page_cards:
                 card.set_text_copy_mode(enabled, region=region, image=image)
         if self._fullscreen_preview is not None:
-            for label in self._fullscreen_preview.labels.values():
-                label.set_text_mode(enabled, region=region, image=image)
+            viewer = self._fullscreen_preview
+            views = viewer.views.values() if hasattr(viewer, 'views') else [viewer]
+            for view in views:
+                for label in view.labels.values():
+                    label.set_text_mode(enabled, region=region, image=image)
         self._text_requests.clear()
         self._ocr_generations.clear()
         self._image_requests.clear()
@@ -1343,21 +1374,30 @@ class MainWindow(QMainWindow):
         self.annotation_editor.finish_text(True)
         if self._export_running:
             return
-        doc = self.current_document()
-        if doc is None or not doc.ready or not doc.page_sizes:
+        selected = self.proofreading.selected()
+        if len(selected) > 2:
             return
-        mode = mode or self.fullscreen_mode
         if self._fullscreen_preview is not None:
-            self._fullscreen_preview.set_mode(mode)
+            self._fullscreen_preview.set_mode(mode or self.fullscreen_mode)
             return
+        if len(selected) == 1 or (len(selected) == 2 and self.current_document() not in selected):
+            self.activate_document(selected[0])
+        doc = self.current_document()
+        if doc is None or not doc.ready or (len(selected) < 2 and not doc.page_sizes):
+            return
+        if len(selected) == 2 and not all(d.ready for d in selected):
+            return
+        self.annotation_floating.hide()
+        mode = mode or self.fullscreen_mode
         self.fullscreen_mode = mode
         self.settings.setValue('ui/fullscreen_mode', mode)
-        action = {'single': self.single_action, 'spread': self.spread_action, 'cover': self.cover_action}[mode]
-        action.setChecked(True)
-        self.fullscreen_action.setToolTip(tr('全螢幕模式：{mode}', mode=action.text()))
+        {'single': self.single_action, 'spread': self.spread_action, 'cover': self.cover_action}[mode].setChecked(True)
         self._refresh_toolbar_icons()
-        self.annotation_floating.hide()
-        viewer = FullscreenPreview(self, doc, doc.preview_page_index(), mode)
+        if len(selected) == 2:
+            from repdf.proofreading_preview import ComparisonPreview
+            viewer = ComparisonPreview(self, selected, mode)
+        else:
+            viewer = FullscreenPreview(self, doc, doc.preview_page_index(), mode)
         self._fullscreen_preview = viewer
         viewer.setGeometry(self.screen().geometry())
         self.navigation.layout()
@@ -1365,6 +1405,7 @@ class MainWindow(QMainWindow):
         viewer.showFullScreen()
         viewer.activateWindow()
         viewer.setFocus()
+        self._sync_controls()
 
     def current_document(self):
         return self.tabs.currentWidget() if hasattr(self, "tabs") else None
@@ -1388,7 +1429,8 @@ class MainWindow(QMainWindow):
         viewer = self._fullscreen_preview
         if viewer is None or self._export_running:
             return
-        doc, mode = viewer.document, viewer.mode
+        doc = viewer.document
+        mode = self.fullscreen_mode if hasattr(viewer, 'views') else viewer.mode
         ordered = self.ordered_documents()
         position = ordered.index(doc)
         following = ordered[position + 1:] + ordered[:position]
@@ -1489,6 +1531,8 @@ class MainWindow(QMainWindow):
                 card.parity_button.set_selection_state(states[card.parity_button.odd])
                 card.parity_button.setEnabled(not self._export_running)
             viewer = self._fullscreen_preview
+            if viewer is not None and hasattr(viewer, 'views'):
+                viewer = viewer.views.get(document.document_id)
             if viewer is not None and viewer.document is document:
                 for button in viewer.parity_buttons.values():
                     button.set_selection_state(states[button.odd])
@@ -1537,6 +1581,9 @@ class MainWindow(QMainWindow):
                 (tr('目前檔案：已選取 {p0} / {p1} 頁；輸出合計 {p2} 頁', p0=len(doc.selected_pages), p1=doc.page_count, p2=count)
                  if count else tr('目前檔案：已選取 {selected} / {total} 頁；預設輸出目前檢視頁面', selected=len(doc.selected_pages), total=doc.page_count))
                 if ready else (tr('正在讀取 PDF…') if doc is not None else tr('就緒')))
+
+        if hasattr(self, 'proofreading'):
+            self.proofreading.refresh()
 
     def _toggle_parity(self, odd: bool, checked: bool) -> None:
         doc = self.current_document()
@@ -1912,6 +1959,8 @@ class MainWindow(QMainWindow):
             if payload.get('type') in {'done', 'error'}:
                 self._text_requests.pop(generation, None)
             return
+        if viewer is not None and hasattr(viewer, 'accept_comparison_render') and viewer.accept_comparison_render(payload):
+            return
         if viewer is not None and viewer.render_generation == generation:
             viewer.accept_render(payload)
             return
@@ -2093,6 +2142,8 @@ def load_app_icon() -> QIcon:
 
 
 def configure_application(app: QApplication) -> None:
+    from repdf.message_dialogs import install_message_style
+    install_message_style(app)
     app.setApplicationName("RePDF")
     app.setOrganizationName("repdf")
     app.setStyle("Fusion")

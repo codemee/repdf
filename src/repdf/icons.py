@@ -28,7 +28,14 @@ def toolbar_icon(kind: str) -> QIcon:
         painter.setPen(QPen(QApplication.palette().color(group, role),
                             1.0, Qt.PenStyle.SolidLine, Qt.PenCapStyle.RoundCap,
                             Qt.PenJoinStyle.RoundJoin))
-        if kind in ('panel_compact', 'panel_full'):
+        if kind == 'sync_views':
+            painter.drawRect(QRectF(2, 5, 7, 14))
+            painter.drawRect(QRectF(15, 5, 7, 14))
+            painter.drawLine(7, 9, 17, 9)
+            painter.drawPolyline(QPolygonF([QPointF(14, 6), QPointF(17, 9), QPointF(14, 12)]))
+            painter.drawLine(17, 15, 7, 15)
+            painter.drawPolyline(QPolygonF([QPointF(10, 12), QPointF(7, 15), QPointF(10, 18)]))
+        elif kind in ('panel_compact', 'panel_full'):
             painter.drawRoundedRect(QRectF(3, 8 if kind == 'panel_compact' else 3,
                                           18, 8 if kind == 'panel_compact' else 18), 1, 1)
             for y in ((12,) if kind == 'panel_compact' else (8, 12, 16)):

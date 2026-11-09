@@ -187,6 +187,17 @@ The controls are described below. Hover over a control to see its tooltip, inclu
 - Embedded HTTP/HTTPS links open in your default browser in normal and fullscreen view. Hover to see the URL.
 - This uses existing PDF bookmarks and links. Plain text or scanned tables of contents and URLs are not automatically converted into links. Email links, external documents, and other actions are not supported.
 
+Information, warning, confirmation and error prompts share flat Qt dialogs with compact outline icons and toolbar-style buttons in both themes; detailed diagnostics remain available.
+
+### Fullscreen proofreading
+
+- Proofreading applies only in fullscreen. Select exactly two tabs and enter fullscreen for a fixed left/right comparison, independent of normal pane layout. With no tabs checked, use the active document; one checked tab opens that document in normal fullscreen.
+- Single, spread and cover-plus-spread modes remain available in the main and floating fullscreen menus. Both documents use the selected mode. Independent reading positions are retained while sync is off; synchronized changes align pages and leave the previous mode/pages intact if the target is out of range.
+- Selecting more than two tabs disables fullscreen; its tooltip explains the two-document limit.
+- Exactly two selected tabs enable **Synchronize comparison**, regardless of page counts. Click it to enter comparison with synchronization enabled, or toggle it after entering.
+- Only page navigation and cropping synchronize. Wheel, navigation keys, page-number input and annotation/search jumps align the same page number. If either file lacks that page, a message is shown and neither view moves. Zoom, text selection, annotation edits and page checkboxes remain independent.
+- The screen has at least a 20px outer margin, 76px at the bottom for the floating toolbar, and a 16px center gutter, with filenames and pane borders distinguishing the documents. Clicking either side activates it and its annotation list/tools. Exiting retains both pages, disables synchronization and remembers the selected single/spread/cover mode.
+
 ### Annotation list
 
 - Opening the annotation pane automatically selects and navigates to the first annotation in reading and fullscreen modes, including reopening it. Automatic navigation preserves the clipboard; clicking a page annotation still selects that specific item.

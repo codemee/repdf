@@ -16,8 +16,9 @@ class FullscreenPreview(QWidget):
     HEADER_HEIGHT = 30
     PAGE_GAP = 12
 
-    def __init__(self, owner, document, page_index, mode="single"):
-        super().__init__(owner, Qt.WindowType.Window)
+    def __init__(self, owner, document, page_index, mode="single", *, embedded_parent=None):
+        self.embedded = embedded_parent is not None
+        super().__init__(embedded_parent or owner, Qt.WindowType.Widget if self.embedded else Qt.WindowType.Window)
         self.owner = owner
         self.document = document
         self.mode = mode
@@ -30,16 +31,19 @@ class FullscreenPreview(QWidget):
         self.parity_buttons = {}
         self.page_headers = {}
         self.closed = False
-        self.setWindowModality(Qt.WindowModality.ApplicationModal)
+        if not self.embedded:
+            self.setWindowModality(Qt.WindowModality.ApplicationModal)
         self.setObjectName('fullscreenPreview')
         self.setStyleSheet("QWidget#fullscreenPreview { background: palette(window); }")
         self.timer = QTimer(self)
         self.timer.setSingleShot(True)
         self.timer.setInterval(120)
         self.timer.timeout.connect(self.request_render)
-        QApplication.instance().installEventFilter(self)
+        if not self.embedded:
+            QApplication.instance().installEventFilter(self)
         self.show_page(page_index)
-        self.floating_tools = FloatingAnnotationTools(self)
+        if not self.embedded:
+            self.floating_tools = FloatingAnnotationTools(self)
 
     def page_groups(self, mode):
         order = self.document.page_order
@@ -78,6 +82,8 @@ class FullscreenPreview(QWidget):
         return self.labels[self.page_index]
 
     def show_page(self, page_index):
+        if self.embedded and not self.owner.proofreading.allow_page(self.document, page_index):
+            return False
         self.render_generation = -1
         self.owner.render_service.cancel_pending(-self.document.document_id)
         self.group_index = next(i for i, group in enumerate(self.groups) if page_index in group)
@@ -147,6 +153,9 @@ class FullscreenPreview(QWidget):
             header.show()
         self.update_image()
         self.timer.start()
+        if self.embedded and hasattr(self.owner, 'proofreading'):
+            self.owner.proofreading.page_changed(self.document, self.page_index)
+        return True
 
     def _select_page(self, index, checked):
         self.document.page_cards[index].set_selected(checked)

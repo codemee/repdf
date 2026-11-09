@@ -570,3 +570,13 @@ Fit 使用最近點擊且仍可見的頁面，或距預覽區中央最近的頁�
 
 
 0.1.21 狀態與導覽補充：裁切檢視以正規化絕對路徑的 SHA-256 作為 `view/trim_documents/` 設定鍵，記錄啟用及停用。開啟註解窗格時等待清單載入後定位第一筆；點選頁面註解的兩條開啟流程使用 `jump_first=False`，避免跳回首筆。關閉或切換文件明確清除註解文字及提示。`annotation_text.py` 統一各處註解複製的作業系統換行。全螢幕 Ctrl+W 透過標準 Close 快捷鍵處理，依工作區順序切換下一文件；儲存完成後的回呼沿用同一切換流程，取消則保持原檢視。
+
+
+## 全螢幕校對
+
+`proofreading.py` 以標籤的 include_checkbox 建立兩份文件配對，與 PaneWorkspace 的分隔布局無關；超過兩份時停用全螢幕並提供 tooltip。同步工具可直接啟動校對，不要求相同頁數。`proofreading_preview.py` 固定左右兩個嵌入式 FullscreenPreview，各自支援單頁、對頁及封面＋對頁，四周至少 20px 留白、底部 76px 工具列空間、中央 16px 間隔，個別依尺寸與 DPR 渲染。校對與一般全螢幕共用 single/spread/cover 選擇。模式切換以 busy 保護整批更新，避免兩側混用新舊編排；同步時先檢查目的頁，失敗則保留模式與頁次並還原選單勾選。
+
+同步只有 page_changed 與裁切狀態。所有跳頁入口先用 allow_page 檢查兩份文件範圍，再更新任一側；嵌入式 show_page 在變更 generation、visible_pages 或 labels 前先檢查，導航後端回覆亦再次檢查。超界顯示 Qt 訊息框並保持雙側原頁。重入保護避免互相通知，裁切依文件分別記錄。正常視窗不做捲軸或縮放同步，退出校對後取消同步。點選任一側在處理註解前切換作用中文件。
+
+
+共用訊息框由 `message_dialogs.install_message_style()` 在應用程式設定及 MainWindow 建立時安裝一次；涵蓋 QMessageBox 的靜態 information/warning/critical/question 以及自建訊息框。保留標準按鈕、角色、預設／Escape、clickedButton 與 detailedText；校對超界提示與未儲存提示由同一 style_message 工廠產生，檔名與說明分行顯示。

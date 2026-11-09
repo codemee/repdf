@@ -70,6 +70,8 @@ class DragTextSelection(QObject):
         position = QCursor.pos()
         doc, labels = self.labels()
         viewer = self.owner._fullscreen_preview
+        if viewer is not None and hasattr(viewer, 'views'):
+            viewer = viewer.views.get(doc.document_id)
         if not self.crossed:
             if not isValid(self.origin):
                 self.start = None

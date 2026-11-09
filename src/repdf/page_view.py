@@ -403,6 +403,8 @@ class PageViewport:
         for card in self.doc.page_cards:
             card.preview.set_annotation_highlight(self.annotation_highlights.get(card.page_index))
         viewer = self.doc.owner._fullscreen_preview
+        if viewer is not None and hasattr(viewer, 'views'):
+            viewer = viewer.views.get(self.doc.document_id)
         if viewer is not None and viewer.document is self.doc:
             for index, label in viewer.labels.items():
                 label.set_annotation_highlight(self.annotation_highlights.get(index))

@@ -6,6 +6,15 @@ from string import Formatter
 
 LANGUAGE = "zh"
 ENGLISH = {
+    '無法跳至第 {page} 頁': 'Cannot go to page {page}',
+    '「{name}」只有 {total} 頁。\n\n兩邊頁次維持不變。': '“{name}” has only {total} pages.\n\nBoth views remain on their current pages.',
+    '勾選此檔案以加入重組、拆分或全螢幕校對；校對限兩個標籤': 'Include this file in export, splitting or fullscreen proofreading; proofreading requires two tabs',
+    '同步校對：勾選兩個標籤後可啟用，只同步跳頁與裁切': 'Select two tabs to synchronize page navigation and cropping only',
+    '校對模式只能比對兩份文件，請最多勾選兩個標籤。': 'Proofreading compares only two documents. Select no more than two tabs.',
+    '全螢幕校對：左右比對兩份文件': 'Fullscreen proofreading: compare two documents side by side',
+    '無法同步至第 {page} 頁：{name} 只有 {total} 頁。兩邊頁次維持不變。': 'Cannot synchronize to page {page}: {name} has only {total} pages. Both views remain on their current pages.',
+    '同步校對': 'Synchronize comparison',
+    '同步校對：相鄰窗格頁數相同時，同步頁碼與捲動位置': 'Synchronize comparison: match pages and scroll positions when adjacent documents have the same page count',
     '請開啟 PDF，或將 PDF／資料夾拖曳到視窗': 'Open PDFs, or drag PDFs or a folder into this window',
     '設定頁會顯示目前的 PDF 預設程式；點選 .pdf 那一列，再選 RePDF。': 'Settings shows the current default PDF application. Click the .pdf row, then choose RePDF.',
     '系統整合': 'System integration',

@@ -183,6 +183,8 @@ class PaneWorkspace(QObject):
             rect = (width * 2 // 3, 0, width // 3, height)
         elif edge == 'bottom':
             rect = (0, height * 2 // 3, width, height // 3)
+        elif edge == 'top':
+            rect = (0, 0, width, height // 3)
         else:
             rect = (width // 3, 0, width // 3, height)
         self.drop_marker.setGeometry(*rect)
@@ -234,6 +236,8 @@ class PaneWorkspace(QObject):
             return 'left'
         if position.x() > bounds.width() * .75:
             return 'right'
+        if position.y() > pane.tabBar().height() and position.y() < bounds.height() * .25:
+            return 'top'
         return 'center'
 
     def transfer(self, document_id, target, edge):
@@ -245,7 +249,7 @@ class PaneWorkspace(QObject):
             return False
         if source is target and edge == 'center':
             return False
-        if edge not in ('center', 'left', 'right', 'bottom'):
+        if edge not in ('center', 'left', 'right', 'top', 'bottom'):
             return False
         if edge != 'center':
             target = self.split(target, edge)
@@ -269,7 +273,7 @@ class PaneWorkspace(QObject):
 
     def split(self, target, edge):
         pane = self.create_pane()
-        orientation = Qt.Orientation.Vertical if edge == 'bottom' else Qt.Orientation.Horizontal
+        orientation = Qt.Orientation.Vertical if edge in ('top', 'bottom') else Qt.Orientation.Horizontal
         parent = target.frame.parentWidget()
         index = parent.indexOf(target.frame)
         sizes = parent.sizes()
@@ -278,7 +282,7 @@ class PaneWorkspace(QObject):
         nested.setChildrenCollapsible(False)
         nested.addWidget(target.frame)
         parent.insertWidget(index, nested)
-        if edge == 'left':
+        if edge in ('left', 'top'):
             nested.insertWidget(0, pane.frame)
         else:
             nested.addWidget(pane.frame)

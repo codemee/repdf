@@ -619,6 +619,8 @@ class AnnotationEditor(QObject):
     def labels_for(self, doc):
         labels = [card.preview for card in doc.page_cards]
         viewer = self.owner._fullscreen_preview
+        if viewer is not None and hasattr(viewer, 'views'):
+            viewer = viewer.views.get(doc.document_id)
         if viewer is not None and viewer.document is doc:
             labels += list(viewer.labels.values())
         return labels

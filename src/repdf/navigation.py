@@ -251,11 +251,14 @@ class NavigationController(QObject):
         if self._first_annotation_pending and self.opened and self.kind == 'annotations' and self.items:
             self._first_annotation_pending = False
             item = self.items[0]
+            doc = self.owner.current_document()
+            destination = item.data(0, Qt.ItemDataRole.UserRole)
+            if not self.owner.proofreading.allow_page(doc, destination['page']):
+                return
             item.parent().setExpanded(True)
             self.panel.tree.setCurrentItem(item)
-            doc = self.owner.current_document()
             self.annotation_selection = None
-            self.activate(doc, item.data(0, Qt.ItemDataRole.UserRole))
+            self.activate(doc, destination)
             self._first_annotation_jump = self.latest_jump
             self.compact_bar.sync()
 
@@ -491,6 +494,8 @@ class NavigationController(QObject):
         destination = item.data(0, Qt.ItemDataRole.UserRole)
         doc = self.owner.current_document()
         if destination is not None and doc is not None:
+            if isinstance(destination.get('page'), int) and not self.owner.proofreading.allow_page(doc, destination['page']):
+                return
             self.activate(doc, destination)
             if self.kind == 'annotations':
                 target = item if item in self.items else item.child(0)
@@ -505,6 +510,8 @@ class NavigationController(QObject):
     def activate(self, doc, destination, fullscreen=False):
         fullscreen = fullscreen or (self.owner._fullscreen_preview is not None and self.kind == 'annotations')
         if doc.ready and doc is self.owner.current_document():
+            if isinstance(destination.get('page'), int) and not self.owner.proofreading.allow_page(doc, destination['page']):
+                return
             self.pending_annotation_copy = None
             if 'annotation_index' in destination:
                 self.latest_jump = None
@@ -573,6 +580,8 @@ class NavigationController(QObject):
                 self.populate(doc)
         elif message_type == 'navigate' and generation == self.latest_jump and doc is self.owner.current_document():
             page = payload['page']
+            if not self.owner.proofreading.allow_page(doc, page):
+                return True
             doc.page_labels[page] = payload.get('page_label')
             doc.page_sizes[page] = payload['width_points'], payload['height_points']
             doc._reflow_grid()

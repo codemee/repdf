@@ -283,11 +283,11 @@ A color swatch on the same row configures match highlighting, using a 34 × 34 b
 - Application artwork is retained, centred by its visible bounds and fitted to 92% of the canvas consistently for windows, Windows ICO and macOS ICNS.
 
 - Clicking a target automatically places a text box with space for at least one line nearby. An outside click only finishes editing. Dragged boxes and handles share the same preview coordinates.
-- Unsaved-change prompts use Qt message boxes with a 28 px orange circular warning icon, a 14 pt heading and a separate 10 pt explanation. Light mode uses white; dark mode retains the theme background.
+- Information, warning, error, question and unsaved-change prompts share flat Qt message boxes: a 24px outline icon, 12pt heading and 10pt body on the current theme background. Buttons are 34px high, at least 88px wide, with a 4px radius and transparent borders. Hover/default buttons use the toolbar’s subtle background; pressed buttons darken. There is no solid blue primary button.
 
 - Inline callout editors use 6 px corners, theme backgrounds and a thin accent border. Content sizes the box automatically, wrapping at its width limit and growing within the page. Finished annotations use their configured PDF appearance.
 - The markup panel offers highlight, underline, strikeout and squiggly modes. Drag previews follow glyph ranges instead of a rectangular selection. Highlights default to yellow at 35% opacity and disable the width control.
-- Save prompts have 24 px padding and right-aligned 88 × 34 px buttons ordered Cancel, Don’t Save, Save. Cancel has an accent outline, Don’t Save uses orange text, and Save is the filled accent default button.
+- Message-box margins are 20px horizontally, 18px above and 14px below, with a 400px explanation area. Save prompts right-align Cancel, Don’t Save, Save using flat borderless buttons. Don’t Save uses warning-colored text; default Save uses the subtle background.
 
 - Toolbar zoom percentages are rounded to whole numbers; Fit and page rendering retain the original precision.
 
@@ -333,3 +333,6 @@ A color swatch on the same row configures match highlighting, using a 34 × 34 b
 
 
 Compact annotations: `annotation_compact.py` shares selection/navigation with the full list. Only fullscreen offers compact mode; `view/annotations_compact` remembers the choice. Reading windows always use the full sidebar. The compact row has a drag grip, mode, previous annotated page, page number, next annotated page, borderless annotation selector and single-line label. Controls are vertically centered with font-aware height. Long text ends with an ellipsis and the tooltip shows complete text with line breaks; there is no expansion control. Alt+Page Up/Down navigate annotated pages in either mode.
+
+
+Proofreading is fullscreen-only, comparing exactly two checked tabs in fixed left/right panes. At least 20px screen margins, 76px bottom toolbar space, a 16px gutter, filenames and 2px pane borders distinguish the documents; the active border uses the pale accent color. The sync control uses a 34 × 34 button and 20 × 20 icon, enabled for exactly two selected tabs. More than two tabs disable fullscreen while keeping its explanatory tooltip available.

@@ -699,6 +699,8 @@ class SearchController(QObject):
         result = next((p for p in results if p['paragraph_id'] == paragraph_id), None)
         if result is None or not 0 <= match_index < len(result['match_rects']):
             return
+        if not self.owner.proofreading.allow_page(doc, page):
+            return
         rects = result['match_rects'][match_index]
         self.owner.navigation._clear_annotation_selection()
         self.clear_highlights()
@@ -706,7 +708,12 @@ class SearchController(QObject):
         doc.pages.set_highlights(page, rects, rects)
         viewer = self.owner._fullscreen_preview
         mode = viewer.mode if viewer is not None else None
+        if viewer is not None and hasattr(viewer, 'views') and doc.document_id in viewer.views:
+            self.owner.activate_document(doc)
+            viewer.mark_active()
         if viewer is not None and viewer.document is not doc:
+            if hasattr(viewer, 'views'):
+                mode = None
             viewer.close()
             viewer = None
         self.owner.activate_document(doc)

@@ -71,8 +71,13 @@ def test_copy_tool_switches_drag_mode_and_copies_text(qtbot, tmp_path, monkeypat
     assert card.text_copy_mode
     assert window.toolbar.widgetForAction(window.copy_text_action).isChecked()
     QApplication.clipboard().setText('before')
+    # Cross-page selection reads QCursor as well as the mouse event. Synthetic
+    # events must keep both positions aligned, independent of the user's cursor.
+    cursor_position = [card.preview.mapToGlobal(QPointF(36, 88).toPoint())]
+    monkeypatch.setattr('repdf.drag_selection.QCursor.pos', lambda: cursor_position[0])
     def send_mouse(kind, point, buttons):
-        event = QMouseEvent(kind, point, point, point, Qt.MouseButton.LeftButton, buttons,
+        cursor_position[0] = card.preview.mapToGlobal(point.toPoint())
+        event = QMouseEvent(kind, point, point, QPointF(cursor_position[0]), Qt.MouseButton.LeftButton, buttons,
                             Qt.KeyboardModifier.NoModifier)
         QApplication.sendEvent(card.preview, event)
 

@@ -554,3 +554,13 @@ Compact annotations: `annotation_compact.py` shares selection/navigation with th
 
 
 0.1.21 state/navigation: cropped-view preferences use SHA-256 of the normalized absolute path under `view/trim_documents/`, persisting enabled and disabled states. Opening annotations navigates to the first item after loading; both page-click paths pass `jump_first=False`. Closing or changing documents explicitly clears text and tooltips. `annotation_text.py` normalizes all annotation clipboard paths to native line endings. Fullscreen handles the standard Close shortcut, advances through workspace documents and exits after the last. The asynchronous save callback shares this transition; Cancel keeps the existing viewer.
+
+
+## Fullscreen proofreading
+
+`proofreading.py` pairs exactly two checked tabs independently of PaneWorkspace layout. More than two selections disable fullscreen with an explanatory tooltip. The sync action can enter comparison directly and does not require equal page counts. `proofreading_preview.py` places two embedded FullscreenPreview widgets supporting single, spread and cover-plus-spread modes side by side, with at least 20px outer margins, 76px bottom toolbar space and a 16px gutter. Each renders for its own dimensions/DPR. Comparison and normal fullscreen share the selected single/spread/cover preference. Mode changes update both views under a busy guard to prevent mixed layouts. Synchronized changes validate the target first; failures retain the previous mode/pages and restore the checked menu action.
+
+Only page navigation and cropping synchronize. Every page entry point calls allow_page before modifying either view; embedded show_page validates before changing generation, visible pages or labels, and asynchronous navigation responses revalidate. Out-of-range requests show a Qt message and retain both pages. A reentry guard prevents feedback; crop preferences are stored per file. There is no normal-window scrolling or zoom synchronization; leaving comparison disables sync. Mouse presses activate the document before annotation handling.
+
+
+`message_dialogs.install_message_style()` installs the shared message-box style once during application configuration and MainWindow creation. It covers static information/warning/critical/question helpers and custom QMessageBox instances. Standard buttons, roles, default/Escape behavior, clickedButton and detailedText remain intact. Proofreading range errors and unsaved prompts share style_message, separating filenames and explanations.
