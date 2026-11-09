@@ -167,6 +167,7 @@ def test_registration_status_detects_partial_registration_without_writing():
 
 def test_default_checkbox_keeps_actual_state_when_opening_settings(qtbot, monkeypatch):
     monkeypatch.setattr(desktop, 'sys', SimpleNamespace(platform='win32'))
+    monkeypatch.setattr(desktop.integration, 'sys', SimpleNamespace(platform='win32'))
     monkeypatch.setattr(desktop, 'windows_registration_status', lambda: True)
     monkeypatch.setattr(desktop, 'pdf_default_status', lambda: True)
     opened = []
