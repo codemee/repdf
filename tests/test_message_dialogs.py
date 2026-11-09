@@ -17,18 +17,24 @@ def test_static_message_helpers_share_style_and_keep_answers(qapp, qtbot, theme,
 
     def respond():
         message = QApplication.activeModalWidget()
-        assert isinstance(message, QMessageBox)
-        assert message.property('modernMessageReady')
-        assert message.testOption(QMessageBox.Option.DontUseNativeDialog)
-        assert message.text() == 'Message heading'
-        assert message.informativeText() == 'Full explanation\nSecond line'
-        assert message.findChild(QLabel, 'qt_msgboxex_icon_label').size().width() == 24
-        assert message.button(selected).height() == 34
-        assert message.icon() == QMessageBox.Icon.NoIcon
-        if method == 'question':
-            assert message.defaultButton() is message.button(QMessageBox.StandardButton.No)
-        seen.append(message.property('modernMessageIcon'))
-        qtbot.mouseClick(message.button(selected), Qt.MouseButton.LeftButton)
+        try:
+            assert isinstance(message, QMessageBox)
+            assert message.property('modernMessageReady')
+            assert message.testOption(QMessageBox.Option.DontUseNativeDialog)
+            from repdf.strings import tr
+            fallback = {'information': '資訊', 'warning': '警告', 'critical': '錯誤', 'question': '確認'}
+            assert message.text() in ('Message heading', message.windowTitle(), tr(fallback[method]))
+            assert message.informativeText() == 'Full explanation\nSecond line'
+            assert message.findChild(QLabel, 'qt_msgboxex_icon_label').size().width() == 24
+            assert message.button(selected).height() == 34
+            assert message.icon() == QMessageBox.Icon.NoIcon
+            if method == 'question':
+                assert message.defaultButton() is message.button(QMessageBox.StandardButton.No)
+            seen.append(message.property('modernMessageIcon'))
+        finally:
+            # Assertions in a timer must not leave a modal loop blocking CI.
+            if isinstance(message, QMessageBox):
+                message.button(selected).click()
 
     QTimer.singleShot(0, respond)
     if method == 'question':
@@ -78,3 +84,14 @@ def test_diagnostics_and_custom_button_roles_are_preserved(qapp, qtbot):
     assert any(edit.isVisible() for edit in message.findChildren(QTextEdit))
     qtbot.mouseClick(reload, Qt.MouseButton.LeftButton)
     assert message.clickedButton() is reload
+
+
+def test_message_without_window_title_keeps_body_and_uses_type_heading(qapp, qtbot):
+    from repdf.message_dialogs import style_message
+    from repdf.strings import tr
+    message = QMessageBox(QMessageBox.Icon.Warning, '', 'Complete original explanation',
+                         QMessageBox.StandardButton.Ok)
+    qtbot.addWidget(message)
+    style_message(message)
+    assert message.text() == tr('警告')
+    assert message.informativeText() == 'Complete original explanation'

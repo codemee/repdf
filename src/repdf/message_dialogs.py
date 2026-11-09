@@ -51,9 +51,17 @@ def style_message(message):
     if message.property('modernMessageIcon') is None:
         message.setProperty('modernMessageIcon', message.icon().value)
     kind = message.property('modernMessageIcon')
-    if not message.informativeText() and message.text() != message.windowTitle() and message.windowTitle():
+    # Qt intentionally ignores QMessageBox.setWindowTitle() on macOS.
+    # Supply an in-dialog heading even when no window title is available.
+    heading = message.windowTitle() or tr({
+        QMessageBox.Icon.Information.value: '資訊',
+        QMessageBox.Icon.Warning.value: '警告',
+        QMessageBox.Icon.Critical.value: '錯誤',
+        QMessageBox.Icon.Question.value: '確認',
+    }.get(kind, '通知'))
+    if not message.informativeText() and message.text() != heading:
         content = message.text()
-        message.setText(message.windowTitle())
+        message.setText(heading)
         message.setInformativeText(content)
     palette = QApplication.palette()
     dark = palette.window().color().lightness() < 128

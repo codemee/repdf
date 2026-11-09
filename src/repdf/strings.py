@@ -6,6 +6,11 @@ from string import Formatter
 
 LANGUAGE = "zh"
 ENGLISH = {
+    '資訊': 'Information',
+    '警告': 'Warning',
+    '錯誤': 'Error',
+    '確認': 'Confirmation',
+    '通知': 'Notice',
     '無法跳至第 {page} 頁': 'Cannot go to page {page}',
     '「{name}」只有 {total} 頁。\n\n兩邊頁次維持不變。': '“{name}” has only {total} pages.\n\nBoth views remain on their current pages.',
     '勾選此檔案以加入重組、拆分或全螢幕校對；校對限兩個標籤': 'Include this file in export, splitting or fullscreen proofreading; proofreading requires two tabs',
