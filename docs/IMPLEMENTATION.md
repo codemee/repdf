@@ -367,7 +367,10 @@ Fit 使用最近點擊且仍可見的頁面，或距預覽區中央最近的頁�
 - 正式發布 Release 時觸發，依 Release 標籤建置；標籤中的提交必須包含打包設定檔。
 - 也可在 Actions 頁面使用「Run workflow」手動執行，以 `ref` 指定分支或標籤。
 - 手動填入 `release_tag` 時，會優先依該標籤建置，並將成功產出的套件附加到指定的既有 Release。
-- 建置流程先安裝鎖定的依賴並執行回歸測試，再打包及執行封裝自我檢查。
+- 完整跨平台回歸測試由 [regression.yml](../.github/workflows/regression.yml) 共用流程管理，在 main 推送、PR、手動測試及桌面建置前執行。相同程式碼、依賴、測試與建置設定，Windows／macOS 各自重用已成功的結果；發布不再直接重跑 pytest。
+- [regression_fingerprint.py](../scripts/regression_fingerprint.py) 計算內容指紋；README、docs Markdown 與一致的專案版本號變更不影響指紋。依賴、資源、測試、工作流程及法律聲明變更會重新測試。版本號必須與 lock 一致，授權清單的 lock 雜湊也必須有效。
+- 成功結果使用 GitHub Actions cache 保存，不使用部分匹配；只有完整 pytest 通過後才保存。快取過期、遭清除或所在分支無法讀取時會自動補跑。這不是本機測試結果的上傳；本機仍執行修改相關測試及手動測試。手動執行 Cross-platform regression 可勾選 `force` 強制重測。
+- 桌面建置依賴兩平台回歸成功／命中成功結果後才開始。每次發布仍安裝鎖定依賴、重新打包、執行封裝程式的 `--self-test`，macOS 另驗證 DMG；封裝版本驗證不因略過 GUI 回歸而省略。
 - 產物上傳至 Actions Artifacts，保留 30 天；手動建置未指定 `release_tag` 時可在此下載。
 - Release 建置或手動指定 `release_tag` 時，待 Windows 與 macOS 建置都成功後，才將產物附加到 Release。
 

@@ -351,7 +351,10 @@ Packaged smoke tests must stop render backends holding cached PDFs before removi
 - Publishing a release triggers a build from its tag. The tagged commit must include packaging configuration.
 - The Actions “Run workflow” button also supports manual builds with a branch/tag `ref`.
 - A manual `release_tag` takes precedence as the build source and attaches successful artifacts to that existing release.
-- The workflow installs locked dependencies and runs regression tests before packaging and packaged smoke tests.
+- Full cross-platform regression is managed by the reusable [regression.yml](../.github/workflows/regression.yml) workflow on main pushes, PRs, manual runs, and before desktop builds. Windows and macOS each reuse successful results for identical code, dependencies, tests, and build configuration; publishing no longer runs pytest directly.
+- [regression_fingerprint.py](../scripts/regression_fingerprint.py) excludes README/docs Markdown and consistent project-version-only changes. Changes to dependencies, assets, tests, workflows, or legal notices invalidate the result. Project/lock versions must agree and the license inventory must match the lock digest.
+- Only a complete successful pytest run saves an exact-match Actions cache entry. Expired, deleted, or inaccessible branch caches cause a full run. Local results are not uploaded: local work still uses relevant tests and manual checks. Dispatch Cross-platform regression with `force` to rerun explicitly.
+- Desktop packaging waits for both platforms to pass or reuse successful results. Every build still installs locked dependencies, repackages the application, and runs its packaged `--self-test`; macOS also verifies the DMG. Packaged-version checks remain mandatory even when GUI regression is reused.
 - Actions artifacts are retained for 30 days. Manual builds without `release_tag` are downloaded there.
 - Release builds and manual builds with `release_tag` upload release assets only after both Windows and macOS builds succeed.
 

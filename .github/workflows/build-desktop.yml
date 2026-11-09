@@ -20,7 +20,13 @@ permissions:
   contents: read
 
 jobs:
+  regression:
+    uses: ./.github/workflows/regression.yml
+    with:
+      ref: ${{ github.event.release.tag_name || inputs.release_tag || inputs.ref || github.sha }}
+
   build:
+    needs: regression
     name: Build ${{ matrix.id }}
     strategy:
       fail-fast: false
@@ -43,8 +49,6 @@ jobs:
           enable-cache: true
       - name: Install locked dependencies
         run: uv sync --locked --group build
-      - name: Run regression tests
-        run: uv run --no-sync python -m pytest -v -o faulthandler_timeout=60
       - name: Build and verify executable, App and DMG
         run: uv run --no-sync python scripts/build_desktop.py
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4

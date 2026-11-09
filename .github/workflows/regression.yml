@@ -1,0 +1,97 @@
+name: Cross-platform regression
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+    inputs:
+      ref:
+        description: Branch or tag to test
+        default: main
+        type: string
+      force:
+        description: Run tests even when a matching successful result exists
+        default: false
+        type: boolean
+  workflow_call:
+    inputs:
+      ref:
+        required: true
+        type: string
+      force:
+        default: false
+        type: boolean
+
+permissions:
+  contents: read
+
+jobs:
+  fingerprint:
+    runs-on: ubuntu-latest
+    outputs:
+      digest: ${{ steps.inputs.outputs.digest }}
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          ref: ${{ inputs.ref || github.sha }}
+      - id: inputs
+        name: Fingerprint regression inputs
+        run: echo "digest=$(python scripts/regression_fingerprint.py)" >> "$GITHUB_OUTPUT"
+
+  test:
+    needs: fingerprint
+    name: Test ${{ matrix.id }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - id: windows-x86_64
+            runner: windows-2022
+          - id: macos-arm64
+            runner: macos-15
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 30
+    # Serialize identical inputs so a simultaneous release can reuse the result.
+    concurrency:
+      group: regression-${{ matrix.id }}-${{ needs.fingerprint.outputs.digest }}
+      cancel-in-progress: false
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          ref: ${{ inputs.ref || github.sha }}
+      - id: passed
+        name: Look up successful regression result
+        uses: actions/cache/restore@0057852bfaa89a56745cba8c7296529d2fc39830
+        with:
+          path: output/ci/regression-passed.txt
+          key: regression-v1-${{ matrix.runner }}-${{ matrix.id }}-py312-uv01218-${{ needs.fingerprint.outputs.digest }}
+          lookup-only: true
+      - uses: astral-sh/setup-uv@94527f2e458b27549849d47d273a16bec83a01e9
+        if: steps.passed.outputs.cache-hit != 'true' || inputs.force
+        with:
+          version: "0.12.18"
+          python-version: "3.12"
+          enable-cache: true
+      - name: Install locked dependencies
+        if: steps.passed.outputs.cache-hit != 'true' || inputs.force
+        run: uv sync --locked --group build
+      - name: Run complete regression suite
+        if: steps.passed.outputs.cache-hit != 'true' || inputs.force
+        run: uv run --no-sync python -m pytest -v -o faulthandler_timeout=60
+      - name: Record successful regression
+        if: steps.passed.outputs.cache-hit != 'true'
+        shell: bash
+        run: |
+          mkdir -p output/ci
+          printf '%s\n' '${{ needs.fingerprint.outputs.digest }}' > output/ci/regression-passed.txt
+      - name: Save successful result only
+        if: steps.passed.outputs.cache-hit != 'true'
+        uses: actions/cache/save@0057852bfaa89a56745cba8c7296529d2fc39830
+        with:
+          path: output/ci/regression-passed.txt
+          key: ${{ steps.passed.outputs.cache-primary-key }}
+      - name: Explain reused result
+        if: steps.passed.outputs.cache-hit == 'true' && !inputs.force
+        shell: bash
+        run: echo 'Reused successful full regression for identical code, dependencies and test configuration.' >> "$GITHUB_STEP_SUMMARY"
