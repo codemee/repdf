@@ -1299,7 +1299,7 @@ wheels = [
 
 [[package]]
 name = "repdf"
-version = "0.1.23"
+version = "0.1.24"
 source = { editable = "." }
 dependencies = [
     { name = "onnxruntime" },

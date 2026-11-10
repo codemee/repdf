@@ -281,6 +281,9 @@ class PrintController(QObject):
     def busy(self):
         return self.opening or self.job is not None
 
+    def dialog_parent(self):
+        return self.owner._fullscreen_preview or self.owner
+
     def open(self):
         if hasattr(self.owner,"annotation_editor"):
             self.owner.annotation_editor.finish_text(True)
@@ -289,8 +292,6 @@ class PrintController(QObject):
             return
         viewer = self.owner._fullscreen_preview
         current = viewer.page_index if viewer is not None else doc.preview_page_index()
-        if viewer is not None:
-            viewer.close()
         self.opening = True
         self.owner._sync_controls()
         options = preview = None
@@ -301,11 +302,11 @@ class PrintController(QObject):
             printer.setCreator('RePDF')
             from repdf.print_preview import PrintPreviewDialog
             preview = self.preview = PrintPreviewDialog(printer, options.pages,
-                options.scaling.currentData(), self.owner, options=options)
+                options.scaling.currentData(), self.dialog_parent(), options=options)
             if preview.exec() == QDialog.DialogCode.Accepted and not self.owner._closing:
                 self.start(printer, preview.accepted_pages, preview.scaling.currentData())
         except Exception as exc:
-            QMessageBox.critical(self.owner, tr('列印失敗'), str(exc))
+            QMessageBox.critical(self.dialog_parent(), tr('列印失敗'), str(exc))
         finally:
             if preview is not None:
                 preview.cleanup()
@@ -322,8 +323,10 @@ class PrintController(QObject):
         if self.job is not None:
             return
         self.job = PrintJob(printer, pages, scaling, self)
-        self.progress_dialog = QProgressDialog(tr('正在準備列印…'), tr('取消'), 0, len(pages), self.owner)
+        self.progress_dialog = QProgressDialog(tr('正在準備列印…'), tr('取消'), 0, len(pages), self.dialog_parent())
         self.progress_dialog.setWindowTitle(tr('列印'))
+        if self.owner._fullscreen_preview is not None:
+            self.progress_dialog.setWindowModality(Qt.WindowModality.ApplicationModal)
         self.progress_dialog.setAutoClose(False)
         self.progress_dialog.setAutoReset(False)
         self.progress_dialog.setMinimumDuration(0)
@@ -349,7 +352,7 @@ class PrintController(QObject):
         if self.owner._closing:
             return
         if state == 'failed':
-            QMessageBox.critical(self.owner, tr('列印失敗'), message)
+            QMessageBox.critical(self.dialog_parent(), tr('列印失敗'), message)
         self.owner.statusBar().showMessage(tr('列印工作已送出') if state == 'completed' else
             tr('已停止送印；已送出的頁面可能需要從系統列印佇列取消。') if state == 'canceled' else tr('列印失敗'))
 

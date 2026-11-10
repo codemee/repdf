@@ -249,6 +249,62 @@ def test_single_print_window_does_not_open_native_dialog(qtbot, tmp_path, monkey
     assert window.print_action.isEnabled()
 
 
+@pytest.mark.parametrize('comparison', [False, True])
+def test_fullscreen_print_keeps_view_and_uses_focused_document(qtbot, tmp_path, monkeypatch, comparison):
+    from repdf.print_preview import PrintPreviewDialog
+    from test_proofreading import files, choose
+    window, docs = files(qtbot, tmp_path, counts=(4, 4))
+    if comparison:
+        choose(docs)
+        window.sync_views_action.trigger()
+    else:
+        window.fullscreen_action.trigger()
+    viewer = window._fullscreen_preview
+    qtbot.waitUntil(viewer.isActiveWindow)
+    visited = []
+
+    def inspect(dialog):
+        assert dialog.parentWidget() is viewer
+        assert window._fullscreen_preview is viewer and not viewer.closed
+        dialog.options.scope.setCurrentIndex(dialog.options.scope.findData('current'))
+        assert [(p.source, p.page) for p in dialog.source_pages] == [(viewer.document.source_path, 2)]
+        visited.append(viewer.document)
+        return QDialog.DialogCode.Rejected
+
+    monkeypatch.setattr(PrintPreviewDialog, 'exec', inspect)
+    targets = docs if comparison else [docs[-1]]
+    for doc in targets:
+        if comparison:
+            qtbot.mouseClick(viewer.frames[doc.document_id].title, Qt.MouseButton.LeftButton)
+        viewer.show_page(2)
+        button = viewer.floating_tools.buttons[window.print_action]
+        viewer.floating_tools.toggle.setChecked(False)
+        assert button.isVisible() and not button.icon().isNull()
+        assert QKeySequence.keyBindings(QKeySequence.StandardKey.Print)[0].toString(
+            QKeySequence.SequenceFormat.NativeText) in button.toolTip()
+        qtbot.mouseClick(button, Qt.MouseButton.LeftButton)
+        assert window._fullscreen_preview is viewer and viewer.page_index == 2
+        assert window.print_action.isEnabled()
+        key = window.print_action.shortcuts()[0][0]
+        qtbot.keyClick(viewer, key.key(), key.keyboardModifiers())
+        assert visited[-2:] == [doc, doc]
+        if comparison:
+            assert window.sync_views_action.isChecked()
+    # Keep progress above the application-modal viewer and prevent deleting its
+    # parent while a job is active. Do not send anything to a physical printer.
+    monkeypatch.setattr(PrintJob, 'start', lambda self: None)
+    controller = window.print_controller
+    controller.start(pdf_printer(tmp_path / 'fullscreen-print.pdf'),
+                     (PrintPage(viewer.document.source_path, 2),), 'fit')
+    assert controller.progress_dialog.parentWidget() is viewer
+    assert controller.progress_dialog.windowModality() == Qt.WindowModality.ApplicationModal
+    assert not window.print_action.isEnabled()
+    controller.job.cancel()
+    assert controller.progress_dialog is None and not controller.busy
+    assert window._fullscreen_preview is viewer
+    viewer.close()
+
+
 def test_controller_cancels_on_window_close_and_disables_second_job(qtbot, tmp_path):
     source = tmp_path / 'source.pdf'
     colored_pdf(source)

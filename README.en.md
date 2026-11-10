@@ -162,7 +162,7 @@ The controls are described below. Hover over a control to see its tooltip, inclu
 
 ### Printing
 
-- Click Print or press <kbd>Ctrl</kbd>+<kbd>P</kbd> (macOS: <kbd>⌘</kbd>+<kbd>P</kbd>) to open the integrated print window. The fullscreen shortcut first returns to the main window.
+- Click Print or press <kbd>Ctrl</kbd>+<kbd>P</kbd> (macOS: <kbd>⌘</kbd>+<kbd>P</kbd>) to open the integrated print window. Fullscreen and proofreading floating toolbars also provide Print without leaving fullscreen. Proofreading uses the focused document and its current page; canceling or closing the print window preserves the view and synchronization state.
 - Choose all pages in the current document, the current page, a custom range, or checked pages. Custom ranges use original PDF page numbers, such as `1,3,5-8`.
 - Checked pages follow the export rules: if tabs are checked, use the selected pages in those tabs; otherwise, use the selected pages in the current tab.
 - Printing follows the current tab and page order. The print window shows document and page counts.
