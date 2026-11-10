@@ -832,7 +832,13 @@ class MainWindow(QMainWindow):
         self.open_action.setShortcut(QKeySequence.StandardKey.Open)
         self.open_action.setToolTip(tr('開啟 PDF'))
         self.open_action.triggered.connect(self.choose_pdf)
-        self.toolbar.addAction(self.open_action)
+        from repdf.recent_files import RecentFiles
+        self.recent_files = RecentFiles(self)
+        self.addAction(self.open_action)
+        self.recent_files_button = self.toolbar.add_action_menu_group(
+            self.open_action, self.recent_files.menu, arrow_name='recentFilesMenu')
+        self.recent_files_button.setToolTip(tr('最近開啟的檔案'))
+        self.recent_files_button.setAccessibleName(tr('最近開啟的檔案'))
         self.save_action = QAction(tr('存檔'), self)
         self.save_action.setShortcuts(QKeySequence.keyBindings(QKeySequence.StandardKey.Save))
         self.save_action.setToolTip(tr('存檔：將目前檔案的完整頁面順序儲存至原 PDF'))
@@ -1072,6 +1078,7 @@ class MainWindow(QMainWindow):
         self.settings.setValue('view/annotation_toolbar',enabled)
 
     def _refresh_toolbar_icons(self) -> None:
+        self.recent_files_button.setIcon(toolbar_icon('chevron_down'))
         if hasattr(self, 'ocr_language_button'):
             self.ocr_language_button.setIcon(toolbar_icon('chevron_down'))
         for action, kind in ((self.open_action, "open"), (self.export_action, "export"),
@@ -1727,6 +1734,8 @@ class MainWindow(QMainWindow):
             existing = next((doc for doc in self.documents.values() if doc.source_path == path), None)
             if existing is not None:
                 self.activate_document(existing)
+                if existing.ready:
+                    self.recent_files.record(path)
                 continue
             doc = self._new_document(path)
             self._document_batches[doc.document_id] = batch
@@ -1805,6 +1814,8 @@ class MainWindow(QMainWindow):
             if context is not None:
                 _old_id, _tab_index, _page, doc.zoom, doc.fit_mode = context
             doc.loaded(page_count)
+            if context is None:
+                self.recent_files.record(doc.source_path)
             self._source_stamps[document_id] = self._source_stamp(doc.source_path)
             if context is not None:
                 old_id, tab_index, page, _zoom, _fit = context
@@ -1977,6 +1988,7 @@ class MainWindow(QMainWindow):
     def _set_export_running(self, running: bool) -> None:
         self._export_running = running
         self.open_action.setEnabled(not running)
+        self.recent_files_button.setEnabled(not running)
         for pane in self.workspace.panes:
             pane.setMovable(not running)
         for doc in self.documents.values():
@@ -2142,6 +2154,8 @@ def load_app_icon() -> QIcon:
 
 
 def configure_application(app: QApplication) -> None:
+    from repdf.windows_recent import set_application_id
+    set_application_id()
     from repdf.message_dialogs import install_message_style
     install_message_style(app)
     app.setApplicationName("RePDF")

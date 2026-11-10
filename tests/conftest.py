@@ -7,6 +7,8 @@ import pytest
 
 @pytest.fixture(autouse=True)
 def isolated_preferences(monkeypatch, tmp_path):
+    # Automated PDF opens must not populate the user's real Windows Jump List.
+    monkeypatch.setattr('repdf.recent_files.publish_recent_document', lambda path: False)
     from PySide6.QtCore import QSettings
     from repdf import strings
     monkeypatch.setattr("repdf.app.QSettings", lambda *_args: QSettings(str(tmp_path / "ui.ini"), QSettings.Format.IniFormat))

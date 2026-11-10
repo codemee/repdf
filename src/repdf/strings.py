@@ -6,6 +6,10 @@ from string import Formatter
 
 LANGUAGE = "zh"
 ENGLISH = {
+    '最近開啟的檔案': 'Recently opened files',
+    '尚無最近開啟的檔案': 'No recently opened files',
+    '無法開啟檔案': 'Cannot open file',
+    '檔案不存在或無法存取：{path}': 'File does not exist or cannot be accessed: {path}',
     '資訊': 'Information',
     '警告': 'Warning',
     '錯誤': 'Error',

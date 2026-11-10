@@ -12,6 +12,7 @@ from PySide6.QtGui import QDesktopServices
 from PySide6.QtWidgets import QDialog, QVBoxLayout, QLabel, QPushButton, QCheckBox
 
 from repdf.strings import tr
+from repdf.windows_recent import APP_ID
 
 PROG_ID = 'RePDF.PDF'
 APP_KEY = r'Software\RePDF\Capabilities'
@@ -22,6 +23,7 @@ def registration_entries(command, icon):
     """Declarative HKCU values, also testable on non-Windows platforms."""
     return [
         (rf'Software\Classes\{PROG_ID}', '', 'PDF — Read the PDF'),
+        (rf'Software\Classes\{PROG_ID}', 'AppUserModelID', APP_ID),
         (rf'Software\Classes\{PROG_ID}\DefaultIcon', '', icon),
         (rf'Software\Classes\{PROG_ID}\Application', 'ApplicationName', 'RePDF'),
         (rf'Software\Classes\{PROG_ID}\Application', 'ApplicationDescription', 'Read the PDF'),

@@ -371,7 +371,7 @@ def test_toolbar_shortcuts_and_zoom_limits(qtbot, monkeypatch) -> None:
     window.show()
     window.activateWindow()
     qtbot.wait(50)
-    assert window.open_action in window.toolbar.tool_actions()
+    assert window.toolbar.widgetForAction(window.open_action).defaultAction() is window.open_action
     assert window.toolbar.widgetForAction(window.export_action) is not None
     for action in (window.open_action,window.export_action):
         assert not action.icon().isNull()

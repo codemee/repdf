@@ -16,6 +16,8 @@
 - `DesktopInstance` 使用每位使用者固定名稱的 `QLocalServer` / `QLocalSocket`，以 UTF-8 JSON 加換行傳送絕對路徑。`QLockFile` 保護啟動與殘留 socket 清理；後續程序僅送出要求，不啟動 PDF 後端。socket 限目前使用者存取，訊息上限 1 MiB。
 - `desktop_integration.py` 僅在使用者按下註冊時寫入 HKCU 的 RePDF ProgID、OpenWithProgids、Capabilities、RegisteredApplications 與 PDF 專用 shell 命令。不寫入 UserChoice 或強制覆蓋預設程式。免安裝版複製到 `%LOCALAPPDATA%/Programs/RePDF/repdf.exe`，Python 版指向目前環境的 `pythonw -m repdf`。
 - 系統整合位於主工具列右側「…」設定選單，註冊與預設 PDF 顯示實際狀態，與語系及配色同組。macOS 封裝在 `packaging/repdf.spec` 宣告 `com.adobe.pdf`、Editor 與 Alternate；透過 Qt 開檔事件處理，不使用 argv emulation。
+- `RecentFiles` 以 `files/recent` 保存最近成功開啟的 10 個完整路徑，去重並將重開項目移到最前。載入失敗／密碼取消不記錄，外部自動重新載入不改變順序；清單中的失效路徑會提示錯誤。開檔按鈕旁的箭頭共用全螢幕的分離式按鈕實作（箭頭 14×34、間距 2 px），整組溢位時仍可由三點選單進入。選單只顯示檔名，tooltip 顯示完整路徑。程式內清單支援 Windows／macOS，尚未整合 macOS Dock／系統最近項目。
+- Windows 主程序使用固定 `codemee.RePDF` AppUserModelID，PDF ProgID 登錄同一 ID。`windows_recent.py` 透過 COM 建立帶有 PDF 標題、完整路徑提示、持久化 RePDF ICO（共用系統整合圖示產生器，每個程序只產生一次）及明確 RePDF 目標／參數的 `IShellLinkW`，以 `SHAddToRecentDocs(SHARD_APPIDINFOLINK)` 更新原生 Recent Jump List，不改預設應用程式。原始碼版使用 `pythonw -m repdf`，封裝版直接指向 EXE；參數使用 Windows 引號規則。Windows 自行管理顯示數量、釘選與隱私設定，並非同步覆寫程式內的十筆清單。原生 COM 測試檢查捷徑屬性但攔截實際通知，其他測試也不寫入使用者 Shell 歷史。[Microsoft API 文件](https://learn.microsoft.com/en-us/windows/win32/api/shlobj_core/ns-shlobj_core-shardappidinfolink)
 - 取消註冊只刪除 RePDF 專屬鍵與命名值，不刪除 `.pdf` 共用鍵、其他程式的關聯或執行檔。Windows 11 第一層 IExplorerCommand 擴充不在目前實作範圍。
 
 RePDF 是支援 Windows 與 macOS 的 Python 桌面程式，主要功能包括：

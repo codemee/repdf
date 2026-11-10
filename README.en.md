@@ -93,6 +93,9 @@ The controls are described below. Hover over a control to see its tooltip, inclu
 - Each tab shows the filename without its extension. Hover over a tab to see the full path.
 - The window title shows `RePDF` and its version.
 - Opening the same path again switches to its existing tab.
+- The arrow beside Open PDF lists the last 10 successfully opened files, newest first, showing filenames with full paths in hover tooltips to distinguish identical names. Reopening moves a file to the top and activates its existing tab. History persists across launches.
+- On Windows, right-click the RePDF taskbar icon for recent documents that explicitly open in RePDF. Windows manages Jump List visibility, item limits, and pinned entries through its settings; the default PDF association is unchanged.
+- macOS supports the in-app recent-files menu. Dock context-menu and system Recent Items integration are not implemented.
 - Each file keeps its own zoom, scroll position, page selection, and page order.
 - Next tab (Windows/Linux): <kbd>Ctrl</kbd>+<kbd>Tab</kbd>.
 - Previous tab (Windows/Linux): <kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>Tab</kbd>.
