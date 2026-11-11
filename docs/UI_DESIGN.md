@@ -336,3 +336,5 @@ reorderAnimation.durationMs = 180
 
 
 校對僅在全螢幕生效，以兩個勾選標籤固定左右比對；畫面外緣至少 20px 留白，底部 76px 容納工具列，中央間隔 16px，檔名與 2px 窗格外框區隔文件，作用中框線沿用淡強調色。同步工具使用 34 × 34 按鈕、20 × 20 圖示，只有兩個標籤勾選時可用；超過兩個標籤會停用全螢幕，停用狀態仍可顯示說明 tooltip。
+
+應用程式圖示採白色折角 PDF 文件、紅色 PDF 字樣及右下角藍色開書標記。向量來源為 `src/repdf/assets/repdf.svg`，使用 `uv run python scripts/render_app_icon.py` 產生 1024px PNG、多尺寸 ICO 與尺寸預覽。視窗、工作列最近文件及封裝沿用 `fitted_icon()` 的一致光學尺寸。Windows 持久 ICO 內容改變時通知 Shell 更新快取；內容相同則不重寫。

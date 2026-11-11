@@ -336,3 +336,5 @@ Compact annotations: `annotation_compact.py` shares selection/navigation with th
 
 
 Proofreading is fullscreen-only, comparing exactly two checked tabs in fixed left/right panes. At least 20px screen margins, 76px bottom toolbar space, a 16px gutter, filenames and 2px pane borders distinguish the documents; the active border uses the pale accent color. The sync control uses a 34 × 34 button and 20 × 20 icon, enabled for exactly two selected tabs. More than two tabs disable fullscreen while keeping its explanatory tooltip available.
+
+The application icon uses a white folded PDF document, red PDF lettering, and a blue open-book badge at the lower right. Its vector source is `src/repdf/assets/repdf.svg`; run `uv run python scripts/render_app_icon.py` to generate the 1024px PNG, multi-size ICO, and size preview. Window, recent-document Shell links, and packaged icons share `fitted_icon()` optical sizing. Windows refreshes Shell caches only when the persistent ICO content changes.

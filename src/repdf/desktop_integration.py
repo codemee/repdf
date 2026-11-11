@@ -85,7 +85,10 @@ def install_application_icon(directory=None):
         staging = Path(stream.name)
     try:
         image.save(staging, format='ICO', sizes=[(n, n) for n in (16, 20, 24, 32, 40, 48, 64, 128, 256)])
-        os.replace(staging, icon)
+        if not icon.is_file() or icon.read_bytes() != staging.read_bytes():
+            os.replace(staging, icon)
+            if sys.platform == 'win32':
+                notify_shell()
     finally:
         staging.unlink(missing_ok=True)
     return f'"{icon}",0'
