@@ -14,6 +14,7 @@ from PySide6.QtGui import (
     QKeySequence,
     QPainter,
     QPainterPath,
+    QPainterPathStroker,
     QPen,
     QFont,
     QFontMetricsF,
@@ -830,6 +831,34 @@ class AnnotationEditor(QObject):
                 if (position - point).manhattanLength() < 11:
                     return current, name
         for m in reversed(doc.annotation_store.page(label.annotation_page)):
+            if m['kind'] in MARKUPS:
+                # Quads describe separate text runs. Their combined bounds may
+                # cover unrelated notes or whitespace between wrapped lines.
+                scale = max(abs(tx.m11()) + abs(tx.m12()), abs(tx.m21()) + abs(tx.m22()))
+                stroker = QPainterPathStroker()
+                stroke_width = m['width'] * scale
+                if m['kind'] == 'squiggly':
+                    stroke_width *= 3
+                stroker.setWidth(max(6, stroke_width + 4))
+                for q in m['quads']:
+                    shape = QPainterPath()
+                    if m['kind'] == 'highlight':
+                        shape.moveTo(tx.map(QPointF(q[0], q[1])))
+                        for i in (2, 6, 4):
+                            shape.lineTo(tx.map(QPointF(q[i], q[i + 1])))
+                        shape.closeSubpath()
+                        if shape.contains(position):
+                            return m, 'body'
+                    else:
+                        a, b = QPointF(q[4], q[5]), QPointF(q[6], q[7])
+                        if m['kind'] == 'strikeout':
+                            a = (a + QPointF(q[0], q[1])) / 2
+                            b = (b + QPointF(q[2], q[3])) / 2
+                        shape.moveTo(tx.map(a))
+                        shape.lineTo(tx.map(b))
+                    if stroker.createStroke(shape).contains(position):
+                        return m, 'body'
+                continue
             if m["kind"] in ("line", "arrow", "ink"):
                 paths = m["paths"] if m["kind"] == "ink" else [m["points"]]
                 for path in paths:

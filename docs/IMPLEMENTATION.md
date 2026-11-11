@@ -587,3 +587,5 @@ Fit 使用最近點擊且仍可見的頁面，或距預覽區中央最近的頁�
 共用訊息框由 `message_dialogs.install_message_style()` 在應用程式設定及 MainWindow 建立時安裝一次；涵蓋 QMessageBox 的靜態 information/warning/critical/question 以及自建訊息框。保留標準按鈕、角色、預設／Escape、clickedButton 與 detailedText；校對超界提示與未儲存提示由同一 style_message 工廠產生，檔名與說明分行顯示。
 
 macOS 的 Qt 會忽略 QMessageBox 視窗標題；共用樣式在缺少標題時以訊息類型補上對話框內標題，原始文字保留於說明區。模態測試在斷言失敗時也會關閉對話框，避免 CI 卡住。
+
+註解命中：可編輯的底線、刪除線與波浪線依各個 QuadPoints 的實際線段判定，保留螢幕像素容差；螢光標示依各個四邊形判定。不得以跨行合併外框攔截滑鼠，避免擋住行間或空白處的可編輯／唯讀便利貼。一般閱讀與全螢幕共用此命中流程。

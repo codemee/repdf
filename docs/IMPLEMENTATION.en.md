@@ -571,3 +571,5 @@ Only page navigation and cropping synchronize. Every page entry point calls allo
 `message_dialogs.install_message_style()` installs the shared message-box style once during application configuration and MainWindow creation. It covers static information/warning/critical/question helpers and custom QMessageBox instances. Standard buttons, roles, default/Escape behavior, clickedButton and detailedText remain intact. Proofreading range errors and unsaved prompts share style_message, separating filenames and explanations.
 
 Qt ignores QMessageBox window titles on macOS. When no title is available, the shared style uses a message-type heading and preserves the original text in the explanation. Modal tests close dialogs even on assertion failures to avoid blocked CI.
+
+Annotation hit testing: editable underline, strikeout, and squiggly marks use each QuadPoints line segment with screen-pixel tolerance; highlights use individual quadrilaterals. Combined multiline bounds must not intercept the mouse over intervening whitespace or editable/read-only sticky notes. Normal and fullscreen previews share this hit path.
