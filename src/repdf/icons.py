@@ -273,10 +273,11 @@ def toolbar_icon(kind: str) -> QIcon:
             painter.drawLine(12, 11, 12, 18)
             painter.drawPolyline(QPolygonF([QPointF(8, 14), QPointF(12, 18), QPointF(16, 14)]))
         elif kind == "split":
-            painter.drawRoundedRect(QRectF(2, 2, 8, 13), 1, 1)
-            painter.drawRoundedRect(QRectF(14, 9, 8, 13), 1, 1)
-            painter.drawLine(6, 19, 12, 19)
-            painter.drawPolyline(QPolygonF([QPointF(9, 16), QPointF(12, 19), QPointF(9, 22)]))
+            painter.drawPolyline(QPolygonF([QPointF(8, 17), QPointF(2, 17), QPointF(2, 2),
+                                            QPointF(16, 2), QPointF(16, 7)]))
+            painter.drawRoundedRect(QRectF(8, 7, 14, 15), 1, 1)
+            painter.drawLine(15, 12, 15, 19)
+            painter.drawPolyline(QPolygonF([QPointF(11, 15), QPointF(15, 19), QPointF(19, 15)]))
         elif kind in ("zoom_in", "zoom_out"):
             painter.drawEllipse(QRectF(3, 3, 13, 13))
             painter.drawLine(15, 15, 21, 21)
