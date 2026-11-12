@@ -126,6 +126,7 @@ class RenderService(QObject):
     def request(
         self, source: Path, scale: float, output_dir: Path, generation: int,
         *, document_id: int = 0, pages: list[int] | None = None, password: str | None = None,
+        background: bool = False,
     ) -> None:
         payload: dict[str, object] = {
             "source": str(source),
@@ -137,11 +138,13 @@ class RenderService(QObject):
             payload["pages"] = list(pages)
         if password is not None:
             payload['password'] = password
+        if background:
+            payload['background'] = True
         with self._lock:
             if self._closed:
                 return
             self._pending[document_id] = payload
-            self._pending.move_to_end(document_id, last=False)
+            self._pending.move_to_end(document_id, last=background)
             self._start_next()
 
     def request_print(self, source, page, output_dir, generation, *, password=None, preview=False, annotation_changes=()):
@@ -225,7 +228,9 @@ class RenderService(QObject):
 
     def _start_next(self) -> None:
         while self._pending and not self._busy and not self._closed:
-            _, payload = self._pending.popitem(last=False)
+            key = next((key for key, value in self._pending.items() if not value.get('background')),
+                       next(iter(self._pending)))
+            payload = self._pending.pop(key)
             self._active_payload = payload
             self._busy = self._write(payload)
             if not self._busy:

@@ -888,6 +888,8 @@ class MainWindow(QMainWindow):
         self.toolbar.addAction(self.bookmark_action)
         self.toolbar.widgetForAction(self.bookmark_action).setObjectName('bookmarksTool')
         self.annotation_action = QAction(tr('註解'), self)
+        self.annotation_action.setShortcut(QKeySequence('Alt+D'))
+        self.addAction(self.annotation_action)
         self.annotation_action.setCheckable(True)
         self.annotation_action.setToolTip(tr('註解：開啟註解清單，點選即可跳至對應頁面'))
         self.annotation_action.triggered.connect(lambda: self.navigation.toggle('annotations'))
@@ -988,6 +990,8 @@ class MainWindow(QMainWindow):
         self.fit_action.triggered.connect(self._fit_page)
         self.toolbar.addAction(self.fit_action)
         self.trim_view_action = QAction(tr('裁切檢視'), self)
+        self.trim_view_action.setShortcut(QKeySequence('Alt+C'))
+        self.addAction(self.trim_view_action)
         self.trim_view_action.setCheckable(True)
         self.trim_view_action.setToolTip(tr('優先依 TrimBox，否則依可辨識的四角裁切線檢視（不修改原檔）'))
         self.trim_view_action.triggered.connect(self._toggle_trim_view)
@@ -1969,6 +1973,8 @@ class MainWindow(QMainWindow):
                         self.statusBar().showMessage(tr('無法擷取文字：{p0}', p0=payload.get('message', '')))
             if payload.get('type') in {'done', 'error'}:
                 self._text_requests.pop(generation, None)
+            return
+        if viewer is not None and viewer.accept_prefetch(payload):
             return
         if viewer is not None and hasattr(viewer, 'accept_comparison_render') and viewer.accept_comparison_render(payload):
             return

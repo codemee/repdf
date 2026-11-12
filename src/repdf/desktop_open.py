@@ -8,6 +8,25 @@ from PySide6.QtWidgets import QApplication
 from repdf.early_open import file_arguments, instance_name
 
 
+def send_paths(socket, paths, timeout=5000):
+    """Drain the full request, including completions racing Qt's wait call."""
+    payload = json.dumps(paths, ensure_ascii=False).encode('utf-8') + b'\n'
+    error = 'Could not deliver files to RePDF. Please retry.'
+    if socket.write(payload) != len(payload):
+        raise RuntimeError(error)
+    timer = QElapsedTimer()
+    timer.start()
+    while socket.bytesToWrite():
+        remaining = timeout - timer.elapsed()
+        if remaining <= 0 or not socket.waitForBytesWritten(remaining):
+            # On Windows an asynchronous completion can drain the queue before
+            # waitForBytesWritten starts waiting; Qt then returns false because
+            # there is no pending write. That is not a delivery failure.
+            if socket.bytesToWrite():
+                raise RuntimeError(error)
+    socket.disconnectFromServer()
+
+
 class DesktopApplication(QApplication):
     def __init__(self, arguments):
         super().__init__(arguments)
@@ -75,10 +94,7 @@ class DesktopInstance(QObject):
                 QThread.msleep(50)
             if socket.state() != QLocalSocket.LocalSocketState.ConnectedState:
                 raise RuntimeError('Cannot contact the running RePDF window. Please retry.')
-            socket.write(json.dumps(paths, ensure_ascii=False).encode('utf-8') + b'\n')
-            if socket.bytesToWrite() and not socket.waitForBytesWritten(5000):
-                raise RuntimeError('Could not deliver files to RePDF. Please retry.')
-            socket.disconnectFromServer()
+            send_paths(socket, paths)
             return False
         QLocalServer.removeServer(self.name)
         if not self.server.listen(self.name):

@@ -125,6 +125,9 @@ class ComparisonPreview(FullscreenPreview):
         view.accept_render(payload)
         return True
 
+    def accept_prefetch(self, payload):
+        return any(view.accept_prefetch(payload) for view in self.views.values())
+
     def mark_active(self):
         for document_id, frame in self.frames.items():
             active = document_id == self.document.document_id
@@ -186,6 +189,7 @@ class ComparisonPreview(FullscreenPreview):
         try:
             for view in self.views.values():
                 view.closed = True
+                view.cache.close()
                 view.timer.stop()
                 self.owner.render_service.cancel_pending(-view.document.document_id)
                 if view.document.document_id in self.owner.documents:

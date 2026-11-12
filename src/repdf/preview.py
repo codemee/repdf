@@ -8,6 +8,7 @@ from repdf.strings import tr
 from repdf.widgets import PagePreviewLabel, ParityCheckBox
 from repdf.core import parity_state, SelectionState
 from repdf.floating_tools import FloatingAnnotationTools
+from repdf.fullscreen_cache import FullscreenCache
 
 
 class FullscreenPreview(QWidget):
@@ -31,6 +32,8 @@ class FullscreenPreview(QWidget):
         self.parity_buttons = {}
         self.page_headers = {}
         self.closed = False
+        self.cache = FullscreenCache(self)
+        self._render_scale = 0
         if not self.embedded:
             self.setWindowModality(Qt.WindowModality.ApplicationModal)
         self.setObjectName('fullscreenPreview')
@@ -84,6 +87,7 @@ class FullscreenPreview(QWidget):
     def show_page(self, page_index):
         if self.embedded and not self.owner.proofreading.allow_page(self.document, page_index):
             return False
+        self.cache.pause()
         self.render_generation = -1
         self.owner.render_service.cancel_pending(-self.document.document_id)
         self.group_index = next(i for i, group in enumerate(self.groups) if page_index in group)
@@ -151,6 +155,7 @@ class FullscreenPreview(QWidget):
             parity.show()
             self.parity_buttons[index] = parity
             header.show()
+        self.cache.restore_visible()
         self.update_image()
         self.timer.start()
         if self.embedded and hasattr(self.owner, 'proofreading'):
@@ -187,20 +192,39 @@ class FullscreenPreview(QWidget):
         area = sum(self.document.page_sizes.get(index, size)[0] *
                    self.document.page_sizes.get(index, size)[1] for index, size in sizes.items())
         scale = min(scale, (30_000_000 / area) ** .5)
+        self.cache.sync()
+        missing = []
+        for page in self.visible_pages:
+            entry = self.cache.get(page, scale)
+            if entry:
+                self.accept_render(entry[2], image=entry[1])
+            else:
+                missing.append(page)
+        if not missing:
+            self.render_generation = -1
+            self.cache.ready()
+            return
+        self.cache.waiting = True
+        self._render_scale = scale
         self.owner._next_generation += 1
         self.render_generation = self.owner._next_generation
         self.owner.render_service.request(self.document.source_path, scale,
                                          Path(self.owner.preview_temp.name), self.render_generation,
-                                         document_id=-self.document.document_id, pages=self.visible_pages,
+                                         document_id=-self.document.document_id, pages=missing,
                                          password=self.document.password)
         self.owner.render_service.prioritize(-self.document.document_id)
 
-    def accept_render(self, payload):
+    def accept_prefetch(self, payload):
+        return self.cache.accept(payload)
+
+    def accept_render(self, payload, *, image=None):
         if payload.get("type") == "page":
             index = int(payload["page"])
-            path = Path(payload["path"])
-            image = QImage(str(path)).copy()
-            path.unlink(missing_ok=True)
+            cached = image is not None
+            if not cached:
+                path = Path(payload["path"])
+                image = QImage(str(path)).copy()
+                path.unlink(missing_ok=True)
             if index not in self.visible_pages:
                 return
             self.owner.annotation_editor.loaded(self.document,index,payload)
@@ -218,10 +242,14 @@ class FullscreenPreview(QWidget):
                 self.document.trim_boxes.pop(index, None)
             self.document.page_sizes[index] = (
                 float(payload["width_points"]), float(payload["height_points"]))
+            if not cached:
+                self.cache.remember(index, self._render_scale, image, payload)
             self.update_image()
             if unknown_size or (self.document.trim_view
                                 and previous_trim != self.document.trim_boxes.get(index)):
                 self.timer.start()
+        elif payload.get('type') == 'done':
+            self.cache.ready()
         elif payload.get("type") == "error":
             for index, image in self.images.items():
                 if image.isNull():
@@ -338,6 +366,7 @@ class FullscreenPreview(QWidget):
     def closeEvent(self, event):
         self.owner.annotation_editor.finish_text(True)
         self.closed = True
+        self.cache.close()
         self.floating_tools.restore_menus()
         self.timer.stop()
         QApplication.instance().removeEventFilter(self)

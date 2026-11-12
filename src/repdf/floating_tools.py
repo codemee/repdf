@@ -13,6 +13,9 @@ class FloatingAnnotationTools(QFrame):
         self.viewer = viewer
         self.fullscreen = owner is None
         self.owner = viewer.owner if self.fullscreen else owner
+        if self.fullscreen:
+            # Window shortcuts must also belong to the modal fullscreen window.
+            viewer.addActions([self.owner.trim_view_action, self.owner.annotation_action])
         self.bounds_widget = viewer if self.fullscreen else owner.centralWidget()
         self.setObjectName("fullscreenAnnotationTools")
         self.setFocusPolicy(Qt.FocusPolicy.NoFocus)
@@ -83,7 +86,8 @@ class FloatingAnnotationTools(QFrame):
             self.mode_toolbar.setObjectName('floatingAnnotationBar')
             self.mode_toolbar.setMovable(False)
             self.mode_toolbar.setFloatable(False)
-            self.mode_toolbar.setFixedSize(174, 42)
+            self.mode_toolbar.setFixedHeight(42)
+            self.mode_toolbar.setMinimumWidth(0)
             self.mode_toolbar.setIconSize(QSize(20, 20))
             self.mode_toolbar.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonIconOnly)
             layout.addWidget(self.mode_toolbar)
@@ -127,13 +131,7 @@ class FloatingAnnotationTools(QFrame):
         self.toolbar.group_sections()
         for action in actions:
             self.buttons[action] = self.toolbar.widgetForAction(action)
-        active = bool(editor.mode() or self.owner._selection_active())
-        expanded = self.owner.settings.value(
-            "view/fullscreen_tools_expanded",
-            self.owner.annotation_tools_action.isChecked(),
-            type=bool,
-        )
-        self.toggle.setChecked(expanded or active if self.fullscreen else True)
+        self.toggle.setChecked(True)
         self.toolbar.setVisible(self.toggle.isChecked())
         self.toggle.toggled.connect(self.set_expanded)
         self.refresh_icons()
@@ -170,7 +168,6 @@ class FloatingAnnotationTools(QFrame):
         self.toolbar.setVisible(expanded)
         if not expanded:
             self.owner._finish_annotation_modes(include_extraction=self.fullscreen)
-        self.owner.settings.setValue("view/fullscreen_tools_expanded", expanded)
         self.refresh_icons()
         self.reposition()
 
@@ -179,7 +176,13 @@ class FloatingAnnotationTools(QFrame):
         self.setMaximumWidth(max(1, bounds.width() - 16))
         self.setMaximumHeight(max(1, bounds.height() - 16))
         self.layout().activate()
-        self.adjustSize()
+        if self.fullscreen:
+            # adjustSize() caps top-level-style preferred sizes at 2/3 of the
+            # screen. Use the full tool content width, bounded by this viewer.
+            preferred = self.layout().sizeHint()
+            self.resize(min(self.maximumWidth(), preferred.width() + 8), preferred.height() + 2)
+        else:
+            self.adjustSize()
         if not self.manual_position:
             self.move(
                 bounds.left() + max(8, (bounds.width() - self.width()) // 2),

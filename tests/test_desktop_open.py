@@ -8,7 +8,7 @@ import pytest
 from PySide6.QtCore import QObject
 from PySide6.QtNetwork import QLocalSocket
 
-from repdf.desktop_open import DesktopInstance, file_arguments
+from repdf.desktop_open import DesktopInstance, file_arguments, send_paths
 from repdf.desktop_integration import registration_entries, launch_command
 
 
@@ -19,6 +19,71 @@ class Receiver(QObject):
 
     def open_files(self, paths):
         self.requests.append(paths)
+
+
+@pytest.mark.parametrize('waits', [[(False, 0)], [(True, 5), (False, 0)]])
+def test_completed_write_is_not_reported_as_failure(tmp_path, waits):
+    class Socket:
+        pending = 10
+        disconnected = False
+        def write(self, payload):
+            assert json.loads(payload) == [str(tmp_path / '中文 文件.pdf')]
+            return len(payload)
+        def bytesToWrite(self):
+            return self.pending
+        def waitForBytesWritten(self, timeout):
+            assert timeout > 0
+            result, self.pending = waits.pop(0)
+            return result
+        def disconnectFromServer(self):
+            assert self.pending == 0
+            self.disconnected = True
+    socket = Socket()
+    send_paths(socket, [str(tmp_path / '中文 文件.pdf')])
+    assert socket.disconnected and not waits
+
+
+@pytest.mark.parametrize('write_result,pending', [(-1, 0), (0, 0), (None, 10)])
+def test_real_write_failures_are_still_reported(write_result, pending):
+    from types import SimpleNamespace
+    socket = SimpleNamespace(write=lambda payload: len(payload) if write_result is None else write_result,
+        bytesToWrite=lambda: pending, waitForBytesWritten=lambda timeout: False,
+        disconnectFromServer=lambda: pytest.fail('A failed send must not be marked complete'))
+    with pytest.raises(RuntimeError, match='Could not deliver'):
+        send_paths(socket, [])
+
+
+def test_simultaneous_explorer_style_launches_deliver_all_files(qtbot, tmp_path):
+    receiver = Receiver()
+    name = 'repdf-test-' + uuid.uuid4().hex
+    instance = DesktopInstance(receiver, name)
+    processes, expected = [], []
+    script = '''
+import json, sys
+from PySide6.QtCore import QCoreApplication
+from repdf.desktop_open import DesktopInstance
+app = QCoreApplication([])
+instance = DesktopInstance(app, sys.argv[1])
+assert not instance.start(json.loads(sys.argv[2]))
+'''
+    try:
+        assert instance.start([])
+        for i in range(8):
+            paths = [str(tmp_path / f'中文 檔案 {i}.pdf'), str(tmp_path / f'other {i}.pdf')]
+            expected.append(paths)
+            processes.append(subprocess.Popen([sys.executable, '-c', script, name, json.dumps(paths)],
+                stdout=subprocess.PIPE, stderr=subprocess.PIPE))
+        qtbot.waitUntil(lambda: all(p.poll() is not None for p in processes), timeout=30000)
+        for process in processes:
+            assert process.returncode == 0, process.communicate()[1].decode(errors='replace')
+        qtbot.waitUntil(lambda: len(receiver.requests) == 9)
+        assert sorted(receiver.requests[1:]) == sorted(expected)
+    finally:
+        instance.close()
+        for process in processes:
+            if process.poll() is None:
+                process.kill()
+            process.communicate()
 
 
 def test_file_arguments_preserve_unicode_spaces_and_multiple_paths(tmp_path):
