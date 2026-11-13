@@ -593,3 +593,9 @@ macOS 的 Qt 會忽略 QMessageBox 視窗標題；共用樣式在缺少標題時
 多檔啟動傳遞：`send_paths()` 檢查整筆 JSON 是否被接受，並在固定期限內等待傳送佇列完全清空；不能將單次 `waitForBytesWritten()` 的 false 直接視為失敗，因為 Windows 非同步完成可能已清空佇列。成功通知一次寫入也不代表整筆要求已排空。僅在仍有待送資料或寫入未被完整接受時回報錯誤，不重送同一要求。測試涵蓋完成時序、部分寫入、真實失敗及八個程序同時傳送 16 個檔案。
 
 `FullscreenCache` 使用 400ms 閒置計時器、單頁背景 generation，以及影像／註解 metadata 的 LRU 快取（每份文件八頁、128 MiB），依目前頁序向前準備兩組頁面。快取狀態包括檢視區大小、DPR、模式、裁切及 annotation-store revision，並檢查 scale，不能以較小影像取代高解析度要求。前景與預載結果共用快取；換頁取消待處理預載，關閉時清除計時器與快取，過期 PNG 沿用 generation 清理。校對各子檢視獨立接收預載結果。RenderService 將背景要求排後，待處理前景工作優先，但不強制中斷正在執行的 PDFium 單頁工作。懸浮列按內容尺寸加框線／取整餘量決定寬度，不用 QWidget.adjustSize()，模式區也不再固定寬度。
+
+標籤排序：`DocumentTabs.populate_tab_list()` 在標籤選單底部分隔線後提供依檔名升／降冪，`sort_tabs()` 以大小寫不敏感的自然數字鍵穩定排序，只使用 source_path.name，不把未儲存星號或父目錄納入排序。沿用 QTabBar.moveTab 保留 QWidget、勾選及關閉按鈕；只暫停 QTabWidget 對外訊號，保持 QTabBar 內部移動訊號運作，避免其他窗格被中途啟用。完成後以 tabs_reordered 同步控制項，工作區既有序列化保存排列。少於兩個標籤或 setMovable(False) 時停用，輸出期間不得排序。
+
+全螢幕頁碼導覽：`FullscreenPageNavigation` 在懸浮工具列提供獨立頁碼欄與總頁數，不借用主視窗狀態列。owner 的頁次更新同步此欄位；輸入未送出時不被背景渲染覆寫，切換校對文件會更新範圍並重設未送出的輸入。Enter 驗證原始 PDF 頁碼，經 ProofreadingController.allow_page() 後以 viewer.show_page() 跳轉；Esc 只取消輸入，不結束全螢幕。QLineEdit 的方向鍵、Home／End 留給文字編輯。同步超界時使用既有訊息窗並維持兩側頁次。
+
+全螢幕懸浮列的頁碼導覽固定放在最右側；同步 QAction 只加入校對檢視的懸浮模式列，一般全螢幕不建立此按鈕。不得修改共用 QAction 的 visible 狀態，以免影響主工具列原有的校對入口。

@@ -82,6 +82,8 @@ class FloatingAnnotationTools(QFrame):
             button.setAttribute(Qt.WidgetAttribute.WA_Hover, True)
             self.buttons[action] = button
         if self.fullscreen:
+            from repdf.fullscreen_navigation import FullscreenPageNavigation
+            self.page_navigation = FullscreenPageNavigation(viewer, self)
             self.mode_toolbar = OverflowToolBar(tr('全螢幕模式'), self)
             self.mode_toolbar.setObjectName('floatingAnnotationBar')
             self.mode_toolbar.setMovable(False)
@@ -112,12 +114,15 @@ class FloatingAnnotationTools(QFrame):
             trim_button.setFocusPolicy(Qt.FocusPolicy.NoFocus)
             trim_button.setAttribute(Qt.WidgetAttribute.WA_Hover, True)
             self.buttons[self.owner.trim_view_action] = trim_button
-            self.mode_toolbar.addAction(self.owner.sync_views_action)
-            sync_button = self.mode_toolbar.widgetForAction(self.owner.sync_views_action)
-            sync_button.setFixedSize(34, 34)
-            sync_button.setIconSize(QSize(20, 20))
-            sync_button.setProperty('stateButton', True)
-            self.buttons[self.owner.sync_views_action] = sync_button
+            if hasattr(viewer, 'views'):
+                self.mode_toolbar.addAction(self.owner.sync_views_action)
+                sync_button = self.mode_toolbar.widgetForAction(self.owner.sync_views_action)
+                sync_button.setFixedSize(34, 34)
+                sync_button.setIconSize(QSize(20, 20))
+                sync_button.setProperty('stateButton', True)
+                sync_button.setFocusPolicy(Qt.FocusPolicy.NoFocus)
+                self.buttons[self.owner.sync_views_action] = sync_button
+            layout.addWidget(self.page_navigation)
             button = QToolButton(self)
             button.setDefaultAction(self.owner.annotation_action)
             button.setFixedSize(34, 34)

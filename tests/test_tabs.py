@@ -1,7 +1,7 @@
 from pathlib import Path
 
 from PySide6.QtCore import Qt
-from PySide6.QtWidgets import QWidget, QToolButton
+from PySide6.QtWidgets import QWidget, QToolButton, QCheckBox, QTabBar
 
 from repdf.tabs import DocumentTabs
 
@@ -80,3 +80,104 @@ def test_native_scroll_arrows_and_document_dropdown(qtbot):
     qtbot.wait(1)
     stale.trigger()
     assert tabs.currentWidget() is documents[2]
+
+
+def test_filename_sort_is_natural_stable_and_preserves_documents(qtbot):
+    tabs = DocumentTabs()
+    qtbot.addWidget(tabs)
+    tabs.setMovable(True)
+    documents = []
+    for index, name in enumerate(('CH10.pdf', 'CH2.pdf', 'ch1.pdf', 'CH02.pdf', 'ch2.pdf')):
+        doc = QWidget()
+        doc.source_path = Path(f'/folder-{index}') / name
+        doc.document_id, doc.modified = index, index == 2
+        doc.checkbox = QCheckBox()
+        doc.checkbox.setChecked(index == 1)
+        doc.close_button = QToolButton()
+        tabs.addTab(doc, name)
+        tabs.tabBar().setTabButton(index, QTabBar.ButtonPosition.LeftSide, doc.checkbox)
+        tabs.tabBar().setTabButton(index, QTabBar.ButtonPosition.RightSide, doc.close_button)
+        documents.append(doc)
+    current = documents[0]
+    tabs.setCurrentWidget(current)
+    tabs.populate_tab_list()
+    actions = tabs.tab_list_menu.actions()
+    assert actions[-3].isSeparator()
+    assert all(action.isEnabled() for action in actions[-2:])
+    assert actions[-2].text() == '依檔名升冪排序'
+    changes = []
+    tabs.currentChanged.connect(changes.append)
+    actions[-2].trigger()
+    expected = [documents[i] for i in (2, 1, 3, 4, 0)]
+    assert [tabs.widget(i) for i in range(tabs.count())] == expected
+    assert tabs.currentWidget() is current and not changes
+    for index in range(tabs.count()):
+        doc = tabs.widget(index)
+        assert tabs.tabBar().tabButton(index, QTabBar.ButtonPosition.LeftSide) is doc.checkbox
+        assert tabs.tabBar().tabButton(index, QTabBar.ButtonPosition.RightSide) is doc.close_button
+        assert doc.checkbox.isChecked() == (doc is documents[1])
+    tabs.populate_tab_list()
+    assert tabs.tab_list_menu.actions()[0].text() == 'ch1.pdf *'
+    tabs.tab_list_menu.actions()[-1].trigger()
+    # Equal natural keys retain their relative order, even in descending mode.
+    assert [tabs.widget(i) for i in range(tabs.count())] == [documents[i] for i in (0, 1, 3, 4, 2)]
+    assert tabs.currentWidget() is current
+    tabs.tabBar().moveTab(0, 4)
+    assert tabs.widget(4) is current
+
+
+def test_sort_disabled_for_empty_single_or_locked_tabs(qtbot):
+    tabs = DocumentTabs()
+    qtbot.addWidget(tabs)
+    tabs.setMovable(True)
+    for count in range(3):
+        tabs.populate_tab_list()
+        assert all(action.isEnabled() == (count > 1) for action in tabs.tab_list_menu.actions()[-2:])
+        doc = QWidget()
+        doc.source_path = Path(f'CH{2-count}.pdf')
+        doc.document_id, doc.modified = count, False
+        tabs.addTab(doc, doc.source_path.name)
+    before = [tabs.widget(i) for i in range(tabs.count())]
+    tabs.setMovable(False)
+    tabs.populate_tab_list()
+    assert not any(action.isEnabled() for action in tabs.tab_list_menu.actions()[-2:])
+    tabs.sort_tabs()
+    assert [tabs.widget(i) for i in range(tabs.count())] == before
+
+
+def test_sort_is_pane_local_and_workspace_restores_sorted_order(qtbot, tmp_path, monkeypatch):
+    from pypdf import PdfWriter
+    from repdf.app import MainWindow, DocumentView
+    from test_gui import ready_document
+    monkeypatch.setattr(DocumentView, '_queue_all_renders', lambda self: None)
+    paths = [tmp_path / name for name in ('CH10.pdf', 'CH2.pdf', 'CH1.pdf', 'Other.pdf')]
+    for path in paths:
+        writer = PdfWriter()
+        writer.add_blank_page(300, 400)
+        writer.write(path)
+    window = MainWindow()
+    qtbot.addWidget(window)
+    window.show()
+    docs = [ready_document(window, path, 1) for path in paths]
+    left = window.tabs
+    docs[1].include_checkbox.setChecked(True)
+    assert window.workspace.transfer(docs[3].document_id, left, 'right')
+    right = window.workspace.pane_for(docs[3])
+    local_current = left.currentWidget()
+    left.sort_tabs()
+    assert [left.widget(i).source_path for i in range(left.count())] == [paths[i] for i in (2, 1, 0)]
+    assert left.currentWidget() is local_current
+    assert window.workspace.active is right and window.current_document() is docs[3]
+    assert right.count() == 1 and right.currentWidget() is docs[3]
+    assert docs[1].include_checkbox.isChecked()
+    assert left.tabBar().tabButton(left.indexOf(docs[1]), QTabBar.ButtonPosition.LeftSide) is docs[1].include_checkbox
+    window.close()
+    restored = MainWindow()
+    qtbot.addWidget(restored)
+    restored.show()
+    qtbot.waitUntil(lambda: len(restored.documents) == 4 and
+                   all(doc.ready for doc in restored.documents.values()), timeout=15000)
+    restored_left = next(pane for pane in restored.workspace.panes if pane.count() == 3)
+    assert [restored_left.widget(i).source_path for i in range(3)] == [paths[i] for i in (2, 1, 0)]
+    assert restored_left.currentWidget().source_path == local_current.source_path
+    assert restored.current_document().source_path == paths[3]

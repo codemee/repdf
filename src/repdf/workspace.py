@@ -202,6 +202,7 @@ class PaneWorkspace(QObject):
         pane.currentChanged.connect(lambda index, p=pane: self.changed(p, index))
         pane.tabBar().tabBarClicked.connect(lambda _index, p=pane: self.activate(p))
         pane.tabBar().tabMoved.connect(self.owner._sync_controls)
+        pane.tabs_reordered.connect(self.owner._sync_controls)
         self.panes.append(pane)
         return pane
 

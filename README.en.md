@@ -38,7 +38,7 @@ repdf
 
 The main toolbar keeps file, search, navigation-pane and view controls.
 
-- When tabs overflow, use the outline scroll arrows at opposite ends of the tab strip, or the down arrow on the right to choose a full filename. The list follows tab order, checks the current tab, and shows full paths in tooltips.
+- When tabs overflow, use the outline scroll arrows at opposite ends of the tab strip, or the down arrow on the right to choose a full filename. The list follows tab order, checks the current tab, and shows full paths in tooltips. The bottom of the list offers ascending/descending filename sorting using natural order (CH2 before CH10), limited to that pane while preserving its current document and checkboxes. Manual dragging still works, and workspace restoration preserves the resulting order.
 - Drag a tab out of its strip and drop it on the left, right, or bottom of any PDF pane to split the view. Drop it in the center to move it into that pane's tab strip. Drag dividers to resize panes. RePDF restores the layout and open files on restart, skips missing files, and removes empty panes.
 
 - Copy text, OCR and image extraction appear directly on the main toolbar. **Annotation tools** shows a draggable horizontal floating toolbar for markup, text annotations and drawings; its visibility is remembered.
@@ -194,7 +194,7 @@ Information, warning, confirmation and error prompts share flat Qt dialogs with 
 
 ### Fullscreen proofreading
 
-Fullscreen floating tools start expanded and use their full content width; only narrow views move groups into overflow. Alt+C toggles cropped view and Alt+D toggles annotations in normal, fullscreen, and proofreading views. After the visible page finishes, idle lookahead prepares the next two page groups one page at a time. Each fullscreen document caches up to eight full-resolution pages / 128 MiB, using viewport size and display pixel ratio; viewport, mode, crop, or annotation changes invalidate the cache. Pending foreground work takes precedence; a page already rendering finishes before the worker switches.
+Fullscreen floating tools start expanded and use their full content width; only narrow views move groups into overflow. The page field at the far right of the toolbar accepts original PDF page numbers: Enter jumps, Escape cancels, and the total page count is shown alongside. Proofreading follows the focused document and preserves synchronized navigation/range checks. Alt+C toggles cropped view and Alt+D toggles annotations in normal, fullscreen, and proofreading views. After the visible page finishes, idle lookahead prepares the next two page groups one page at a time. Each fullscreen document caches up to eight full-resolution pages / 128 MiB, using viewport size and display pixel ratio; viewport, mode, crop, or annotation changes invalidate the cache. Pending foreground work takes precedence; a page already rendering finishes before the worker switches.
 
 - Proofreading applies only in fullscreen. Select exactly two tabs and enter fullscreen for a fixed left/right comparison, independent of normal pane layout. With no tabs checked, use the active document; one checked tab opens that document in normal fullscreen.
 - Single, spread and cover-plus-spread modes remain available in the main and floating fullscreen menus. Both documents use the selected mode. Independent reading positions are retained while sync is off; synchronized changes align pages and leave the previous mode/pages intact if the target is out of range.

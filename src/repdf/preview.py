@@ -2,7 +2,7 @@ from pathlib import Path
 
 from PySide6.QtCore import QEvent, Qt, QTimer
 from PySide6.QtGui import QImage, QKeySequence, QPixmap
-from PySide6.QtWidgets import QApplication, QCheckBox, QHBoxLayout, QWidget
+from PySide6.QtWidgets import QApplication, QCheckBox, QHBoxLayout, QLineEdit, QWidget
 
 from repdf.strings import tr
 from repdf.widgets import PagePreviewLabel, ParityCheckBox
@@ -341,6 +341,7 @@ class FullscreenPreview(QWidget):
                 self.owner.search_controller.open()
             return True
         if (not self.closed and isinstance(watched, QWidget) and watched.window() is self
+                and not isinstance(watched, QLineEdit)
                 and event.type() == QEvent.Type.KeyPress and not event.modifiers()):
             return self._handle_key(event.key())
         return super().eventFilter(watched, event)

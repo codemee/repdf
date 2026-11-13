@@ -340,3 +340,5 @@ reorderAnimation.durationMs = 180
 應用程式圖示採白色折角 PDF 文件、紅色 PDF 字樣及右下角藍色開書標記。向量來源為 `src/repdf/assets/repdf.svg`，使用 `uv run python scripts/render_app_icon.py` 產生 1024px PNG、多尺寸 ICO 與尺寸預覽。視窗、工作列最近文件及封裝沿用 `fitted_icon()` 的一致光學尺寸。Windows 持久 ICO 內容改變時通知 Shell 更新快取；內容相同則不重寫。
 
 拆分輸出圖示以兩張交疊的寬頁面呈現，前景第二張頁面內放置向下輸出箭頭，沿用合併輸出的筆畫。裁切狀態繼續疊加既有裁切標記。
+
+全螢幕跳頁欄位位於懸浮工具列最右側，顯示目前原始頁碼與總頁數；前方分隔線使用與工具列相同的主題邊框色、1px 寬、24px 高，不使用 QFrame 立體 VLine。同步按鈕僅出現在校對懸浮工具列。

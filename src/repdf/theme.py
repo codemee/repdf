@@ -93,7 +93,7 @@ class ThemeController(QObject):
             QFrame#documentPaneFrame {{ background: palette(window); border: 1px solid {pane_border};
                                         border-radius: 8px; }}
             QFrame#paneTabSeparator {{ background: {border}; border: none; }}
-            QFrame#compactAnnotationSeparator {{ background: {border}; border: none; }}
+            QFrame#compactAnnotationSeparator, QFrame#toolbarSeparator {{ background: {border}; border: none; }}
             QFrame#comparisonPane {{ border: 2px solid {border}; border-radius: 8px; }}
             QFrame#comparisonPane[activePane="true"] {{ border-color: {pane_accent}; }}
             QWidget#pageCardHeader, QWidget#fullscreenPageHeader {{

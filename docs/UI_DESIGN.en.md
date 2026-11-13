@@ -340,3 +340,5 @@ Proofreading is fullscreen-only, comparing exactly two checked tabs in fixed lef
 The application icon uses a white folded PDF document, red PDF lettering, and a blue open-book badge at the lower right. Its vector source is `src/repdf/assets/repdf.svg`; run `uv run python scripts/render_app_icon.py` to generate the 1024px PNG, multi-size ICO, and size preview. Window, recent-document Shell links, and packaged icons share `fitted_icon()` optical sizing. Windows refreshes Shell caches only when the persistent ICO content changes.
 
 The split-output icon uses two overlapping wider pages, with a downward export arrow inside the second/front page, matching the merge-output strokes. Cropped output retains the shared crop badge.
+
+Fullscreen page navigation sits at the far right of the floating toolbar, showing the original page and total count. Its leading separator shares the toolbar theme border color with a flat 1px × 24px line rather than a raised QFrame VLine. The floating sync button appears only in proofreading mode.

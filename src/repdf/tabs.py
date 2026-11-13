@@ -1,6 +1,8 @@
 """A document tab strip with scrolling controls at opposite ends."""
 
-from PySide6.QtCore import QEvent, QSize, Qt, QTimer
+import re
+
+from PySide6.QtCore import QEvent, QSignalBlocker, QSize, Qt, QTimer, Signal
 from PySide6.QtWidgets import QMenu, QTabWidget, QToolButton
 
 from repdf.strings import tr
@@ -9,6 +11,7 @@ from repdf.icons import toolbar_icon
 
 class DocumentTabs(QTabWidget):
     CONTROL_WIDTH = 26
+    tabs_reordered = Signal()
 
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -112,6 +115,32 @@ class DocumentTabs(QTabWidget):
             action.setCheckable(True)
             action.setChecked(document is self.currentWidget())
             action.triggered.connect(lambda _checked, doc=document: self._select_document(doc))
+        self.tab_list_menu.addSeparator()
+        for text, descending in (('依檔名升冪排序', False), ('依檔名降冪排序', True)):
+            action = self.tab_list_menu.addAction(tr(text))
+            action.setEnabled(self.count() > 1 and self.isMovable())
+            action.triggered.connect(lambda _checked=False, descending=descending: self.sort_tabs(descending))
+
+    def sort_tabs(self, descending=False):
+        if self.count() < 2 or not self.isMovable():
+            return
+        current = self.currentWidget()
+        documents = [self.widget(index) for index in range(self.count())]
+        def key(document):
+            return tuple((1, int(part)) if part.isdecimal() else (0, part)
+                         for part in re.split(r'(\d+)', document.source_path.name.casefold()))
+        ordered = sorted(documents, key=key, reverse=descending)
+        if ordered == documents:
+            return
+        # Keep QTabBar signals live so QTabWidget reorders its page stack and
+        # existing checkbox/close widgets. Suppress intermediate pane changes.
+        with QSignalBlocker(self):
+            for target, document in enumerate(ordered):
+                source = self.indexOf(document)
+                if source != target:
+                    self.tabBar().moveTab(source, target)
+            self.setCurrentWidget(current)
+        self.tabs_reordered.emit()
 
     def _select_document(self, document):
         for index in range(self.count()):

@@ -12,6 +12,8 @@ def test_fullscreen_tools_use_full_content_width_and_overflow_only_when_narrow(q
     window.fullscreen_action.trigger()
     viewer = window._fullscreen_preview
     floating = viewer.floating_tools
+    assert floating.layout().itemAt(floating.layout().count() - 1).widget() is floating.page_navigation
+    assert (window.sync_views_action in floating.mode_toolbar.actions()) is comparison
     viewer.resize(1200, 700)
     qtbot.waitUntil(lambda: viewer.width() == 1200)
     floating.reposition()

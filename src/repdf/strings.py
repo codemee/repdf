@@ -6,6 +6,8 @@ from string import Formatter
 
 LANGUAGE = "zh"
 ENGLISH = {
+    '依檔名升冪排序': 'Sort by filename (ascending)',
+    '依檔名降冪排序': 'Sort by filename (descending)',
     '最近開啟的檔案': 'Recently opened files',
     '尚無最近開啟的檔案': 'No recently opened files',
     '無法開啟檔案': 'Cannot open file',

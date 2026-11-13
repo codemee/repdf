@@ -619,6 +619,11 @@ class MainWindow(QMainWindow):
         if not (self.page_number_input.hasFocus() and self._page_edit_dirty):
             page = current + 1 if ready else '-'
             self.page_number_input.setText(str(page))
+        viewer = self._fullscreen_preview
+        tools = getattr(viewer, 'floating_tools', None)
+        if tools is not None:
+            tools.page_navigation.refresh()
+            tools.reposition()
 
     def _jump_from_page_field(self):
         doc = self.current_document()
