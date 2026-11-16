@@ -357,12 +357,16 @@ def test_annotation_coordinates_round_trip_with_crop(rotation):
         ) and restored.y() == pytest.approx(point.y())
 
 
-def test_application_icon_uses_consistent_visual_size():
-    from repdf.icon_layout import fitted_icon
+@pytest.mark.parametrize("platform, coverage", [("darwin", 0.80), ("win32", 0.92), ("linux", 0.92)])
+def test_application_icon_uses_consistent_visual_size(monkeypatch, platform, coverage):
+    from repdf import icon_layout
 
-    image = fitted_icon(Path(__file__).parents[1] / "src/repdf/assets/repdf.png", 256)
+    monkeypatch.setattr(icon_layout.sys, "platform", platform)
+    image = icon_layout.fitted_icon(Path(__file__).parents[1] / "src/repdf/assets/repdf.png", 256)
     box = image.getchannel("A").point(lambda a: 255 if a >= 32 else 0).getbbox()
-    assert 0.88 <= max(box[2] - box[0], box[3] - box[1]) / 256 <= 0.94
+    assert max(box[2] - box[0], box[3] - box[1]) / 256 == pytest.approx(coverage, abs=0.01)
+    assert abs(box[0] - (256 - box[2])) <= 1
+    assert abs(box[1] - (256 - box[3])) <= 1
 
 
 @pytest.mark.parametrize("rotation", [0, 90, 180, 270])

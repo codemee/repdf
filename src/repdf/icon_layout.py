@@ -1,5 +1,7 @@
 """Consistent optical size for window, taskbar and packaged application icons."""
 
+import sys
+
 from PIL import Image
 
 
@@ -11,7 +13,9 @@ def fitted_icon(source, size=1024):
     )
     if bounds:
         image = image.crop(bounds)
-    available = round(size * 0.92)
+    # macOS displays the full canvas in the Dock, so retain a wider transparent
+    # margin to align the artwork with the visual size of other application icons.
+    available = round(size * (0.80 if sys.platform == "darwin" else 0.92))
     ratio = available / max(image.size)
     image = image.resize(
         (round(image.width * ratio), round(image.height * ratio)),

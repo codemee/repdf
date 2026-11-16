@@ -365,6 +365,7 @@ Packaged smoke tests must stop render backends holding cached PDFs before removi
 - [`packaging/repdf.spec`](../packaging/repdf.spec) defines Windows EXE/macOS App modes and collected resources.
 - RapidOCR configuration, recognition/detection models, and ONNX Runtime native libraries are collected. The unused orientation classification model is excluded.
 - Installed `repdf` distribution metadata is collected so window and package versions agree.
+- Application icons share `icon_layout.fitted_icon()`: on macOS the artwork spans 80% of the canvas, retaining transparent margins for both the runtime Dock icon and packaged ICNS; other platforms retain 92%.
 - [`scripts/build_desktop.py`](../scripts/build_desktop.py) runs PyInstaller, packaged functional checks, DMG creation, and SHA256 generation.
 - macOS uses system `ditto` and `hdiutil` to create and verify DMGs.
 - [`entrypoint.py`](../src/repdf/entrypoint.py) detects backend and smoke-test modes before loading the GUI, preventing child processes from opening another window.

@@ -381,6 +381,7 @@ Fit 使用最近點擊且仍可見的頁面，或距預覽區中央最近的頁�
 - [`packaging/repdf.spec`](../packaging/repdf.spec)：定義 Windows EXE 與 macOS App 的封裝模式和資源收集。
 - 收集 RapidOCR 設定、辨識／偵測模型及 ONNX Runtime 原生函式庫；不攜帶未使用的方向分類模型。
 - 同時收集已安裝的 `repdf` distribution metadata，讓視窗與套件版本保持一致。
+- 應用程式圖示由 `icon_layout.fitted_icon()` 統一產生：macOS 的圖案最長邊占畫布 80%，四周保留透明留白，供執行時 Dock 圖示與打包 ICNS 共用；其他平台維持 92%。
 - [`scripts/build_desktop.py`](../scripts/build_desktop.py)：執行 PyInstaller、封裝後功能檢查、DMG 建立與 SHA256 校驗檔產生。
 - macOS 使用系統內建的 `ditto` 與 `hdiutil` 建立並驗證 DMG。
 - [`entrypoint.py`](../src/repdf/entrypoint.py)：在載入 GUI 前辨識背景後端與封裝自我檢查模式，避免子程序再次開啟 GUI。
