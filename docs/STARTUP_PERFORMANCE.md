@@ -2,6 +2,8 @@
 
 本文整理 RePDF 0.1.19 採用的做法，供其他 Python／Qt 桌面專案參考。
 
+應用程式名稱需另外指定：Windows 打包時在版本資源中設定 `FileDescription` 與 `ProductName` 為 `RePDF`，主視窗也設定相同的工作列重新啟動顯示名稱、命令、圖示及 AppUserModelID，避免顯示小寫執行檔名稱或 Python 名稱。macOS 則使用 `RePDF.app`，並將 `CFBundleName` 與 `CFBundleDisplayName` 設為 `RePDF`。執行檔本身仍保留 `repdf.exe`／`repdf`，以維持既有啟動命令相容。
+
 ## 目前採用的方案
 
 | 方案 | 實作方式 | 主要效益 |

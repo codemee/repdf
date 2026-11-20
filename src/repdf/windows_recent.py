@@ -22,7 +22,7 @@ def set_application_id():
         shell.SetCurrentProcessExplicitAppUserModelID(APP_ID)
 
 
-def launch_target(path):
+def launch_target(path=None):
     executable = Path(sys.executable).resolve()
     args = []
     if not getattr(sys, 'frozen', False):
@@ -30,7 +30,27 @@ def launch_target(path):
         if windowed.is_file():
             executable = windowed
         args = ['-m', 'repdf']
-    return str(executable), subprocess.list2cmdline([*args, str(path)])
+    if path is not None:
+        args.append(str(path))
+    return str(executable), subprocess.list2cmdline(args)
+
+
+def set_window_identity(window):
+    if sys.platform != 'win32':
+        return False
+    try:
+        hwnd = int(window.winId())
+        if getattr(window, '_repdf_shell_hwnd', None) == hwnd:
+            return True
+        from repdf.windows_properties import set_window_relaunch
+        executable, arguments = launch_target()
+        command = subprocess.list2cmdline([executable]) + (' ' + arguments if arguments else '')
+        set_window_relaunch(hwnd, APP_ID, command, recent_icon_path())
+        window._repdf_shell_hwnd = hwnd
+        return True
+    except OSError:
+        # Shell personalization must not prevent the reader from opening.
+        return False
 
 
 def publish_recent_document(path):
@@ -46,34 +66,10 @@ def publish_recent_document(path):
 
 def _publish_link(path, notify=None):
     import ctypes as c
-    import uuid
-
-    class GUID(c.Structure):
-        _fields_ = [('data', c.c_ubyte * 16)]
-
-        def __init__(self, value):
-            super().__init__((c.c_ubyte * 16).from_buffer_copy(uuid.UUID(value).bytes_le))
-
-    class PropertyKey(c.Structure):
-        _fields_ = [('fmtid', GUID), ('pid', c.c_uint32)]
-
-    class Value(c.Union):
-        _fields_ = [('text', c.c_wchar_p), ('padding', c.c_ubyte * (16 if c.sizeof(c.c_void_p) == 8 else 8)),
-                    ('alignment', c.c_uint64)]
-
-    class PropVariant(c.Structure):
-        _fields_ = [('vt', c.c_ushort), ('reserved', c.c_ushort * 3), ('value', Value)]
+    from repdf.windows_properties import GUID, PropertyKey, PropVariant, check, method
 
     class AppLink(c.Structure):
         _fields_ = [('link', c.c_void_p), ('appid', c.c_wchar_p)]
-
-    def check(result):
-        if result < 0:
-            raise OSError(f'Windows Shell HRESULT 0x{result & 0xffffffff:08x}')
-
-    def method(pointer, slot, result_type, *argtypes):
-        table = c.cast(pointer, c.POINTER(c.POINTER(c.c_void_p))).contents
-        return c.WINFUNCTYPE(result_type, c.c_void_p, *argtypes)(table[slot])
 
     ole = c.WinDLL('ole32')
     ole.CoInitializeEx.argtypes = [c.c_void_p, c.c_uint32]

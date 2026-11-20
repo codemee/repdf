@@ -1,6 +1,6 @@
 # RePDF — Read the PDF
 
-[繁體中文](README.md) | [English](README.en.md)
+[繁體中文](https://github.com/codemee/repdf/blob/main/README.md) | [English](https://github.com/codemee/repdf/blob/main/README.en.md)
 
 RePDF 代表 **Read the PDF**，命令與 Python 套件名稱為 `repdf`。這是一套桌面 PDF 閱讀器，支援多標籤閱讀、列印、書籤與目錄跳頁、註解檢視與編輯、文字搜尋、選字複製、OCR 及圖片擷取，也可勾選頁面，依標籤與頁面排列順序重組或拆分輸出。重組與拆分保留原始頁面品質。
 
@@ -319,7 +319,7 @@ repdf
 - OCR 預設支援繁體中文、簡體中文、英文、日文及多種拉丁字母語言。點「區域 OCR」旁的箭頭，可選韓文、泰文、俄文／烏克蘭文、阿拉伯文與印地文／尼泊爾文；另提供希臘文、泰米爾文與泰盧固文。
 - 選「自動＋已下載模型」可共用內建與已下載模型，逐行選擇辨識結果，不會自行下載其他模型。
 - 語言選單以分隔線區分自動選項、已下載與未下載三組，不顯示群組標題；已下載的模型名稱後會標記「已下載」。模型下載、遺失或損壞後，分組與標記會自動更新。
-- 額外模型會先顯示下載確認，下載完成才切換語言；取消或失敗保留原設定。語言設定會記住，並套用於區域 OCR 及損壞文字備援。辨識後請校對結果。完整操作與限制見 [OCR 說明](docs/OCR.md)。
+- 額外模型會先顯示下載確認，下載完成才切換語言；取消或失敗保留原設定。語言設定會記住，並套用於區域 OCR 及損壞文字備援。辨識後請校對結果。完整操作與限制見 [OCR 說明](https://github.com/codemee/repdf/blob/main/docs/OCR.md)。
 
 ## 語言與配色
 
@@ -340,10 +340,10 @@ RePDF 採用 **GNU General Public License v3.0（GPL-3.0-only）**。允許使�
 
 在程式內可開啟「關於 RePDF」，查看版本、版權、GPL 全文與離線第三方授權，或前往原始碼儲存庫。Windows：點選主視窗左上角程式圖示，在系統功能表選「關於 RePDF」（亦可按 <kbd>Alt</kbd>+<kbd>Space</kbd>）。macOS：在系統選單列的「RePDF」應用程式選單選「關於 RePDF」。
 
-完整條款見 [LICENSE](LICENSE)，版權說明見 [NOTICE](NOTICE)，第三方程式庫與模型維持各自的授權；完整清單見 [第三方聲明](THIRD_PARTY_NOTICES.md) 與 [授權核對](docs/LICENSE_AUDIT.md)。
+完整條款見 [LICENSE](https://github.com/codemee/repdf/blob/main/LICENSE)，版權說明見 [NOTICE](https://github.com/codemee/repdf/blob/main/NOTICE)，第三方程式庫與模型維持各自的授權；完整清單見 [第三方聲明](https://github.com/codemee/repdf/blob/main/THIRD_PARTY_NOTICES.md) 與 [授權核對](https://github.com/codemee/repdf/blob/main/docs/LICENSE_AUDIT.md)。
 
 ## 其他文件
 
-- [OCR 操作與限制](docs/OCR.md)
-- [開發、測試與發布指南](docs/IMPLEMENTATION.md)
-- [UI 設計參考](docs/UI_DESIGN.md)
+- [OCR 操作與限制](https://github.com/codemee/repdf/blob/main/docs/OCR.md)
+- [開發、測試與發布指南](https://github.com/codemee/repdf/blob/main/docs/IMPLEMENTATION.md)
+- [UI 設計參考](https://github.com/codemee/repdf/blob/main/docs/UI_DESIGN.md)

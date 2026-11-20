@@ -531,6 +531,8 @@ class MainWindow(QMainWindow):
 
     def showEvent(self, event):
         super().showEvent(event)
+        from repdf.windows_recent import set_window_identity
+        set_window_identity(self)
         menu = getattr(self, '_windows_system_menu', None)
         if menu is not None:
             menu.refresh()

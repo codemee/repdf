@@ -1,6 +1,6 @@
 # RePDF — Read the PDF
 
-[繁體中文](README.md) | [English](README.en.md)
+[繁體中文](https://github.com/codemee/repdf/blob/main/README.md) | [English](https://github.com/codemee/repdf/blob/main/README.en.md)
 
 RePDF stands for **Read the PDF**. Its command and Python package name are `repdf`. This desktop PDF reader supports multiple tabs, printing, bookmarks and table-of-contents links, annotation viewing and editing, text search, text copying, OCR, and image extraction. You can also select pages and rearrange or split them into new PDFs in tab and page order, preserving the original page quality.
 
@@ -319,7 +319,7 @@ Fullscreen remembers the single, spread or cover-plus-spread mode across restart
 - OCR defaults to Traditional Chinese, Simplified Chinese, English, Japanese, and multiple Latin-script languages. Use the arrow beside Region OCR to select Korean, Thai, Russian/Ukrainian, Arabic, or Hindi/Nepali. Greek, Tamil, and Telugu are also available.
 - Automatic + downloaded models combines locally available models and chooses results per line. It never downloads other models automatically.
 - Separators divide automatic choices, downloaded models, and models not downloaded, without group headings. Downloaded models have a (downloaded) suffix. Groups and labels update after downloads or when files are missing or corrupt.
-- Additional models require download confirmation. The language changes only after a successful download; canceling or failure keeps the previous setting. Your language choice is saved and applies to both region OCR and damaged-text fallback. Review the output. See the [OCR guide](docs/OCR.en.md) for details and limitations.
+- Additional models require download confirmation. The language changes only after a successful download; canceling or failure keeps the previous setting. Your language choice is saved and applies to both region OCR and damaged-text fallback. Review the output. See the [OCR guide](https://github.com/codemee/repdf/blob/main/docs/OCR.en.md) for details and limitations.
 
 ## Language and theme
 
@@ -339,10 +339,10 @@ RePDF is licensed under the **GNU General Public License v3.0 (GPL-3.0-only)**. 
 
 Open About RePDF to view the version, copyright, full GPL text and offline third-party licenses, or visit the source repository. On Windows, click the main window’s top-left application icon and select About RePDF from the system menu (also available via <kbd>Alt</kbd>+<kbd>Space</kbd>). On macOS, choose About RePDF in the standard RePDF application menu in the system menu bar.
 
-See [LICENSE](LICENSE) for the full terms and [NOTICE](NOTICE) for copyright information. Third-party libraries, models, and assets retain their respective licenses; see [third-party notices](THIRD_PARTY_NOTICES.md) and the [license review](docs/LICENSE_AUDIT.en.md).
+See [LICENSE](https://github.com/codemee/repdf/blob/main/LICENSE) for the full terms and [NOTICE](https://github.com/codemee/repdf/blob/main/NOTICE) for copyright information. Third-party libraries, models, and assets retain their respective licenses; see [third-party notices](https://github.com/codemee/repdf/blob/main/THIRD_PARTY_NOTICES.md) and the [license review](https://github.com/codemee/repdf/blob/main/docs/LICENSE_AUDIT.en.md).
 
 ## Further documentation
 
-- [OCR usage and limitations](docs/OCR.en.md)
-- [Development, testing, and release guide](docs/IMPLEMENTATION.en.md)
-- [UI design reference](docs/UI_DESIGN.en.md)
+- [OCR usage and limitations](https://github.com/codemee/repdf/blob/main/docs/OCR.en.md)
+- [Development, testing, and release guide](https://github.com/codemee/repdf/blob/main/docs/IMPLEMENTATION.en.md)
+- [UI design reference](https://github.com/codemee/repdf/blob/main/docs/UI_DESIGN.en.md)

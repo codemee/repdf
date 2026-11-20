@@ -59,5 +59,6 @@ if sys.platform == "darwin":
                              "NSHighResolutionCapable": True})
 else:
     exe = EXE(pyz, a.scripts, [], exclude_binaries=True, name="repdf",
-              console=False, upx=False, icon=str(root / "output/desktop/repdf.ico"))
+              console=False, upx=False, icon=str(root / "output/desktop/repdf.ico"),
+              version=str(root / "output/desktop/windows-version.txt"))
     coll = COLLECT(exe, a.binaries, a.datas, name="RePDF", upx=False)

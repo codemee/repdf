@@ -32,6 +32,8 @@ def main() -> None:
         image.save(OUT / 'repdf.icns',format='ICNS')
     else:
         image.save(OUT / 'repdf.ico',format='ICO',sizes=[(n,n) for n in (16,20,24,32,40,48,64,128,256)])
+        from windows_version import version_info_text
+        (OUT / 'windows-version.txt').write_text(version_info_text(version), encoding='utf-8')
     build_env = os.environ.copy()
     if sys.platform == "win32":
         # Prevent unrelated tools on PATH from supplying incompatible native DLLs.
